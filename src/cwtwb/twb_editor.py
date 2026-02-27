@@ -593,10 +593,10 @@ class TWBEditor:
                      self.field_registry.resolve_full_reference(measure_ci.instance_name))
         sort_v2.set("shelf", "rows")
 
-        # Insert after <aggregation> (schema requires shelf-sorts after aggregation)
+        # Insert before <aggregation> (schema: ...shelf-sorts, slices?, aggregation)
         agg = view.find("aggregation")
         if agg is not None:
-            agg.addnext(shelf_sorts)
+            agg.addprevious(shelf_sorts)
         else:
             view.append(shelf_sorts)
 
