@@ -558,6 +558,7 @@ class TWBEditor:
 
         Generates <shelf-sorts><shelf-sort-v2 .../></shelf-sorts> in <view>.
         Auto-detects the dimension from rows (first dimension found).
+        Also adds required manifest entries (IntuitiveSorting).
         """
         # Find the dimension to sort (first dimension in rows)
         dim_ci = None
@@ -572,6 +573,10 @@ class TWBEditor:
         measure_ci = instances.get(sort_measure_expr)
         if measure_ci is None:
             return
+
+        # Ensure manifest entries exist for shelf-sorts support
+        self._ensure_manifest_entry("IntuitiveSorting")
+        self._ensure_manifest_entry("IntuitiveSorting_SP2")
 
         # Remove old shelf-sorts
         for old_ss in view.findall("shelf-sorts"):
@@ -588,12 +593,20 @@ class TWBEditor:
                      self.field_registry.resolve_full_reference(measure_ci.instance_name))
         sort_v2.set("shelf", "rows")
 
-        # Insert before <aggregation>
+        # Insert after <aggregation> (schema requires shelf-sorts after aggregation)
         agg = view.find("aggregation")
         if agg is not None:
-            agg.addprevious(shelf_sorts)
+            agg.addnext(shelf_sorts)
         else:
             view.append(shelf_sorts)
+
+    def _ensure_manifest_entry(self, entry_name: str) -> None:
+        """Ensure a <document-format-change-manifest> entry exists."""
+        manifest = self.root.find("document-format-change-manifest")
+        if manifest is None:
+            manifest = etree.SubElement(self.root, "document-format-change-manifest")
+        if manifest.find(entry_name) is None:
+            etree.SubElement(manifest, entry_name)
 
     def _apply_pie_style(self, table_style: etree._Element) -> None:
         """Add special style rules for Pie charts."""
