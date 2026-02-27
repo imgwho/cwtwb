@@ -1,12 +1,12 @@
-"""完全复刻 c.2 (2) Dashboard 布局。
+"""Full replica of c.2 (2) dashboard layout from Tableau Dashboard Layout Templates.
 
-从 Tableau Dashboard Layout Templates.twb 的 c.2 (2) 布局提取的精确 zone 结构：
-- 标题行: LOGO + TITLE (text zones)
-- 筛选栏: dark background text zone
-- KPI 行: 4 个工作表 (Sales, Profit, Discount, Quantity) distribute-evenly
-- 视图区: 2×2 grid
-  - 左列: Sub-Category sales (bar) + segment sales (pie)
-  - 右列: date profit (line) + category detail (text table)
+Exact zone structure extracted from the c.2 (2) layout:
+- Title row: LOGO + TITLE (text zones)
+- Filter bar: dark background text zone
+- KPI row: 4 worksheets (Sales, Profit, Discount, Quantity) distribute-evenly
+- Views area: 2x2 grid
+  - Left column: Sub-Category sales (bar, sorted) + segment sales (pie)
+  - Right column: date profit (line, monthly) + category detail (bar, sorted)
 """
 
 import sys
@@ -25,10 +25,10 @@ def main():
     editor.clear_worksheets()
 
     # ============================================================
-    # 1) 创建 8 个工作表
+    # 1) Create 8 worksheets
     # ============================================================
 
-    # KPI 工作表 (简单度量)
+    # KPI worksheets: use label encoding (text mark) with no rows/cols
     for name, measure_expr in [
         ("Sales", "SUM(Sales)"),
         ("Profit", "SUM(Profit)"),
@@ -39,28 +39,29 @@ def main():
         editor.configure_chart(
             worksheet_name=name,
             mark_type="Automatic",
-            columns=[measure_expr],
+            label=measure_expr,
         )
 
-    # Sub-Category sales 柱状图
+    # Sub-Category sales bar chart (sorted by Sales DESC)
     editor.add_worksheet("Sub-Category sales")
     editor.configure_chart(
         worksheet_name="Sub-Category sales",
         mark_type="Bar",
         rows=["Sub-Category"],
         columns=["SUM(Sales)"],
+        sort_descending="SUM(Sales)",
     )
 
-    # date profit 折线图
+    # date profit line chart (monthly)
     editor.add_worksheet("date profit")
     editor.configure_chart(
         worksheet_name="date profit",
         mark_type="Line",
-        columns=["Order Date"],
+        columns=["MONTH(Order Date)"],
         rows=["SUM(Profit)"],
     )
 
-    # segment sales 饼图
+    # segment sales pie chart
     editor.add_worksheet("segment sales")
     editor.configure_chart(
         worksheet_name="segment sales",
@@ -69,17 +70,18 @@ def main():
         wedge_size="SUM(Sales)",
     )
 
-    # category detail 文本表（简化为单度量）
+    # category detail bar chart (sorted by Sales DESC)
     editor.add_worksheet("category detail")
     editor.configure_chart(
         worksheet_name="category detail",
         mark_type="Automatic",
         rows=["Category"],
         columns=["SUM(Sales)"],
+        sort_descending="SUM(Sales)",
     )
 
     # ============================================================
-    # 2) 手动构建 c.2 (2) 精确 dashboard XML
+    # 2) Build c.2 (2) exact dashboard XML
     # ============================================================
     all_ws_names = [
         "Sales", "Profit", "Discount", "Quanity",
@@ -90,7 +92,7 @@ def main():
     _build_c2_dashboard(editor, "Overview", all_ws_names)
 
     # ============================================================
-    # 3) 保存
+    # 3) Save
     # ============================================================
     out = project_root / "output" / "c2_replica.twb"
     editor.save(out)
@@ -99,7 +101,7 @@ def main():
 
 
 def _next_id():
-    """简单递增 zone id 计数器。"""
+    """Simple incrementing zone ID counter."""
     _next_id.counter += 1
     return str(_next_id.counter)
 
@@ -107,7 +109,7 @@ _next_id.counter = 0
 
 
 def _add_zone_style(parent, margin="4", bg_color=None, **extra):
-    """为 zone 添加 zone-style。"""
+    """Add zone-style to a zone element."""
     zs = etree.SubElement(parent, "zone-style")
     for attr_name, attr_val in [
         ("border-color", "#000000"),
@@ -135,7 +137,7 @@ def _add_text_zone(parent, zone_id, text, h, w, x, y,
                    font_size="12", font_color="#111e29",
                    bold=True, fixed_size=None, is_fixed=False,
                    bg_color=None, margin="4", **extra_margins):
-    """创建文本 zone。"""
+    """Create a text zone."""
     z = etree.SubElement(parent, "zone")
     if fixed_size:
         z.set("fixed-size", str(fixed_size))
@@ -163,7 +165,7 @@ def _add_text_zone(parent, zone_id, text, h, w, x, y,
 
 
 def _add_viz_zone(parent, zone_id, ws_name, h, w, x, y, bg_color="#ffffff", margin="10"):
-    """创建引用工作表的 viz zone。"""
+    """Create a visualization zone referencing a worksheet."""
     z = etree.SubElement(parent, "zone")
     z.set("h", str(h))
     z.set("id", zone_id)
@@ -176,10 +178,10 @@ def _add_viz_zone(parent, zone_id, ws_name, h, w, x, y, bg_color="#ffffff", marg
 
 
 def _build_c2_dashboard(editor, dashboard_name, ws_names):
-    """构建完全复刻 c.2 (2) 的 dashboard XML。"""
+    """Build the exact c.2 (2) dashboard XML structure."""
     root = editor.root
 
-    # 获取/创建 dashboards
+    # Get/create dashboards
     dashboards = root.find("dashboards")
     if dashboards is None:
         ws_el = root.find("worksheets")
@@ -190,11 +192,11 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
         else:
             dashboards = etree.SubElement(root, "dashboards")
 
-    # dashboard 元素
+    # Dashboard element
     db = etree.SubElement(dashboards, "dashboard")
     db.set("name", dashboard_name)
 
-    # style: 灰色背景
+    # Style: grey background
     style = etree.SubElement(db, "style")
     sr = etree.SubElement(style, "style-rule")
     sr.set("element", "table")
@@ -202,7 +204,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
     fmt.set("attr", "background-color")
     fmt.set("value", "#e6e6e6")
 
-    # size
+    # Size
     size_el = etree.SubElement(db, "size")
     size_el.set("maxheight", "800")
     size_el.set("maxwidth", "1200")
@@ -212,7 +214,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
     # ======================== zones ========================
     zones = etree.SubElement(db, "zones")
 
-    # --- 主容器: v.Dash Container ---
+    # --- Main container: v.Dash Container ---
     dash_container = etree.SubElement(zones, "zone")
     dash_container.set("h", "100000")
     dash_container.set("id", _next_id())
@@ -222,7 +224,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
     dash_container.set("x", "0")
     dash_container.set("y", "0")
 
-    # --- 1. 标题行: h.Title Container ---
+    # --- 1. Title row: h.Title Container ---
     title_container = etree.SubElement(dash_container, "zone")
     title_container.set("fixed-size", "70")
     title_container.set("h", "8750")
@@ -248,7 +250,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
     _add_zone_style(title_container, margin=None, bg_color="#ffffff",
                     margin_right="8", margin_left="8")
 
-    # --- 2. 筛选栏: h.Filter Container ---
+    # --- 2. Filter bar: h.Filter Container ---
     filter_container = etree.SubElement(dash_container, "zone")
     filter_container.set("fixed-size", "30")
     filter_container.set("h", "3750")
@@ -268,7 +270,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
     _add_zone_style(filter_container, margin=None, bg_color="#192f3e",
                     margin_right="8", margin_left="8")
 
-    # --- 3. KPI 行: h.KPI Container ---
+    # --- 3. KPI row: h.KPI Container ---
     kpi_container = etree.SubElement(dash_container, "zone")
     kpi_container.set("fixed-size", "100")
     kpi_container.set("h", "12500")
@@ -281,7 +283,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
     kpi_container.set("x", "0")
     kpi_container.set("y", "12500")
 
-    # 4 个 KPI viz zones
+    # 4 KPI viz zones
     kpi_names = ["Sales", "Profit", "Discount", "Quanity"]
     for i, kpi_name in enumerate(kpi_names):
         _add_viz_zone(kpi_container, _next_id(), kpi_name,
@@ -289,7 +291,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
 
     _add_zone_style(kpi_container, margin="0", margin_top="0")
 
-    # --- 4. 视图区: h.Views Container ---
+    # --- 4. Views area: h.Views Container ---
     views_container = etree.SubElement(dash_container, "zone")
     views_container.set("fixed-size", "1100")
     views_container.set("h", "75000")
@@ -302,7 +304,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
     views_container.set("x", "0")
     views_container.set("y", "25000")
 
-    # 左列
+    # Left column
     left_col = etree.SubElement(views_container, "zone")
     left_col.set("h", "75000")
     left_col.set("id", _next_id())
@@ -318,7 +320,7 @@ def _build_c2_dashboard(editor, dashboard_name, ws_names):
     _add_viz_zone(left_col, _next_id(), "segment sales",
                   h=37500, w=50000, x=0, y=62500)
 
-    # 右列
+    # Right column
     right_col = etree.SubElement(views_container, "zone")
     right_col.set("h", "75000")
     right_col.set("id", _next_id())

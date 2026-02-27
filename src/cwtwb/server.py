@@ -160,6 +160,7 @@ def configure_chart(
     label: str | None = None,
     detail: str | None = None,
     wedge_size: str | None = None,
+    sort_descending: str | None = None,
 ) -> str:
     """Configure chart type and field mappings for a worksheet.
 
@@ -185,6 +186,7 @@ def configure_chart(
         label: Label encoding field expression.
         detail: Detail encoding field expression.
         wedge_size: Pie chart wedge size field expression (e.g. "SUM(Sales)").
+        sort_descending: Sort dimension descending by this measure (e.g. "SUM(Sales)").
 
     Returns:
         Confirmation message.
@@ -214,6 +216,7 @@ def configure_chart(
         label=label,
         detail=detail,
         wedge_size=wedge_size,
+        sort_descending=sort_descending,
     )
 
 

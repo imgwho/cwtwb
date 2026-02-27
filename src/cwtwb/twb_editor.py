@@ -353,6 +353,7 @@ class TWBEditor:
         label: Optional[str] = None,
         detail: Optional[str] = None,
         wedge_size: Optional[str] = None,
+        sort_descending: Optional[str] = None,
     ) -> str:
         """Configure chart type and field mappings for a worksheet.
 
@@ -366,6 +367,9 @@ class TWBEditor:
             label: Label encoding expression.
             detail: Detail encoding expression.
             wedge_size: Pie chart wedge size expression.
+            sort_descending: Sort a dimension descending by this measure expression.
+                The dimension is auto-detected from rows/columns.
+                e.g. sort_descending="SUM(Sales)" sorts the row dimension by Sales DESC.
 
         Returns:
             Confirmation message.
@@ -385,7 +389,7 @@ class TWBEditor:
         all_exprs: list[str] = []
         all_exprs.extend(columns)
         all_exprs.extend(rows)
-        for enc in (color, size, label, detail, wedge_size):
+        for enc in (color, size, label, detail, wedge_size, sort_descending):
             if enc:
                 all_exprs.append(enc)
 
@@ -414,33 +418,44 @@ class TWBEditor:
         else:
             view.append(deps)
 
-        # Collect unique columns and column-instances
+        # Collect unique columns and column-instances separately
+        # Tableau expects all <column> elements before <column-instance> elements
         seen_columns: set[str] = set()
         seen_instances: set[str] = set()
+        column_elements: list[etree._Element] = []
+        instance_elements: list[etree._Element] = []
 
         for expr, ci in instances.items():
-            # Add column definition
+            # Collect column definitions
             if ci.column_local_name not in seen_columns:
                 seen_columns.add(ci.column_local_name)
                 fi = self.field_registry._find_field(
                     expr.split("(")[-1].rstrip(")").strip()
                     if "(" in expr else expr.strip()
                 )
-                col_el = etree.SubElement(deps, "column")
+                col_el = etree.Element("column")
                 col_el.set("datatype", fi.datatype)
                 col_el.set("name", fi.local_name)
                 col_el.set("role", fi.role)
                 col_el.set("type", fi.field_type)
+                column_elements.append(col_el)
 
-            # Add column-instance definition
+            # Collect column-instance definitions
             if ci.instance_name not in seen_instances:
                 seen_instances.add(ci.instance_name)
-                ci_el = etree.SubElement(deps, "column-instance")
+                ci_el = etree.Element("column-instance")
                 ci_el.set("column", ci.column_local_name)
                 ci_el.set("derivation", ci.derivation)
                 ci_el.set("name", ci.instance_name)
                 ci_el.set("pivot", ci.pivot)
                 ci_el.set("type", ci.ci_type)
+                instance_elements.append(ci_el)
+
+        # Append in order: all columns first, then all column-instances
+        for el in sorted(column_elements, key=lambda e: e.get("name", "")):
+            deps.append(el)
+        for el in sorted(instance_elements, key=lambda e: e.get("name", "")):
+            deps.append(el)
 
         # 2) Set mark type
         pane = table.find(".//pane")
@@ -525,7 +540,60 @@ class TWBEditor:
         if mark_type == "Pie" and color:
             self._add_viewpoint_highlight(worksheet_name, instances[color])
 
+        # 8) Add shelf-sort if sort_descending is specified
+        if sort_descending:
+            self._add_shelf_sort(view, ds_name, instances, rows, sort_descending)
+
         return f"Configured worksheet '{worksheet_name}' as {mark_type} chart"
+
+    def _add_shelf_sort(
+        self,
+        view: etree._Element,
+        ds_name: str,
+        instances: dict[str, "ColumnInstance"],
+        rows: list[str],
+        sort_measure_expr: str,
+    ) -> None:
+        """Add shelf-sort for descending sort on a dimension by a measure.
+
+        Generates <shelf-sorts><shelf-sort-v2 .../></shelf-sorts> in <view>.
+        Auto-detects the dimension from rows (first dimension found).
+        """
+        # Find the dimension to sort (first dimension in rows)
+        dim_ci = None
+        for expr in rows:
+            ci = instances.get(expr)
+            if ci and ci.ci_type == "nominal":
+                dim_ci = ci
+                break
+        if dim_ci is None:
+            return
+
+        measure_ci = instances.get(sort_measure_expr)
+        if measure_ci is None:
+            return
+
+        # Remove old shelf-sorts
+        for old_ss in view.findall("shelf-sorts"):
+            view.remove(old_ss)
+
+        shelf_sorts = etree.Element("shelf-sorts")
+
+        sort_v2 = etree.SubElement(shelf_sorts, "shelf-sort-v2")
+        sort_v2.set("dimension-to-sort",
+                     self.field_registry.resolve_full_reference(dim_ci.instance_name))
+        sort_v2.set("direction", "DESC")
+        sort_v2.set("is-on-innermost-dimension", "true")
+        sort_v2.set("measure-to-sort-by",
+                     self.field_registry.resolve_full_reference(measure_ci.instance_name))
+        sort_v2.set("shelf", "rows")
+
+        # Insert before <aggregation>
+        agg = view.find("aggregation")
+        if agg is not None:
+            agg.addprevious(shelf_sorts)
+        else:
+            view.append(shelf_sorts)
 
     def _apply_pie_style(self, table_style: etree._Element) -> None:
         """Add special style rules for Pie charts."""
