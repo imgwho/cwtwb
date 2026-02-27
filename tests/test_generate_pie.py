@@ -18,7 +18,7 @@ from cwtwb.twb_editor import TWBEditor
 
 def main():
     project_root = Path(__file__).parent.parent
-    template_path = project_root / "template.twb"
+    template_path = project_root / "templates" / "superstore.twb"
     output_path = project_root / "output" / "pie_test.twb"
 
     print(f"template: {template_path}")

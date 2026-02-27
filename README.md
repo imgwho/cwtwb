@@ -53,7 +53,7 @@ cwtwb
 ```python
 from cwtwb.twb_editor import TWBEditor
 
-editor = TWBEditor("template.twb")
+editor = TWBEditor("templates/superstore.twb")
 editor.clear_worksheets()
 
 # Add a calculated field
@@ -133,7 +133,11 @@ cwtwb/
 │   ├── test_debug.py        # Step-by-step debug tests
 │   ├── test_e2e.py          # End-to-end integration test
 │   └── test_c2_replica.py   # Full dashboard layout replica
-├── template.twb             # Base TWB template with data connection
+├── templates/
+│   └── superstore.twb       # Base TWB template with data connection
+├── docs/                    # Design documents
+├── vizs/                    # Reference visualizations and sample data
+├── layout/                  # Reference dashboard layouts
 ├── pyproject.toml           # Package configuration
 └── README.md
 ```

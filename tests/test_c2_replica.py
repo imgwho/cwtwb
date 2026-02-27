@@ -21,7 +21,7 @@ from cwtwb.twb_editor import TWBEditor, _generate_uuid
 
 def main():
     project_root = Path(__file__).parent.parent
-    editor = TWBEditor(project_root / "template.twb")
+    editor = TWBEditor(project_root / "templates" / "superstore.twb")
     editor.clear_worksheets()
 
     # ============================================================
