@@ -85,6 +85,12 @@ def test_declarative_json_dashboard(tmp_superstore, tmp_path):
     # Check tree directly for generated XML structures
     db = editor.root.find(".//dashboards/dashboard[@name='Complex JSON Dash']")
     assert db is not None
+    
+    # Check that sizing-mode="fixed" is applied
+    size_el = db.find("size")
+    assert size_el is not None
+    assert size_el.get("sizing-mode") == "fixed"
+    
     zones = db.find("zones")
     assert zones is not None
     

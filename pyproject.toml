@@ -1,6 +1,6 @@
 [project]
 name = "cwtwb"
-version = "0.3.1"
+version = "0.4.0"
 description = "Tableau Workbook (.twb) Generation MCP Server"
 readme = "README.md"
 license = {text = "MIT"}

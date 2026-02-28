@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-28
+
+### Fixed
+- **Dashboard Sizing Bug**: Added `sizing-mode="fixed"` to the dashboard `<size>` element. This ensures that custom dimensions (width/height) specified in `add_dashboard` are correctly enforced by Tableau Desktop.
+
+### Added
+- **New Showcase Prompt**: Added `examples/prompts/demo_auto_layout4_prompt.md` in English, demonstrating complex nested layouts with fixed headers and KPIs.
+- **Enhanced Testing**: Added assertions to verify `sizing-mode` in `test_declarative_dashboards.py`.
+
 ## [0.3.0] - 2026-02-28
 
 ### Added

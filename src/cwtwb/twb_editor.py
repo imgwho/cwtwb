@@ -932,6 +932,7 @@ class TWBEditor:
         size_el.set("maxwidth", str(width))
         size_el.set("minheight", str(height))
         size_el.set("minwidth", str(width))
+        size_el.set("sizing-mode", "fixed")
 
         # zones
         zones = etree.SubElement(db, "zones")
