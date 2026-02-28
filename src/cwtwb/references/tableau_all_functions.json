@@ -1,0 +1,1053 @@
+[
+  {
+    "name": "ABS",
+    "syntax": "`ABS(number)`",
+    "output": "Number (positive)",
+    "definition": "Returns the absolute value of the given `<number>`.",
+    "example": "ABS(-7) = 7\n\nABS([Budget Variance])\nThe second example returns the absolute value for all the numbers contained in the Budget Variance field.",
+    "notes": "See also `SIGN`."
+  },
+  {
+    "name": "ACOS",
+    "syntax": "`ACOS(number)`",
+    "output": "Number (angle in radians)",
+    "definition": "Returns the arccosine (angle) of the given `<number>`.",
+    "example": "ACOS(-1) = 3.14159265358979",
+    "notes": "The inverse function, `COS`, takes the angle in radians as the argument and returns the cosine."
+  },
+  {
+    "name": "AND",
+    "syntax": "`<expr1> AND <expr2>`",
+    "definition": "Performs a logical conjunction on two expressions. (If both sides are true, the logical test returns true.)",
+    "output": "Boolean",
+    "example": "IF [Season] = \"Spring\" AND \"[Season] = \"Fall\"\n\nTHEN \"It's the apocalypse and footwear doesn't matter\" \n\nEND\n_\"If both (Season = Spring) and (Season = Fall) are true simultaneously, then return It's the apocalypse and footwear doesn't matter.\"_",
+    "notes": "Often used with [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF) and [IIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IIF). See also [NOT](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#NOT) and [OR](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#OR).\n\nIf both expressions are `TRUE` (that is, not `FALSE` or `NULL`), then the result is `TRUE`. If either expression is `NULL`, then the result is `NULL`. In all other cases, the result is `FALSE`.\n\nIf you create a calculation in which the result of an `AND` comparison is displayed on a worksheet, Tableau displays `TRUE` and `FALSE`. If you would like to change this, use the Format area in the format dialog.\n\n**Note**: The `AND` operator employs _short circuit evaluation_. This means that if the first expression is evaluated to be `FALSE`, then the second expression is not evaluated at all. This can be helpful if the second expression results in an error when the first expression is `FALSE`, because the second expression in this case is never evaluated."
+  },
+  {
+    "name": "AREA",
+    "syntax": "`AREA(Spatial Polygon, 'units')`",
+    "output": "Number",
+    "definition": "Returns the total surface area of a `<spatial polygon>`.",
+    "example": "AREA([Geometry], 'feet')",
+    "notes": "Supported unit names (must be in quotation marks in the calculation, such as `'miles'`):\n\n*   _meters_: meters, metres, m\n*   _kilometers_: kilometers, kilometres, km\n*   _miles_: miles, mi\n*   _feet_: feet, ft"
+  },
+  {
+    "name": "ASCII",
+    "syntax": "`ASCII(string)`",
+    "output": "Number",
+    "definition": "Returns the ASCII code for the first character of a `<string>`.",
+    "example": "ASCII('A') = 65",
+    "notes": "This is the inverse of the `CHAR` function."
+  },
+  {
+    "name": "ASIN",
+    "syntax": "`ASIN(number)`",
+    "output": "Number (angle in radians)",
+    "definition": "Returns the arcsine (angle) of a given `<number>`.",
+    "example": "ASIN(1) = 1.5707963267949",
+    "notes": "The inverse function, `SIN`, takes the angle in radians as the argument and returns the sine."
+  },
+  {
+    "name": "ATAN",
+    "syntax": "`ATAN(number)`",
+    "output": "Number (angle in radians)",
+    "definition": "Returns the arctangent (angle) of a given `<number>`.",
+    "example": "ATAN(180) = 1.5652408283942",
+    "notes": "The inverse function, `TAN`, takes the angle in radians as the argument and returns the tangent.\n\nSee also `ATAN2` and `COT`."
+  },
+  {
+    "name": "ATAN2",
+    "syntax": "`ATAN2(y number, x number)`",
+    "output": "Number (angle in radians)",
+    "definition": "Returns the arctangent (angle) between two numbers (`<y number>` and `<x number>`). The result is in radians.",
+    "example": "ATAN2(2, 1) = 1.10714871779409",
+    "notes": "See also `ATAN`, `TAN`, and `COT`."
+  },
+  {
+    "name": "ATTR",
+    "syntax": "`ATTR(expression)`",
+    "definition": "Returns the value of the `<expression>` if it has a single value for all rows. Otherwise returns an asterisk. Null values are ignored."
+  },
+  {
+    "name": "AVG",
+    "syntax": "`AVG(expression)`",
+    "definition": "Returns the average of all the values in the `<expression>`. Null values are ignored.",
+    "notes": "`AVG` can only be used with numeric fields."
+  },
+  {
+    "name": "BUFFER",
+    "syntax": "`BUFFER(Spatial Point, distance, 'units')`",
+    "output": "Geometry",
+    "definition": "Returns a polygon shape centered over a `<spatial point>`, with a radius determined by the `<distance>` and `<unit>` values.",
+    "example": "BUFFER([Spatial Point Geometry], 25, 'mi')BUFFER(MAKEPOINT(47.59, -122.32), 3, 'km')",
+    "notes": "Supported unit names (must be in quotation marks in the calculation, such as `'miles'`):\n\n*   _meters_: meters, metres, m\n*   _kilometers_: kilometers, kilometres, km\n*   _miles_: miles, mi \n*   _feet_: feet, ft"
+  },
+  {
+    "name": "CASE",
+    "syntax": "```\nCASE <expression> \n\t\t\t\t\t\t\tWHEN <value1> THEN <then1> \n\t\t\t\t\t\t\tWHEN <value2> THEN <then2> \n\t\t\t\t\t\t\t...\n\t\t\t\t\t\t[ELSE <default>]END\n```",
+    "output": "Depends on data type of the `<then>`values.",
+    "definition": "Evaluates the `expression` and compares it to the specified options (`<value1>`, `<value2>`, etc.). When a `value` that matches expression is encountered, CASE returns the corresponding `return`. If no match is found, the (optional) default is returned. If there is no default and no values match, then Null is returned.",
+    "example": "`CASE [Season] WHEN 'Summer' THEN 'Sandals' WHEN 'Winter' THEN 'Boots' ELSE 'Sneakers' END`\n_\"Look at the Season field. If the value is Summer, then return Sandals. If the value is Winter, then return Boots. If none of the options in the calculation match what is in the Season field, return a Sneakers.\"_",
+    "notes": "See also [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF) and [IIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IIF).\n\nUsed with [WHEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#WHEN), [THEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#THEN), [ELSE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSE), and [END](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#END).\n\n**Tip**: Many times you can use a group to get the same results as a complicated CASE function, or use CASE to replace native grouping functionality, such as in the previous example. You may want to test which is more performant for your scenario."
+  },
+  {
+    "name": "CEILING",
+    "syntax": "`CEILING(number)`",
+    "output": "Integer",
+    "definition": "Rounds a `<number>` to the nearest integer of equal or greater value.",
+    "example": "CEILING(2.1) = 3",
+    "notes": "See also `FLOOR` and `ROUND`.",
+    "database_limitations": "`CEILING` is available through the following connectors: Microsoft Excel, Text File, Statistical File, Published Data Source, Amazon EMR Hadoop Hive, Amazon Redshift, Cloudera Hadoop, DataStax Enterprise, Google Analytics, Google BigQuery, Hortonworks Hadoop Hive, MapR Hadoop Hive, Microsoft SQL Server, Salesforce, Spark SQL."
+  },
+  {
+    "name": "CHAR",
+    "syntax": "`CHAR(number)`",
+    "output": "String",
+    "definition": "Returns the character encoded by the ASCII code `<number>`.",
+    "example": "CHAR(65) = 'A'",
+    "notes": "This is the inverse of the `ASCII` function."
+  },
+  {
+    "name": "COLLECT",
+    "syntax": "`COLLECT(spatial)`",
+    "definition": "An aggregate calculation that combines the values in the argument field. Null values are ignored.",
+    "notes": "`COLLECT` can only be used with spatial fields."
+  },
+  {
+    "name": "CONTAINS",
+    "syntax": "`CONTAINS(string, substring)`",
+    "output": "Boolean",
+    "definition": "Returns true if the given `<string>` contains the specified `<substring>`.",
+    "example": "CONTAINS(\"Calculation\", \"alcu\") = true",
+    "notes": "See also the [logical function(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_logical.htm)`IN` as well as supported RegEx in the [additional functions documentation(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "CORR",
+    "syntax": "`CORR(expression1, expression2)`",
+    "output": "Number from -1 to 1",
+    "definition": "Returns the Pearson correlation coefficient of two expressions.",
+    "example": "example",
+    "notes": "The Pearson correlation measures the linear relationship between two variables. Results range from -1 to +1 inclusive, where 1 denotes an exact positive linear relationship, 0 denotes no linear relationship between the variance, and −1 is an exact negative relationship.\n\nThe square of a CORR result is equivalent to the R-Squared value for a linear trend line model. See [Trend Line Model Terms(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/trendlines_add.htm#Terms).\n\n**Use with table scoped LOD expressions:**\n\nYou can use CORR to visualize correlation in a disaggregated scatter using a [table-scoped level of detail expression(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/calculations_calculatedfields_lod.htm#Table). For example:\n\n{CORR(Sales, Profit)}\nWith a level of detail expression, the correlation is run over all rows. If you used a formula like `CORR(Sales, Profit)` (without the surrounding brackets to make it a level of detail expression), the view would show the correlation of each individual point in the scatter plot with each other point, which is undefined.",
+    "database_limitations": "`CORR` is available with the following data sources: Tableau data extracts, Cloudera Hive, EXASolution, Firebird (version 3.0 and later), Google BigQuery, Hortonworks Hadoop Hive, IBM PDA (Netezza), Oracle, PostgreSQL, Presto, SybaseIQ, Teradata, Vertica.\n\nFor other data sources, consider either extracting the data or using `WINDOW_CORR`. See [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "COS",
+    "syntax": "`COS(number)`\nThe number argument is the angle in radians.",
+    "output": "Number",
+    "definition": "Returns the cosine of an angle.",
+    "example": "COS(PI( ) /4) = 0.707106781186548",
+    "notes": "The inverse function, `ACOS`, takes the cosine as the argument and returns the angle in radians.\n\nSee also `PI`."
+  },
+  {
+    "name": "COT",
+    "syntax": "`COT(number)`\nThe number argument is the angle in radians.",
+    "output": "Number",
+    "definition": "Returns the cotangent of an angle.",
+    "example": "COT(PI( ) /4) = 1",
+    "notes": "See also `ATAN`, `TAN`, and `PI`."
+  },
+  {
+    "name": "COUNT",
+    "syntax": "`COUNT(expression)`",
+    "definition": "Returns the number of items. Null values are not counted."
+  },
+  {
+    "name": "COUNTD",
+    "syntax": "`COUNTD(expression)`",
+    "definition": "Returns the number of distinct items in a group. Null values are not counted."
+  },
+  {
+    "name": "COVAR",
+    "syntax": "`COVAR(expression1, expression2)`",
+    "definition": "Returns the _sample_ covariance of two expressions.",
+    "notes": "Covariance quantifies how two variables change together. A positive covariance indicates that the variables tend to move in the same direction, as when larger values of one variable tend to correspond to larger values of the other variable, on average. _Sample covariance_ uses the number of non-null data points n - 1 to normalize the covariance calculation, rather than n, which is used by the population covariance (available with the `COVARP` function). Sample covariance is the appropriate choice when the data is a random sample that is being used to estimate the covariance for a larger population.\n\nIf `<expression1>` and `<expression2>` are the same, for example `COVAR([profit], [profit])`, `COVAR` returns a value that indicates how widely values are distributed.\n\nThe value of `COVAR(X, X)` is equivalent to the value of `VAR(X)` and also to the value of `STDEV(X)^2`.",
+    "database_limitations": "`COVAR` is available with the following data sources: Tableau data extracts, Cloudera Hive, EXASolution, Firebird (version 3.0 and later), Google BigQuery, Hortonworks Hadoop Hive, IBM PDA (Netezza), Oracle, PostgreSQL, Presto, SybaseIQ, Teradata, Vertica.\n\nFor other data sources, consider either extracting the data or using `WINDOW_COVAR`. See [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "COVARP",
+    "syntax": "`COVARP(expression 1, expression2)`",
+    "definition": "Returns the _population_ covariance of two expressions.",
+    "notes": "Covariance quantifies how two variables change together. A positive covariance indicates that the variables tend to move in the same direction, as when larger values of one variable tend to correspond to larger values of the other variable, on average. _Population covariance_ is sample covariance multiplied by (n-1)/n, where n is the total number of non-null data points. Population covariance is the appropriate choice when there is data available for all items of interest as opposed to when there is only a random subset of items, in which case sample covariance (with the `COVAR` function) is appropriate.\n\nIf `<expression1>` and `<expression2>` are the same, for example `COVARP([profit], [profit])`, `COVARP` returns a value that indicates how widely values are distributed. Note: The value of `COVARP(X, X)` is equivalent to the value of `VARP(X)` and also to the value of `STDEVP(X)^2`.",
+    "database_limitations": "`COVARP` is available with the following data sources: Tableau data extracts, Cloudera Hive, EXASolution, Firebird (version 3.0 and later), Google BigQuery, Hortonworks Hadoop Hive, IBM PDA (Netezza), Oracle, PostgreSQL, Presto, SybaseIQ, Teradata, Vertica\n\nFor other data sources, consider either extracting the data or using `WINDOW_COVAR`. See [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "DATE",
+    "description": "Type conversion function that changes string and number expressions into dates, as long as they are in a recognizable format.",
+    "syntax": "`DATE(expression)`",
+    "output": "Date",
+    "definition": "Returns a date given a number, string, or date `<expression>`.",
+    "example": "DATE([Employee Start Date])DATE(\"September 22, 2018\") DATE(\"9/22/2018\")DATE(#2018-09-22 14:52#)",
+    "notes": "Unlike `DATEPARSE`, there is no need to provide a pattern as `DATE` automatically recognizes many standard date formats. If `DATE` does not recognize the input, however, try using `DATEPARSE` and specifying the format.\n\n`MAKEDATE` is another similar function, but `MAKEDATE` requires the input of numeric values for year, month, and day."
+  },
+  {
+    "name": "DATEADD",
+    "description": "Adds a specified number of date parts (months, days, etc) to the starting date.",
+    "syntax": "`DATEADD(date_part, interval, date)`",
+    "output": "Date",
+    "definition": "Returns the specified date with the specified number `<interval>` added to the specified >`<date_part` of that date. For example, adding three months or 12 days to a starting date.",
+    "example": "Push out all due dates by one week\n\nDATEADD('week', 1, [due date])\nAdd 280 days to the date February 20, 2021\n\nDATEADD('day', 280, #2/20/21#) = #November 27, 2021#",
+    "notes": "Supports ISO 8601 dates."
+  },
+  {
+    "name": "DATEDIFF",
+    "description": "Returns the number of date parts (weeks, years, etc) between two dates.",
+    "syntax": "`DATEDIFF(date_part, date1, date2, [start_of_week])`",
+    "output": "Integer",
+    "definition": "Returns the difference between `date1` and `date2` expressed in units of `date_part`. For example, subtracting the dates someone entered and left a band to see how long they were in the band.",
+    "example": "Number of days between March 25, 1986 and February 20, 2021\n\nDATEDIFF('day', #3/25/1986#, #2/20/2021#) = 12,751\nHow many months someone was in a band\n\nDATEDIFF('month', [date joined band], [date left band])",
+    "notes": "Supports ISO 8601 dates."
+  },
+  {
+    "name": "DATENAME",
+    "description": "Returns the name of the specified date part as a discrete string.",
+    "syntax": "`DATENAME(date_part, date, [start_of_week])`",
+    "output": "String",
+    "definition": "Returns `<date_part>` of date as a string.",
+    "example": "DATENAME('year', #3/25/1986#) = \"1986\"DATENAME('month', #1986-03-25#) = \"March\"",
+    "notes": "Supports ISO 8601 dates.\n\nA very similar calculation is [DATEPART](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#DATEPART), which returns the value of the specified date part as a continuous integer. `DATEPART` can be faster because it is a numerical operation.\n\nBy changing the attributes of the calculation’s result (dimension or measure, continuous or discrete) and the date formatting, the results of `DATEPART` and `DATENAME` can be formatted to be identical.\n\nAn inverse function is `DATEPARSE`, which takes a string value and formats it as a date."
+  },
+  {
+    "name": "DATEPARSE",
+    "description": "Returns specifically formatted strings as dates.",
+    "syntax": "`DATEPARSE(date_format, date_string)`",
+    "output": "Date",
+    "definition": "The `<date_format>` argument describes how the `<date_string>` field is arranged. Because of the variety of ways the string field can be ordered, the `<date_format>` must match exactly. For a full explanation, see [Convert a Field to a Date Field(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/data_dateparse.htm).",
+    "example": "DATEPARSE('yyyy-MM-dd', \"1986-03-25\") = #March 25, 1986#",
+    "notes": "`DATE` is a similar function that automatically recognizes many standard date formats. `DATEPARSE` may be a better option if `DATE` does not recognize the input pattern.\n\n`MAKEDATE` is another similar function, but `MAKEDATE` requires the input of numeric values for year, month, and day.\n\nInverse functions, which take dates apart and return the value of their parts, are `DATEPART` (integer output) and `DATENAME` (string output).",
+    "database_limitations": "`DATEPARSE` is available through the following connectors: non-legacy Excel and text file connections, Amazon EMR Hadoop Hive, Cloudera Hadoop, Google Sheets, Hortonworks Hadoop Hive, MapR Hadoop Hive, MySQL, Oracle, PostgreSQL, and Tableau extracts. Some formats may not be available for all connections.\n\n`DATEPARSE` is not supported on Hive variants. Only Denodo, Drill, and Snowflake are supported."
+  },
+  {
+    "name": "DATEPART",
+    "description": "Returns the name of the specified date part as an integer.",
+    "syntax": "`DATEPART(date_part, date, [start_of_week])`",
+    "output": "Integer",
+    "definition": "Returns `<date_part>` of date as an integer.",
+    "example": "DATEPART('year', #1986-03-25#) = 1986 DATEPART('month', #1986-03-25#) = 3",
+    "notes": "Supports ISO 8601 dates.\n\nA very similar calculation is `DATENAME`, which returns the name of the specified date part as a discrete string. `DATEPART` can be faster because it is a numerical operation. By changing the attributes of the field (dimension or measure, continuous or discrete) and the date formatting, the results of `DATEPART` and `DATENAME` can be formatted to be identical.\n\nAn inverse function is `DATEPARSE`, which takes a string value and formats it as a date."
+  },
+  {
+    "name": "DATETIME",
+    "syntax": "`DATETIME(expression)`",
+    "output": "Datetime",
+    "definition": "Returns a datetime given a number, string, or date expression.",
+    "example": "DATETIME(\"April 15, 2005 07:59:00\") = April 15, 2005 07:59:00"
+  },
+  {
+    "name": "DATETRUNC",
+    "description": "This function can be thought of as date rounding. It takes a specific date and returns a version of that date at the desired specificity. Because every date must have a value for day, month, quarter, and year, `DATETRUNC` sets the values as the lowest value for each date part up to the date part specified. Refer to the example for more information.",
+    "syntax": "`DATETRUNC(date_part, date, [start_of_week])`",
+    "output": "Date",
+    "definition": "Truncates the `<date>` to the accuracy specified by the `<date_part>`. This function returns a new date. For example, when you truncate a date that is in the middle of the month at the month level, this function returns the first day of the month.",
+    "example": "DATETRUNC('day', #9/22/2018#) = #9/22/2018#DATETRUNC('iso-week', #9/22/2018#) = #9/17/2018#\n(the monday of the week containing 9/22/2018)\n\nDATETRUNC(quarter, #9/22/2018#) = #7/1/2018# \n(the first day of the quarter containing 9/22/2018)\n\nNote: For week and iso-week, the `start_of_week` comes into play. ISO-weeks always start on Monday. For the locale of this example, an unspecified `start_of_week` means the week starts on Sunday.",
+    "notes": "Supports ISO 8601 dates.\n\nYou shouldn't use `DATETRUNC` to, for example, stop showing the time for a datetime field in a viz. If you want to truncate the _display_ of a date rather than round its accuracy, [adjust the formatting(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/dates_custom_date_formats.htm).\n\nFor example, `DATETRUNC('day', #5/17/2022 3:12:48 PM#)`, if formatted in the viz to display seconds, would display as `5/17/2022 12:00:00 AM`."
+  },
+  {
+    "name": "DAY",
+    "description": "Returns the day of the month (1-31) as an integer.",
+    "syntax": "`DAY(date)`",
+    "output": "Integer",
+    "definition": "Returns the day of the given `<date>` as an integer.",
+    "example": "Day(#September 22, 2018#) = 22",
+    "notes": "See also `WEEK`, `MONTH`, `Quarter`, `YEAR`, and the ISO equivalents"
+  },
+  {
+    "name": "DEGREES",
+    "syntax": "`DEGREES(number)`\nThe number argument is the angle in radians.",
+    "output": "Number (degrees)",
+    "definition": "Converts an angle in radians to degrees.",
+    "example": "DEGREES(PI( )/4) = 45.0",
+    "notes": "The inverse function, `RADIANS`, takes an angle in degrees and returns the angle in radians.\n\nSee also `PI()`."
+  },
+  {
+    "name": "DISTANCE",
+    "syntax": "`DISTANCE(<SpatialPoint1>, <SpatialPoint2>, 'units')`",
+    "output": "Number",
+    "definition": "Returns the distance measurement between two points in the specified `units`.",
+    "example": "DISTANCE([Origin Point],[Destination Point], 'km')",
+    "notes": "Supported unit names (must be in quotation marks in the calculation):\n\n*   _meters_: meters, metres, m\n*   _kilometers_: kilometers, kilometres, km\n*   _miles_: miles, mi \n*   _feet_: feet, ft",
+    "database_limitations": "This function can only be created with a live connection but will continue to work if the data source is converted to an extract."
+  },
+  {
+    "name": "DIV",
+    "syntax": "`DIV(integer1, integer2)`",
+    "output": "Integer",
+    "definition": "Returns the integer part of a division operation, in which `<integer1>` is divided by `<integer2>`.",
+    "example": "DIV(11,2) = 5"
+  },
+  {
+    "name": "DOMAIN",
+    "description": "`DOMAIN(string_url)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "ELSE",
+    "syntax": "```\nCASE <expression> \n\t\t\t\t\t\t\tWHEN <value1> THEN <then1> \n\t\t\t\t\t\t\tWHEN <value2> THEN <then2> \n\t\t\t\t\t\t\t...\n\t\t\t\t\t\t[ELSE <default>]END\n```",
+    "definition": "An optional piece of an `IF`or `CASE` expression used to specify a default value to return if none of the tested expressions are true.",
+    "example": "IF [Season] = \"Summer\" THEN 'Sandals'\n\nELSEIF [Season] = \"Winter\" THEN 'Boots' \n\n**ELSE** 'Sneakers' \n\nEND CASE [Season] \n\nWHEN 'Summer' THEN 'Sandals' \n\nWHEN 'Winter' THEN 'Boots' \n\n**ELSE** 'Sneakers' \n\nEND",
+    "notes": "Used with [CASE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#CASE), [WHEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#WHEN), [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF), [ELSEIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSEIF), [THEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#THEN), and [END](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#END)\n\n`ELSE` is optional with `CASE` and `IF`. In a calculation where `ELSE` is not specified, if none of the `<test>`are true, the overall calculation will return null.\n\n`ELSE` does not require a condition (such as `[Season] = \"Winter\"`) and can be thought of as a form of null handling."
+  },
+  {
+    "name": "ELSEIF",
+    "syntax": "`[ELSEIF <test2> THEN <then2>]`",
+    "definition": "An optional piece of an `IF`expression used to specify additional conditions beyond the initial IF.",
+    "example": "IF [Season] = \"Summer\" THEN 'Sandals'\n\n**ELSEIF** [Season] = \"Winter\" THEN 'Boots' \n\n**ELSEIF** [Season] = \"Spring\" THEN 'Sneakers' \n\n**ELSEIF** [Season] = \"Autumn\" THEN 'Sneakers'\n\nELSE 'Bare feet' \n\nEND",
+    "notes": "Used with [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF), [THEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#THEN), [ELSE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSE), and [END](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#END)\n\n`ELSEIF` can be thought of as additional `IF` clauses. `ELSEIF` is optional and can be repeated multiple times.\n\nUnlike `ELSE`, `ELSEIF` requires a condition (such as `[Season] = \"Winter\"`)."
+  },
+  {
+    "name": "END",
+    "definition": "Used to close an `IF`or `CASE` expression.",
+    "example": "IF [Season] = \"Summer\" THEN 'Sandals'\n\nELSEIF [Season] = \"Winter\" THEN 'Boots' \n\nELSE 'Sneakers' \n\n**END**\n_\"If Season = Summer, then return Sandals. If not, look at the next expression. If Season = Winter, then return Boots. If neither of the expressions are true, return Sneakers.\"_\n\nCASE [Season] \n\nWHEN 'Summer' THEN 'Sandals' \n\nWHEN 'Winter' THEN 'Boots' \n\nELSE 'Sneakers' \n\n**END**\n_\"Look at the Season field. If the value is Summer, then return Sandals. If the value is Winter, then return Boots. If none of the options in the calculation match what is in the Season field, return a Sneakers.\"_",
+    "notes": "Used with [CASE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#CASE), [WHEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#WHEN), [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF), [ELSEIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSEIF), [THEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#THEN), and [ELSE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSE)."
+  },
+  {
+    "name": "ENDSWITH",
+    "description": "### ENDSWITH",
+    "syntax": "`ENDSWITH(string, substring)`",
+    "output": "Boolean",
+    "definition": "Returns true if the given `<string>` ends with the specified `<substring>`. Trailing white spaces are ignored.",
+    "example": "ENDSWITH(\"Tableau\", \"leau\") = true",
+    "notes": "See also the supported RegEx in the [additional functions documentation(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "EXCLUDE",
+    "description": "For more information, see [Level of Detail Expressions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/calculations_calculatedfields_lod.htm)."
+  },
+  {
+    "name": "EXP",
+    "syntax": "`EXP(number)`",
+    "output": "Number",
+    "definition": "Returns e raised to the power of the given `<number>`.",
+    "example": "EXP(2) = 7.389\n\nEXP(-[Growth Rate]*[Time])",
+    "notes": "See also `LN`."
+  },
+  {
+    "name": "FIND",
+    "syntax": "`FIND(string, substring, [start])`",
+    "output": "Number",
+    "definition": "Returns the index position of `<substring>` in `<string>`, or 0 if the substring isn't found. The first character in the string is position 1.\n\nIf the optional numeric argument `start` is added, the function ignores any instances of substring that appear before the starting position.",
+    "example": "FIND(\"Calculation\", \"alcu\") = 2 FIND(\"Calculation\", \"Computer\") = 0 FIND(\"Ca**l**culation\", \"a\", **3**) = 7 FIND(\"C**a**lculation\", \"a\", **2**) = 2 FIND(\"Calcula**t**ion\", \"a\", **8**) = 0",
+    "notes": "See also the supported RegEx in the [additional functions documentation(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "FINDNTH",
+    "syntax": "`FINDNTH(string, substring, occurrence)`",
+    "output": "Number",
+    "definition": "Returns the position of the nth occurrence of `<substring>` within the specified `<string>`, where n is defined by the `<occurence>` argument.",
+    "example": "FINDNTH(\"Calculation\", \"a\", 2) = 7",
+    "notes": "`FINDNTH` is not available for all data sources.\n\nSee also the supported RegEx in the [additional functions documentation(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "FIRST",
+    "description": "`FIRST()`\n\nFor more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "FIXED",
+    "description": "For more information, see [Level of Detail Expressions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/calculations_calculatedfields_lod.htm)."
+  },
+  {
+    "name": "FLOAT",
+    "syntax": "`FLOAT(expression)`",
+    "output": "Floating point number (decimal)",
+    "definition": "Casts its argument as a floating point number.",
+    "example": "FLOAT(3) = 3.000",
+    "notes": "See also `INT` which returns an integer."
+  },
+  {
+    "name": "FLOOR",
+    "syntax": "`FLOOR(number)`",
+    "output": "Integer",
+    "definition": "Rounds a `<number>` to the nearest integer of equal or lesser value.",
+    "example": "FLOOR(7.9) = 7",
+    "notes": "See also `CEILING` and `ROUND`.",
+    "database_limitations": "`FLOOR` is available through the following connectors: Microsoft Excel, Text File, Statistical File, Published Data Source, Amazon EMR Hadoop Hive, Cloudera Hadoop, DataStax Enterprise, Google Analytics, Google BigQuery, Hortonworks Hadoop Hive, MapR Hadoop Hive, Microsoft SQL Server, Salesforce, Spark SQL."
+  },
+  {
+    "name": "FULLNAME",
+    "syntax": "`FULLNAME( )`",
+    "output": "String",
+    "definition": "Returns the full name for the current user.",
+    "example": "FULLNAME( )\nThis returns the full name of the signed in user, such as \"Hamlin Myrer\".\n\n[Manager] = FULLNAME( )\nIf manager \"Hamlin Myrer\" is signed in, this example returns TRUE only if the Manager field in the view contains \"Hamlin Myrer\".",
+    "notes": "This function checks:\n\n*   Tableau Cloud and Tableau Server:the full name of the signed-in user\n*   Tableau Desktop: the local or network full name for the user\n\n**User filters**\n\nWhen used as a filter, a calculated field such as `[Username field] = FULLNAME( )` can be used to create a user filter that only shows data that is relevant to the person signed in to the server."
+  },
+  {
+    "name": "GET_JSON_OBJECT",
+    "description": "`GET_JSON_OBJECT(JSON string, JSON path)`\n\nOnly supported when connected to Hadoop Hive. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "GROUP_CONCAT",
+    "description": "`GROUP_CONCAT(expression)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "HEXBINX",
+    "syntax": "`HEXBINX(number, number)`",
+    "output": "Number",
+    "definition": "Maps an x, y coordinate to the x-coordinate of the nearest hexagonal bin. The bins have side length 1, so the inputs may need to be scaled appropriately.",
+    "example": "HEXBINX([Longitude]*2.5, [Latitude]*2.5)",
+    "notes": "`HEXBINX`and `HEXBINY` are binning and plotting functions for hexagonal bins. Hexagonal bins are an efficient and elegant option for visualizing data in an x/y plane such as a map. Because the bins are hexagonal, each bin closely approximates a circle and minimizes variation in the distance from the data point to the center of the bin. This makes the clustering both more accurate and informative."
+  },
+  {
+    "name": "HEXBINY",
+    "syntax": "`HEXBINY(number, number)`",
+    "output": "Number",
+    "definition": "Maps an x, y coordinate to the y-coordinate of the nearest hexagonal bin. The bins have side length 1, so the inputs may need to be scaled appropriately.",
+    "example": "HEXBINY([Longitude]*2.5, [Latitude]*2.5)",
+    "notes": "See also `HEXBINX`."
+  },
+  {
+    "name": "HOST",
+    "description": "`HOST(string_url)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "IF",
+    "syntax": "`IF <test1> THEN <then1> [ELSEIF <test2> THEN <then2>...][ELSE <default>] END`",
+    "output": "Depends on data type of the `<then>`values.",
+    "definition": "Tests a series of expressions and returns the `<then>` value for the first true `<test>`.",
+    "example": "IF [Season] = \"Summer\" THEN 'Sandals'\n\nELSEIF [Season] = \"Winter\" THEN 'Boots' \n\nELSE 'Sneakers' \n\n**END**\n_\"If Season = Summer, then return Sandals. If not, look at the next expression. If Season = Winter, then return Boots. If neither of the expressions are true, return Sneakers.\"_",
+    "notes": "See also [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF) and [IIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IIF).\n\nUsed with [ELSEIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSEIF), [THEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#THEN), [ELSE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSE), and [END](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#END)"
+  },
+  {
+    "name": "IFNULL",
+    "syntax": "`IFNULL(expr1, expr2)`",
+    "output": "Depends on the data type of the `<expr>` values.",
+    "definition": "Returns `<expr1>` if it's non-null, otherwise returns `<expr2>`.",
+    "example": "IFNULL([Assigned Room], \"TBD\")\n_\"If the Assigned Room field isn't null, return its value. If the Assigned room field is null, return TBD instead.\"_",
+    "notes": "Compare with [ISNULL](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ISNULL). `IFNULL` always returns a value. `ISNULL`returns a boolean (true or false).\n\nSee also [ZN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ZN)."
+  },
+  {
+    "name": "IIF",
+    "syntax": "`IIF(<test>, <then>, <else>, [<unknown>])`",
+    "output": "Depends on the data type of the values in the expression.",
+    "definition": "Checks whether a condition is met (`<test>`), and returns `<then>`if the test is true, `<else>`if the test is false, and an optional value for `<unknown>` if the test is null. If the optional unknown isn't specified, `IIF` returns null.",
+    "example": "IIF([Season] = 'Summer', 'Sandals', 'Other footwear')\n_\"If Season = Summer, then return Sandals. If not, return Other footwear\"_\n\nIIF([Season] = 'Summer', 'Sandals', \n\n   IIF('Season' = 'Winter', 'Boots',  'Other footwear')\n\n)\n_\"If Season = Summer, then return Sandals. If not, look at the next expression. If Season = Winter, then return Boots. If neither are true, return Sneakers.\"_\n\nIIF('Season' = 'Summer', 'Sandals', \n\n   IIF('Season' = 'Winter', 'Boots',  \n\n      IIF('Season' = 'Spring', 'Sneakers', 'Other footwear')\n\n   )\n\n)\n_\"If Season = Summer, then return Sandals. If not, look at the next expression. If Season = Winter, then return Boots. If none of the expressions are true, return Sneakers.\"_",
+    "notes": "See also [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF) and[CASE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#CASE).\n\n`IIF` doesn't have an equivalent to `ELSEIF` (like `IF`)or repeated `WHEN` clauses (like `CASE`). Instead, multiple tests can be evaluated sequentially by nesting `IIF` statements as the `<unknown>`element. The first (outermost) true is returned.\n\nThat is to say, in the calculation below, the result will be Red, not Orange, because the expression stops being evaluated as soon as A=A is evaluated as true:\n\n`IIF('A' = 'A', 'Red', IIF('B' = 'B', 'Orange',  IIF('C' = 'D', 'Yellow', 'Green')))`"
+  },
+  {
+    "name": "IN",
+    "syntax": "`<expr1> IN <expr2>`",
+    "output": "Boolean (true or false)",
+    "definition": "Returns `TRUE` if any value in `<expr1>` matches any value in `<expr2>`.",
+    "example": "SUM([Cost]) IN (1000, 15, 200)\n_\"Is the value of the Cost field 1000, 15, or 200?\"_\n\n[Field] IN [Set]\n_\"Is the value of the field present in the set?\"_",
+    "notes": "The values in `<expr2>` can be a set, list of literal values, or combined field.\n\nSee also [WHEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#WHEN)."
+  },
+  {
+    "name": "INCLUDE",
+    "description": "For more information, see [Level of Detail Expressions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/calculations_calculatedfields_lod.htm)."
+  },
+  {
+    "name": "INDEX",
+    "description": "`INDEX( )`\n\nFor more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "INT",
+    "syntax": "`INT(expression)`",
+    "output": "Integer",
+    "definition": "Casts its argument as an integer. For expressions, this function truncates results to the closest integer toward zero.",
+    "example": "INT(8/3) = 2 INT(-9.7) = -9",
+    "notes": "When a string is converted to an integer it is first converted to a float and then rounded.\n\nSee also `FLOAT` which returns a decimal.\n\nSee also [ROUND](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ROUND), [CEILING](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#CEILING), and [FLOOR](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#FLOOR)"
+  },
+  {
+    "name": "INTERSECTS",
+    "syntax": "`INTERSECTS (<geometry1>, <geometry2>)`",
+    "output": "Boolean",
+    "definition": "Returns true or false indicating if two geometries overlap in space.",
+    "notes": "Supported combinations: point/polygon, line/polygon, and polygon/polygon."
+  },
+  {
+    "name": "ISDATE",
+    "description": "Checks if the string is a valid date format.",
+    "syntax": "`ISDATE(string)`",
+    "output": "Boolean",
+    "definition": "Returns true if a given `<string>` is a valid date.",
+    "example": "ISDATE(09/22/2018) = true ISDATE(22SEP18) = false",
+    "notes": "The required argument must be a string. ISDATE cannot be used for a field with a date data type—the calculation will return an error."
+  },
+  {
+    "name": "ISFULLNAME",
+    "syntax": "`ISFULLNAME(\"User Full Name\")`",
+    "output": "Boolean",
+    "definition": "Returns `TRUE` if the current user's full name matches the specified full name or `FALSE` if it does not match.",
+    "example": "ISFULLNAME(\"Hamlin Myrer\")",
+    "notes": "The `<\"User Full Name\">` argument must be a literal string, not a field.\n\nThis function checks:\n\n*   Tableau Cloud and Tableau Server:the full name of the signed-in user\n*   Tableau Desktop: the local or network full name for the user"
+  },
+  {
+    "name": "ISMEMBEROF",
+    "syntax": "`ISMEMBEROF(\"Group Name\")`",
+    "output": "Boolean or null",
+    "definition": "Returns `TRUE` if the person currently using Tableau is a member of a group that matches the given string, `FALSE` if they're not a member, and `NULL` if they're not signed in.",
+    "example": "ISMEMBEROF('Superstars')ISMEMBEROF('domain.lan\\Sales')",
+    "notes": "The `<\"Group Full Name\">` argument must be a literal string, not a field.\n\nIf the user is signed in to Tableau Cloud or Tableau Server, group membership is determined by Tableau groups. The function will return TRUE if the given string is \"All Users\"\n\nThe `ISMEMBEROF( )` function will also accept Active Directory domains. The Active Directory domain must be declared in the calculation with the group name."
+  },
+  {
+    "name": "ISNULL",
+    "syntax": "`ISNULL(expression)`",
+    "output": "Boolean (true or false)",
+    "definition": "Returns true if the `<expression>` is NULL (does not contain valid data).",
+    "example": "ISNULL([Assigned Room])\n_\"Is the Assigned Room field null?\"_",
+    "notes": "Compare with [IFNULL](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IFNULL). `IFNULL` always returns a value. `ISNULL` returns a boolean.\n\nSee also [ZN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ZN)."
+  },
+  {
+    "name": "ISOQUARTER",
+    "syntax": "`ISOQUARTER(date)`",
+    "output": "Integer",
+    "definition": "Returns the ISO8601 week-based quarter of a given `<date>` as an integer.",
+    "example": "ISOQUARTER(#1986-03-25#) = 1",
+    "notes": "See also `ISOWEEK`, `ISOWEEKDAY`, `ISOYEAR`, and the non-ISO equivalents."
+  },
+  {
+    "name": "ISOWEEK",
+    "syntax": "`ISOWEEK(date)`",
+    "output": "Integer",
+    "definition": "Returns the ISO8601 week-based week of a given `<date>` as an integer.",
+    "example": "ISOWEEK(#1986-03-25#) = 13",
+    "notes": "See also `ISOWEEKDAY`, `ISOQUARTER`, `ISOYEAR`, and the non-ISO equivalents."
+  },
+  {
+    "name": "ISOWEEKDAY",
+    "syntax": "`ISOWEEKDAY(date)`",
+    "output": "Integer",
+    "definition": "Returns the ISO8601 week-based weekday of a given `<date>` as an integer.",
+    "example": "ISOWEEKDAY(#1986-03-25#) = 2",
+    "notes": "See also `ISOWEEK`, `ISOQUARTER`, `ISOYEAR`, and the non-ISO equivalents"
+  },
+  {
+    "name": "ISOYEAR",
+    "syntax": "`ISOYEAR(date)`",
+    "output": "Integer",
+    "definition": "Returns the ISO8601 week-based year of a given date as an integer.",
+    "example": "ISOYEAR(#1986-03-25#) = 1,986",
+    "notes": "See also `ISOWEEK`, `ISOWEEKDAY`, `ISOQUARTER`, and the non-ISO equivalents."
+  },
+  {
+    "name": "ISUSERNAME",
+    "syntax": "`ISUSERNAME(\"username\")`",
+    "output": "Boolean",
+    "definition": "Returns `TRUE` if the current user's username matches the specified `<username>` or `FALSE` if it does not match.",
+    "example": "ISUSERNAME(\"hmyrer\")",
+    "notes": "The `<\"username\">` argument must be a literal string, not a field.\n\nThis function checks:\n\n*   Tableau Cloud and Tableau Server:the username of the signed-in user\n*   Tableau Desktop: the local or network username for the user"
+  },
+  {
+    "name": "LAST",
+    "description": "`LAST()`\n\nFor more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "LEFT",
+    "syntax": "`LEFT(string, number)`",
+    "output": "String",
+    "definition": "Returns the left-most `<number>` of characters in the string.",
+    "example": "LEFT(\"Matador\", 4) = \"Mata\"",
+    "notes": "See also [MID](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#MID) and [RIGHT](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#RIGHT)."
+  },
+  {
+    "name": "LEN",
+    "syntax": "`LEN(string)`",
+    "output": "Number",
+    "definition": "Returns the length of the `<string>`.",
+    "example": "LEN(\"Matador\") = 7",
+    "notes": "Not to be confused with the spatial function `LENGTH`."
+  },
+  {
+    "name": "LENGTH",
+    "syntax": "`LENGTH(geometry, 'units')`",
+    "output": "Number",
+    "definition": "Returns the geodetic path length of the line string or strings in the `<geometry>` using the given `<units>`.",
+    "example": "LENGTH([Spatial], 'metres')",
+    "notes": "The result is `<NaN>` if the geometry argument has no linestrings, though other elements are permitted.\n\nNot to be confused with the string function `LEN`."
+  },
+  {
+    "name": "LN",
+    "syntax": "`LN(number)`",
+    "output": "Number\n\nThe output is `Null` if the argument is less than or equal to zero.",
+    "definition": "Returns the natural logarithm of a `<number>`.",
+    "example": "LN(50) = 3.912023005",
+    "notes": "See also `EXP` and `LOG`."
+  },
+  {
+    "name": "LOG",
+    "syntax": "`LOG(number, [base])`\nIf the optional base argument isn't present, base 10 is used.",
+    "output": "Number",
+    "definition": "Returns the logarithm of a `<number>` for the given `<base>`.",
+    "example": "LOG(16,4) = 2",
+    "notes": "See also `POWER``LN`."
+  },
+  {
+    "name": "LOG2",
+    "description": "`LOG2(number)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "LOOKUP",
+    "description": "`LOOKUP(expression, [offest])`\n\nFor more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "LOWER",
+    "syntax": "`LOWER(string)`",
+    "output": "String",
+    "definition": "Returns the provided `<string>` in all lowercase characters.",
+    "example": "LOWER(\"ProductVersion\") = \"productversion\"",
+    "notes": "See also [UPPER](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#UPPER) and [PROPER](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#PROPER)."
+  },
+  {
+    "name": "LTRIM",
+    "syntax": "`LTRIM(string)`",
+    "output": "String",
+    "definition": "Returns the provided `<string>` with any leading spaces removed.",
+    "example": "LTRIM(\" Matador \") = \"Matador \"",
+    "notes": "See also [RTRIM](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#RTRIM)."
+  },
+  {
+    "name": "LTRIM_THIS",
+    "description": "`LTRIM_THIS(string, string)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "MAKEDATE",
+    "syntax": "`MAKEDATE(year, month, day)`",
+    "output": "Date",
+    "definition": "Returns a date value constructed from the specified `<year>`, `<month>`, and `<day>`.",
+    "example": "MAKEDATE(1986,3,25) = #1986-03-25#",
+    "notes": "**Note**: Incorrectly entered values will be adjusted into a date, such as `MAKEDATE(2020,4,31) = May 1, 2020` rather than returning an error that there is no 31st day of April.\n\nAvailable for Tableau Data Extracts. Check for availability in other data sources.\n\n`MAKEDATE` requires numerical inputs for the parts of a date. If your data is a string that should be a date, try the `DATE` function. `DATE` automatically recognizes many standard date formats. If `DATE` does not recognize the input try using `DATEPARSE`."
+  },
+  {
+    "name": "MAKEDATETIME",
+    "syntax": "`MAKEDATETIME(date, time)`",
+    "output": "Datetime",
+    "definition": "Returns a datetime that combines a `<date>` and a `<time>`. The date can be a date, datetime, or a string type. The time must be a datetime.",
+    "example": "MAKEDATETIME(\"1899-12-30\", #07:59:00#) = #12/30/1899 7:59:00 AM#MAKEDATETIME([Date], [Time]) = #1/1/2001 6:00:00 AM#",
+    "notes": "This function is available only for MySQL-compatible connections (which for Tableau are MySQL and Amazon Aurora).\n\n`MAKETIME` is a similar function available for Tableau Data Extracts and some other data sources."
+  },
+  {
+    "name": "MAKELINE",
+    "syntax": "`MAKELINE(SpatialPoint1, SpatialPoint2)`",
+    "output": "Geometry (line)",
+    "definition": "Generates a line mark between two points",
+    "example": "MAKELINE(MAKEPOINT(47.59, -122.32), MAKEPOINT(48.5, -123.1))",
+    "notes": "Useful for building origin-destination maps."
+  },
+  {
+    "name": "MAKEPOINT",
+    "syntax": "`MAKEPOINT(latitude, longitude, [SRID])`",
+    "output": "Geometry (point)",
+    "definition": "Converts data from `<latitude>` and `<longitude>` columns into spatial objects.\n\nIf the optional `<SRID>` argument is added, the inputs can be other projected geographic coordinates.",
+    "example": "MAKEPOINT(48.5, -123.1)MAKEPOINT([AirportLatitude], [AirportLongitude])MAKEPOINT([Xcoord],[Ycoord], 3493)",
+    "notes": "`MAKEPOINT` can't use the automatically generated latitude and longitude fields. The data source must contain the coordinates natively.\n\nSRID is a spatial reference identifier that uses [ESPG reference system codes(Link opens in a new window)](https://epsg.io/) to specify coordinate systems. If SRID is not specified, WGS84 is assumed and parameters are treated as latitude/longitude in degrees.\n\nYou can use `MAKEPOINT` to spatially-enable a data source so that it can be joined with a spatial file using a spatial join. For more information, see [Join Spatial Files in Tableau(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/maps_spatial_join.htm)."
+  },
+  {
+    "name": "MAKETIME",
+    "syntax": "`MAKETIME(hour, minute, second)`",
+    "output": "Datetime",
+    "definition": "Returns a date value constructed from the specified `<hour>`, `<minute>`, and `<second>`.",
+    "example": "MAKETIME(14, 52, 40) = #1/1/1899 14:52:40#",
+    "notes": "Because Tableau does not support a time data type, only datetime, the output is a datetime. The date portion of the field will be 1/1/1899.\n\nSimilar function to `MAKEDATETIME`, which is only available for MYSQL-compatible connections."
+  },
+  {
+    "name": "MAX",
+    "syntax": "`MAX(expression)` or `MAX(expr1, expr2)`",
+    "output": "Same data type as the argument, or `NULL`if any part of the argument is null.",
+    "definition": "Returns the maximum of the two arguments, which must be of the same data type.\n\n`MAX` can also be applied to a single field as an aggregation.",
+    "example": "MAX(4,7) = 7\n\nMAX(#3/25/1986#, #2/20/2021#) = #2/20/2021# \n\nMAX([Name]) = \"Zander\"",
+    "notes": "**For strings**\n\n`MAX` is usually the value that comes last in alphabetical order.\n\nFor database data sources, the `MAX` string value is highest in the sort sequence defined by the database for that column.\n\n**For dates**\n\nFor dates, the `MAX` is the most recent date. If `MAX` is an aggregation, the result will not have a date hierarchy. If `MAX` is a comparison, the result will retain the date hierarchy.\n\n**As an aggregation**\n\n`MAX(expression)` is an aggregate function and returns a single aggregated result. This displays as `AGG(expression)` in the viz.\n\n**As a comparison**\n\n`MAX(expr1, expr2)` compares the two values and returns a row-level value.\n\nSee also `MIN`."
+  },
+  {
+    "name": "MEDIAN",
+    "syntax": "`MEDIAN(expression)`",
+    "definition": "Returns the median of an expression across all records. Null values are ignored.",
+    "notes": "`MEDIAN` can only be used with numeric fields.",
+    "database_limitations": "`MEDIAN` is **not** available for the following data sources: Access, Amazon Redshift, Cloudera Hadoop, HP Vertica, IBM DB2, IBM PDA (Netezza), Microsoft SQL Server, MySQL, SAP HANA, Teradata.\n\nFor other data source types, you can extract your data into an extract file to use this function. See [Extract Your Data(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/extracting_data.htm)."
+  },
+  {
+    "name": "MID",
+    "syntax": "`(MID(string, start, [length])`",
+    "output": "String",
+    "definition": "Returns a string starting at the specified `<start>` position. The first character in the string is position 1.\n\nIf the optional numeric argument `<length>` is added, the returned string includes only that number of characters.",
+    "example": "MID(\"Calculation\", 2) = \"alculation\"MID(\"Calculation\", 2, 5) =\"alcul\"",
+    "notes": "See also the supported RegEx in the [additional functions documentation(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "MIN",
+    "syntax": "`MIN(expression)` or `MIN(expr1, expr2)`",
+    "output": "Same data type as the argument, or `NULL`if any part of the argument is null.",
+    "definition": "Returns the minimum of the two arguments, which must be of the same data type.\n\n`MIN`can also be applied to a single field as an aggregation.",
+    "example": "MIN(4,7) = 4\n\nMIN(#3/25/1986#, #2/20/2021#) = #3/25/1986#\n\nMIN([Name]) = \"Abebi\"",
+    "notes": "**For strings**\n\n`MIN` is usually the value that comes first in alphabetical order.\n\nFor database data sources, the `MIN` string value is lowest in the sort sequence defined by the database for that column.\n\n**For dates**\n\nFor dates, the `MIN` is the earliest date. If `MIN` is an aggregation, the result will not have a date hierarchy. If `MIN` is a comparison, the result will retain the date hierarchy.\n\n**As an aggregation**\n\n`MIN(expression)` is an aggregate function and returns a single aggregated result. This displays as `AGG(expression)` in the viz.\n\n**As a comparison**\n\n`MIN(expr1, expr2)` compares the two values and returns a row-level value.\n\nSee also `MAX`."
+  },
+  {
+    "name": "Model Extensions",
+    "description": "For more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm).\n\n*   MODEL_EXTENSION_BOOL\n*   MODEL_EXTENSION_INT\n*   MODEL_EXTENSION_REAL\n*   MODEL_EXTENSION_STR"
+  },
+  {
+    "name": "MODEL_PERCENTILE",
+    "syntax": "```\nMODEL_PERCENTILE(\n\t\t\t\t\t\t\tmodel_specification (optional),\n\t\t\t\t\t\t\ttarget_expression,\n\t\t\t\t\t\tpredictor_expression(s))\n```",
+    "definition": "Returns the probability (between 0 and 1) of the expected value being less than or equal to the observed mark, defined by the target expression and other predictors. This is the Posterior Predictive Distribution Function, also known as the Cumulative Distribution Function (CDF).",
+    "example": "MODEL_PERCENTILE( SUM([Sales]),COUNT([Orders]))"
+  },
+  {
+    "name": "MODEL_QUANTILE",
+    "syntax": "```\nMODEL_QUANTILE(\n\t\t\t\t\t\t\tmodel_specification (optional), \n\t\t\t\t\t\t\tquantile, \n\t\t\t\t\t\t\ttarget_expression,\n\t\t\t\t\t\tpredictor_expression(s))\n```",
+    "definition": "Returns a target numeric value within the probable range defined by the target expression and other predictors, at a specified quantile. This is the Posterior Predictive Quantile.",
+    "example": "MODEL_QUANTILE(0.5, SUM([Sales]), COUNT([Orders]))"
+  },
+  {
+    "name": "MONTH",
+    "syntax": "`MONTH(date)`",
+    "output": "Integer",
+    "definition": "Returns the month of the given `<date>` as an integer.",
+    "example": "MONTH(#1986-03-25#) = 3",
+    "notes": "See also `DAY`, `WEEK`, `Quarter`, `YEAR`, and the ISO equivalents"
+  },
+  {
+    "name": "NOT",
+    "syntax": "`NOT <expression>`",
+    "output": "Boolean (true or false)",
+    "definition": "Performs logical negation on an expression.",
+    "example": "IF **NOT** [Season] = \"Summer\"\n\nTHEN 'Don't wear sandals' \n\nELSE 'Wear sandals' \n\n**END**\n_\"If Season doesn't equal Summer, then return_ Don't wear sandals _. If not, return_ Wear sandals _.\"_",
+    "notes": "Often used with [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF) and [IIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IIF). See also [The Tableau functions in this reference are organized alphabetically. Click a letter to jump to that location in the list. You can also use Ctrl+F (Command-F on a Mac) to open a search box to look for a specific function.](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#top) and [OR](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#OR)."
+  },
+  {
+    "name": "NOW",
+    "syntax": "`NOW()`",
+    "output": "Datetime",
+    "definition": "Returns the current local system date and time.",
+    "example": "NOW() = 1986-03-25 1:08:21 PM",
+    "notes": "`NOW` does not take an argument.\n\nSee also `TODAY`, a similar calculation that returns a date instead of a datetime.\n\nIf the data source is a live connection, the system date and time could be in another timezone. For more information on how to address this, see [the Knowledge Base](https://kb.tableau.com/articles/issue/now-function-returns-utc-time)."
+  },
+  {
+    "name": "OR",
+    "syntax": "`<expr1> OR <expr2>`",
+    "output": "Boolean (true or false)",
+    "definition": "Performs a logical disjunction on two expressions.",
+    "example": "IF [Season] = \"Spring\" **OR** [Season] = \"Fall\"\n\nTHEN \"Sneakers\" \n\nEND\n_\"If either (Season = Spring)or (Season = Fall)is true, then return Sneakers.\"_",
+    "notes": "Often used with [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF) and [IIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IIF). See also [The Tableau functions in this reference are organized alphabetically. Click a letter to jump to that location in the list. You can also use Ctrl+F (Command-F on a Mac) to open a search box to look for a specific function.](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#top) and [NOT](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#NOT).\n\nIf either expression is `TRUE`, then the result is `TRUE`. If both expressions are `FALSE`, then the result is `FALSE`. If both expressions are `NULL`, then the result is `NULL`.\n\nIf you create a calculation which displays the result of an `OR` comparison on a worksheet, Tableau displays `TRUE`and `FALSE`. If you would like to change this, use the Format area in the format dialog.\n\n**Note**:The `OR` operator employs _short circuit evaluation._ This means that if the first expression is evaluated to be `TRUE`, then the second expression is not evaluated at all. This can be helpful if the second expression results in an error when the first expression is `TRUE`, because the second expression in this case is never evaluated."
+  },
+  {
+    "name": "OUTLINE",
+    "syntax": "`OUTLINE(<spatial polygon>)`",
+    "output": "Geometry",
+    "definition": "Converts a polygon geometry into linestrings.",
+    "notes": "Useful for creating a separate layer for an outline that can be styled differently than the fill.\n\nSupports polygons within multipolygons."
+  },
+  {
+    "name": "PARSE_URL",
+    "description": "`PARSE_URL(string, url_part)`\n\nOnly supported when connected to Cloudera Impala. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "PARSE_URL_QUERY",
+    "description": "`PARSE_URL_QUERY(string, key)`\n\nOnly supported when connected to Cloudera Impala. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "PERCENTILE",
+    "syntax": "`PERCENTILE(expression, number)`",
+    "definition": "Returns the percentile value from the given `<expression>` corresponding to the specified `<number>`. The `<number>` must be between 0 and 1 (inclusive) and must be a numeric constant.",
+    "example": "PERCENTILE([Score], 0.9)",
+    "database_limitations": "This function is available for the following data sources:Non-legacy Microsoft Excel and Text File connections, Extracts and extract-only data source types (for example, Google Analytics, OData, or Salesforce), Sybase IQ 15.1 and later data sources, Oracle 10 and later data sources, Cloudera Hive and Hortonworks Hadoop Hive data sources, EXASolution 4.2 and later data sources.\n\nFor other data source types, you can extract your data into an extract file to use this function. See [Extract Your Data(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/extracting_data.htm)."
+  },
+  {
+    "name": "PI",
+    "syntax": "`PI()`",
+    "output": "Number",
+    "definition": "Returns the numeric constant pi: 3.14159...",
+    "example": "PI() = 3.14159",
+    "notes": "Useful for trig functions that take their input in radians."
+  },
+  {
+    "name": "POWER",
+    "syntax": "`POWER(number, power)`",
+    "output": "Number",
+    "definition": "Raises the `<number>` to the specified `<power>`.",
+    "example": "POWER(5,3) = 125\n\nPOWER([Temperature], 2)",
+    "notes": "You can also use the ^ symbol, such as `5^3 = POWER(5,3) = 125`\nSee also `EXP`, `LOG`, and `SQUARE`."
+  },
+  {
+    "name": "PREVIOUS_VALUE",
+    "description": "`PREVIOUS_VALUE(expression)`\n\nFor more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "PROPER",
+    "syntax": "`PROPER(string)`",
+    "output": "String",
+    "definition": "Returns the provided `<string>` with the first letter of each word is capitalized and the remaining letters are in lowercase.",
+    "example": "PROPER(\"PRODUCT name\") = \"Product Name\"PROPER(\"darcy-mae\") = \"Darcy-Mae\"",
+    "notes": "Spaces and non-alphanumeric characters such as punctuation are treated as separators.\n\nSee also [LOWER](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#LOWER) and [UPPER](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#UPPER)."
+  },
+  {
+    "name": "Quarter",
+    "syntax": "`QUARTER(date)`",
+    "output": "Integer",
+    "definition": "Returns the quarter of the given `<date>` as an integer.",
+    "example": "QUARTER(#1986-03-25#) = 1",
+    "notes": "See also `DAY`, `WEEK`, `MONTH`, `YEAR`, and the ISO equivalents"
+  },
+  {
+    "name": "RADIANS",
+    "syntax": "`RADIANS(number)`",
+    "output": "Number (angle in radians)",
+    "definition": "Converts the given `<number>` from degrees to radians.",
+    "example": "RADIANS(180) = 3.14159",
+    "notes": "The inverse function, `DEGREES`, takes an angle in radians and returns the angle in degrees."
+  },
+  {
+    "name": "RANK Table Calculation functions",
+    "description": "For more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm).\n\n*   `RANK(expression, ['asc' | 'desc'])`\n*   `RANK_DENSE(expression, ['asc' | 'desc'])`\n*   `RANK_MODIFIED(expression, ['asc' | 'desc'])`\n*   `RANK_PERCENTILE(expression, ['asc' | 'desc'])`\n*   `RANK_UNIQUE(expression, ['asc' | 'desc'])`"
+  },
+  {
+    "name": "RAWSQL functions",
+    "description": "For more information, see [Pass-Through Functions (RAWSQL)(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_passthrough.htm).\n\n*   `RAWSQL_BOOL(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQL_DATE(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQL_DATETIME(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQL_INT(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQL_REAL(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQL_SPATIAL`\n*   `RAWSQL_STR(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQLAGG_BOOL(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQLAGG_DATE(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQLAGG_DATETIME(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQLAGG_INT(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQLAGG_REAL(\"sql_expr\", [arg1], … [argN])`\n*   `RAWSQLAGG_STR(\"sql_expr\", [arg1], … [argN])`"
+  },
+  {
+    "name": "REGEXP functions",
+    "description": "For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm).\n\n*   `REGEXP_EXTRACT(string, pattern)`\n*   `REGEXP_EXTRACT_NTH(string, pattern, index)`\n*   `REGEXP_EXTRACT_NTH(string, pattern, index)`\n*   `REGEXP_MATCH(string, pattern)`\n*   `REGEXP_REPLACE(string, pattern, replacement)`"
+  },
+  {
+    "name": "REPLACE",
+    "syntax": "`REPLACE(string, substring, replacement`",
+    "output": "String",
+    "definition": "Searches `<string>` for `<substring>` and replaces it with `<replacement>`. If `<substring>` is not found, the string is not changed.",
+    "example": "REPLACE(\"Version 3.8\", \"3.8\", \"4x\") = \"Version 4x\"",
+    "notes": "See also `REGEXP_REPLACE` in the [additional functions documentation(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "RIGHT",
+    "syntax": "`RIGHT(string, number)`",
+    "output": "String",
+    "definition": "Returns the right-most `<number>` of characters in the string.",
+    "example": "RIGHT(\"Calculation\", 4) = \"tion\"",
+    "notes": "See also [LEFT](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#LEFT) and [MID](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#MID)."
+  },
+  {
+    "name": "ROUND",
+    "syntax": "`ROUND(number, [decimals])`",
+    "output": "Number",
+    "definition": "Rounds the `<number>` to a specified number of digits.\n\nThe optional `decimals` argument specifies how many decimal points of precision to include in the final result. If `decimals` is omitted, number is rounded to the nearest integer.",
+    "example": "ROUND(1/3, 2) = 0.33",
+    "notes": "Some databases, such as SQL Server, allow specification of a negative length, where -1 rounds number to the tens place, -2 rounds to the hundreds place, and so on. This is not true of all databases. For example, it is not true of Excel or Access.\n\n**Tip**: Because ROUND may run into issues due to the underlying floating point representation of numbers—such as 9.405 rounding to 9.40—it may be preferable to [format the number](https://help.tableau.com/current/pro/desktop/en-us/formatting_specific_numbers.htm) to the desired number of decimal points rather than rounding. Formatting 9.405 to two decimal places will yield the expected 9.41.\n\nSee also `CEILING` and `FLOOR`."
+  },
+  {
+    "name": "RTRIM",
+    "syntax": "`RTRIM(string)`",
+    "output": "String",
+    "definition": "Returns the provided `<string>` with any trailing spaces removed.",
+    "example": "RTRIM(\" Calculation \") = \" Calculation\"",
+    "notes": "See also [LTRIM](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#LTRIM) and [TRIM](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#TRIM)."
+  },
+  {
+    "name": "RTRIM_THIS",
+    "description": "`RTRIM_THIS(string, string)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "RUNNING Table Calculation functions",
+    "description": "For more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm).\n\n*   `RUNNING_AVG(expression)`\n*   `RUNNING_COUNT(expression)`\n*   `RUNNING_MAX(expression)`\n*   `RUNNING_MIN(expression)`\n*   `RUNNING_SUM(expression)`"
+  },
+  {
+    "name": "SCRIPT Analytics Extensions",
+    "description": "For more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm).\n\n*   `SCRIPT_BOOL`\n*   `SCRIPT_INT`\n*   `SCRIPT_REAL`\n*   `SCRIPT_STR`"
+  },
+  {
+    "name": "SHAPETYPE",
+    "syntax": "`SHAPETYPE(<geometry>)`",
+    "output": "String",
+    "definition": "Returns a string describing the structure of the spatial geometry, such as Empty, Point, MultiPoint, LineString, MultiLinestring, Polygon, MultiPolygon, Mixed, and unsupported",
+    "example": "SHAPETYPE(MAKEPOINT(48.5, -123.1)) = \"Point\""
+  },
+  {
+    "name": "SIGN",
+    "syntax": "`SIGN(number)`",
+    "output": "-1, 0, or 1",
+    "definition": "Returns the sign of a `<number>`: The possible return values are -1 if the number is negative, 0 if the number is zero, or 1 if the number is positive.",
+    "example": "SIGN(AVG(Profit)) = -1",
+    "notes": "See also `ABS`."
+  },
+  {
+    "name": "SIN",
+    "syntax": "`SIN(number)`",
+    "output": "Number",
+    "definition": "Returns the sine of an angle in radians.",
+    "example": "SIN(0) = 1.0\n\nSIN(PI( )/4) = 0.707106781186548",
+    "notes": "The inverse function, `ASIN`, takes the sine as the argument and returns the angle in radians.\n\nSee also `PI`. To convert an angle from degrees to radians, use `RADIANS`."
+  },
+  {
+    "name": "SIZE",
+    "description": "`SIZE()`\n\nFor more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "SPACE",
+    "syntax": "`SPACE(number)`",
+    "output": "String (specifically, just spaces)",
+    "definition": "Returns a string that is composed of the specified number of repeated spaces.",
+    "example": "SPACE(2) = \"  \""
+  },
+  {
+    "name": "SPLIT",
+    "syntax": "`SPLIT(string, delimiter, token number)`",
+    "output": "String",
+    "definition": "Returns a substring from a `<string>`, using a `<delimiter>` character to divide the string into a sequence of `<tokens>`.",
+    "example": "SPLIT (\"a-b-c-d\", \"-\", 2) = \"b\"SPLIT (\"a|b|c|d\", \"|\", -2) = \"c\"",
+    "notes": "The string is interpreted as an alternating sequence of delimiters and tokens. So for the string `abc-defgh-i-jkl`, where the delimiter character is '`-`', the tokens are (1) `abc`, (2) `defgh`, (3) `i`, and (4) `jlk`.\n\n`SPLIT` returns the token corresponding to the token number. When the token number is positive, tokens are counted starting from the left end of the string; when the token number is negative, tokens are counted starting from the right.\n\nSee also supported REGEX in the [additional functions documentation(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm).",
+    "database_limitations": "The split and custom split commands are available for the following data sources types: Tableau data extracts, Microsoft Excel, Text File, PDF File, Salesforce, OData, Microsoft Azure Market Place, Google Analytics, Vertica, Oracle, MySQL, PostgreSQL, Teradata, Amazon Redshift, Aster Data, Google Big Query, Cloudera Hadoop Hive, Hortonworks Hive, and Microsoft SQL Server.\n\nSome data sources impose limits on splitting strings. See SPLIT function limitations later in this topic."
+  },
+  {
+    "name": "SQRT",
+    "syntax": "`SQRT(number)`",
+    "output": "Number",
+    "definition": "Returns the square root of a `<number>`.",
+    "example": "SQRT(25) = 5",
+    "notes": "See also `SQUARE`."
+  },
+  {
+    "name": "SQUARE",
+    "syntax": "`SQUARE(number)`",
+    "output": "Number",
+    "definition": "Returns the square of a `<number>`.",
+    "example": "SQUARE(5) = 25",
+    "notes": "See also `SQRT` and `POWER`."
+  },
+  {
+    "name": "STARTSWITH",
+    "syntax": "`STARTSWITH(string, substring)`",
+    "output": "Boolean",
+    "definition": "Returns true if `string` starts with `substring`. Leading white spaces are ignored.",
+    "example": "STARTSWITH(\"Matador, \"Ma\") = TRUE",
+    "notes": "See also [CONTAINS](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#CONTAINS), as well as supported REGEX in the [additional functions documentation(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "STDEV",
+    "syntax": "`STDEV(expression)`",
+    "definition": "Returns the statistical standard deviation of all values in the given `<expression>` based on a sample of the population."
+  },
+  {
+    "name": "STDEVP",
+    "syntax": "`STDEVP(expression)`",
+    "definition": "Returns the statistical standard deviation of all values in the given `<expression>` based on a biased population."
+  },
+  {
+    "name": "STR",
+    "syntax": "`STR(expression)`",
+    "output": "String",
+    "definition": "Casts its argument as a string.",
+    "example": "STR([ID])"
+  },
+  {
+    "name": "SUM",
+    "syntax": "`SUM(expression)`",
+    "definition": "Returns the sum of all values in the `<expression>`. Null values are ignored.",
+    "notes": "`SUM` can only be used with numeric fields."
+  },
+  {
+    "name": "TAN",
+    "syntax": "`TAN(number)`\nThe `<number>` argument is the angle in radians.",
+    "output": "Number",
+    "definition": "Returns the tangent of an angle.",
+    "example": "TAN(PI ( )/4) = 1.0",
+    "notes": "See also `ATAN`, `ATAN2`,`COT`, and `PI`. To convert an angle from degrees to radians, use `RADIANS`."
+  },
+  {
+    "name": "THEN",
+    "syntax": "```\nIF <test1> THEN <then1> \n\t\t\t\t\t\t\t[ELSEIF <test2> THEN <then2>...]\n\t\t\t\t\t\t\t[ELSE <default>] \n\t\t\t\t\t\tEND\n```",
+    "definition": "A required part of an `IF`, `ELSEIF`, or `CASE` expression, used to define what result to return if a specific value or test is true.",
+    "example": "IF [Season] = \"Summer\" **THEN** 'Sandals'\n\nELSEIF [Season] = \"Winter\" **THEN** 'Boots' \n\nELSE 'Sneakers' \n\nEND\n_\"If Season = Summer, then return Sandals. If not, look at the next expression. If Season = Winter, then return Boots. If neither of the expressions are true, return Sneakers.\"_\n\nCASE [Season] \n\nWHEN 'Summer' **THEN** 'Sandals' \n\nWHEN 'Winter' **THEN** 'Boots' \n\nELSE 'Sneakers' \n\nEND\n_\"Look at the Season field. If the value is Summer, then return Sandals. If the value is Winter, then return Boots. If none of the options in the calculation match what is in the Season field, return a Sneakers.\"_",
+    "notes": "Used with [CASE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#CASE), [WHEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#WHEN), [IF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IF), [ELSEIF](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSEIF), [THEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#THEN), [ELSE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSE), and [END](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#END)"
+  },
+  {
+    "name": "TIMESTAMP_TO_USEC",
+    "description": "`TIMESTAMP_TO_USEC(expression)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "TLD",
+    "description": "`TLD(string_url)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "TODAY",
+    "syntax": "`TODAY()`",
+    "output": "Date",
+    "definition": "Returns the current local system date.",
+    "example": "TODAY() = 1986-03-25",
+    "notes": "`TODAY` does not take an argument.\n\nSee also `NOW`, a similar calculation that returns a datetime instead of a date.\n\nIf the data source is a live connection, the system date could be in another timezone. For more information on how to address this, see [the Knowledge Base](https://kb.tableau.com/articles/issue/now-function-returns-utc-time)."
+  },
+  {
+    "name": "TOTAL",
+    "description": "`TOTAL(expression)`\n\nFor more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm)."
+  },
+  {
+    "name": "TRIM",
+    "syntax": "`TRIM(string)`",
+    "output": "String",
+    "definition": "Returns the provided `<string>` with leading and trailing spaces removed.",
+    "example": "TRIM(\" Calculation \") = \"Calculation\"",
+    "notes": "See also [LTRIM](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#LTRIM) and [RTRIM](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#RTRIM)."
+  },
+  {
+    "name": "UPPER",
+    "syntax": "`UPPER(string)`",
+    "output": "String",
+    "definition": "Returns the provided `<string>` in all uppercase characters.",
+    "example": "UPPER(\"Calculation\") = \"CALCULATION\"",
+    "notes": "See also [PROPER](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#PROPER) and [LOWER](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#LOWER)."
+  },
+  {
+    "name": "USEC_TO_TIMESTAMP",
+    "description": "`USEC_TO_TIMESTAMP(expression)`\n\nOnly supported when connected to Google BigQuery. For more information, see [Additional Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_additional.htm)."
+  },
+  {
+    "name": "USERDOMAIN",
+    "syntax": "`USERDOMAIN( )`",
+    "output": "String",
+    "definition": "Returns the domain for the current user.",
+    "notes": "This function checks:\n\n*   Tableau Cloud and Tableau Server:the user domain of the signed-in user\n*   Tableau Desktop: the local domain if the user is on a domain"
+  },
+  {
+    "name": "USERNAME",
+    "syntax": "`USERNAME( )`",
+    "output": "String",
+    "definition": "Returns the username for the current user.",
+    "example": "USERNAME( )\nThis returns the username of the signed in user, such as \"hmyrer\".\n\n[Manager] = USERNAME( )\nIf manager \"hmyrer\" is signed in, this example returns TRUE only if the Manager field in the view contains \"hmyrer\".",
+    "notes": "This function checks:\n\n*   Tableau Cloud and Tableau Server:the username of the signed-in user\n*   Tableau Desktop: the local or network username for the user\n\n**User filters**\n\nWhen used as a filter, a calculated field such as `[Username field] = USERNAME( )` can be used to create a user filter that only shows data that is relevant to the person signed in to the server."
+  },
+  {
+    "name": "USER ATTRIBUTE JSON web token functions",
+    "description": "*   `USERATTRIBUTE('attribute_name')`\n*   `USERATTRIBUTEINCLUDES('attribute_name', 'expected_value')`\n\nFor more information, see [User Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_user.htm)."
+  },
+  {
+    "name": "VAR",
+    "syntax": "`VAR(expression)`",
+    "definition": "Returns the statistical variance of all values in the given expression based on a sample of the population."
+  },
+  {
+    "name": "VARP",
+    "syntax": "`VARP(expression)`",
+    "definition": "Returns the statistical variance of all values in the given expression on the entire population."
+  },
+  {
+    "name": "WEEK",
+    "syntax": "`WEEK(date)`",
+    "output": "Integer",
+    "definition": "Returns the week of the given `<date>` as an integer.",
+    "example": "WEEK(#1986-03-25#) = 13",
+    "notes": "See also `DAY`, `MONTH`, `Quarter`, `YEAR`, and the ISO equivalents"
+  },
+  {
+    "name": "WHEN",
+    "syntax": "`CASE <expression>WHEN <value1> THEN <then1>WHEN <value2> THEN <then2>...[ELSE <default>]END`",
+    "definition": "A required part of a `CASE` expression. Finds the first `<value>` that matches `<expression>` and returns the corresponding `<then>`.",
+    "example": "CASE [Season]\n\n**WHEN** 'Summer' THEN 'Sandals' \n\n**WHEN** 'Winter' THEN 'Boots' \n\nELSE 'Sneakers' \n\nEND\n_\"Look at the Season field. If the value is Summer, then return Sandals. If the value is Winter, then return Boots. If none of the options in the calculation match what is in the Season field, return a Sneakers.\"_",
+    "notes": "Used with [CASE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#CASE), [THEN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#THEN), [ELSE](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ELSE), and [END](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#END).\n\n`CASE` also supports `WHEN IN` construction, such as:\n\nCASE <expression> \n\n**WHEN IN** <set1> THEN <then1> \n\n**WHEN IN** <combinedfield> THEN <then2> \n\n... \n\nELSE <default> \n\nEND\nThe values that `WHEN IN` compare to must be a set, list of literal values, or combined field. See also [IN](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IN)."
+  },
+  {
+    "name": "Window Table Calcs",
+    "description": "For more information, see [Table Calculation Functions(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_tablecalculation.htm).\n\n*   `WINDOW_AVG(expression, [start, end])`\n*   `WINDOW_CORR(expression1, expression2, [start, end])`\n*   `WINDOW_COUNT(expression, [start, end])`\n*   `WINDOW_COVAR(expression1, expression2, [start, end])`\n*   `WINDOW_COVARP(expression1, expression2, [start, end])`\n*   `WINDOW_MAX(expression, [start, end])`\n*   `WINDOW_MEDIAN(expression, [start, end])`\n*   `WINDOW_MIN(expression, [start, end])`\n*   `WINDOW_PERCENTILE(expression, number, [start, end])`\n*   `WINDOW_STDEV(expression, [start, end])`\n*   `WINDOW_STDEVP(expression, [start, end])`\n*   `WINDOW_SUM(expression, [start, end])`\n*   `WINDOW_VAR(expression, [start, end])`\n*   `WINDOW_VARP(expression, [start, end])`"
+  },
+  {
+    "name": "XPATH functions.",
+    "description": "Only supported when connected to Hadoop Hive. For more information, see [Pass-Through Functions (RAWSQL)(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_functions_passthrough.htm).\n\n*   `XPATH_BOOLEAN(XML string, XPath expression string)`\n*   `XPATH_DOUBLE(XML string, XPath expression string)`\n*   `XPATH_FLOAT(XML string, XPath expression string)`\n*   `XPATH_INT(XML string, XPath expression string)`\n*   `XPATH_LONG(XML string, XPath expression string)`\n*   `XPATH_SHORT(XML string, XPath expression string)`\n*   `XPATH_STRING(XML string, XPath expression string)`"
+  },
+  {
+    "name": "YEAR",
+    "syntax": "`YEAR(date)`",
+    "output": "Integer",
+    "definition": "Returns the year of the given `<date>` as an integer.",
+    "example": "YEAR(#1986-03-25#) = 1,986",
+    "notes": "See also `DAY`, `WEEK`, `MONTH`, `Quarter`, and the ISO equivalents"
+  },
+  {
+    "name": "ZN",
+    "syntax": "`ZN(expression)`",
+    "output": "Depends on the data type of the `<expression>`, or 0.",
+    "definition": "Returns `<expression>` if it isn't null, otherwise returns zero.",
+    "example": "ZN([Test Grade])\n_\"If the test grade isn't null, return its value. If the test grade is null, return 0.\"_",
+    "notes": "`ZN` is a specialized case of [IFNULL](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#IFNULL) where alternative if the expression is null is always 0 rather than being specified in the calculation.\n\n`ZN` is especially useful when performing additional calculations and a null would render the entire calculation null. However, use caution interpreting these results as null is not always synonymous with 0 and could represent missing data.\n\nSee also [ISNULL](https://help.tableau.com/current/pro/desktop/en-us/functions_all_alphabetical.htm#ISNULL).\n\n\n\nSee also\n--------\n\n[Tableau Functions (by Category)(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions_all_categories.htm)\n\n[Functions in Tableau(Link opens in a new window)](https://help.tableau.com/current/pro/desktop/en-us/functions.htm)"
+  }
+]

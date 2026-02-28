@@ -23,8 +23,8 @@ from .twb_editor import TWBEditor
 logger = logging.getLogger(__name__)
 
 # Resource paths
-DOCS_DIR = Path(__file__).parent.parent.parent / "docs"
-TABLEAU_FUNCTIONS_JSON = DOCS_DIR / "tableau_all_functions.json"
+REFERENCES_DIR = Path(__file__).parent / "references"
+TABLEAU_FUNCTIONS_JSON = REFERENCES_DIR / "tableau_all_functions.json"
 
 # ---------- MCP Server ----------
 
