@@ -323,6 +323,7 @@ def add_dashboard(
             - "horizontal": Place worksheets side by side.
             - "grid-2x2": 2x2 grid layout (max 4 worksheets).
             - A nested `dict` defining a complex declarative JSON layout.
+            - An absolute file path to a .json file containing the layout dictionary.
 
     Returns:
         Confirmation message.

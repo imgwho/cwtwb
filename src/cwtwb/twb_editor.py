@@ -936,9 +936,16 @@ class TWBEditor:
         # zones
         zones = etree.SubElement(db, "zones")
 
-        if worksheet_names or isinstance(layout, dict):
+        if worksheet_names or isinstance(layout, dict) or isinstance(layout, str):
             if isinstance(layout, str):
-                if layout == "horizontal":
+                import json
+                
+                # Check if layout is a file path
+                layout_path = Path(layout)
+                if layout_path.exists() and layout_path.is_file():
+                    with open(layout_path, 'r', encoding='utf-8') as f:
+                        layout_dict = json.load(f)
+                elif layout == "horizontal":
                     layout_dict = {
                         "type": "container",
                         "direction": "horizontal",
@@ -968,6 +975,23 @@ class TWBEditor:
                     }
             else:
                 layout_dict = layout
+            
+            # Extract and validate all worksheets in the layout tree
+            def _extract_worksheets(node: dict) -> list[str]:
+                sheets = []
+                if node.get("type") == "worksheet":
+                    sheets.append(node.get("name"))
+                elif "children" in node:
+                    for child in node["children"]:
+                        sheets.extend(_extract_worksheets(child))
+                return sheets
+            
+            used_sheets = _extract_worksheets(layout_dict)
+            seen_sheets = set()
+            for sheet in used_sheets:
+                if sheet in seen_sheets:
+                    raise ValueError(f"A worksheet can only be used once per dashboard. Found duplicate: '{sheet}'. Please add and configure a duplicate worksheet instead.")
+                seen_sheets.add(sheet)
                 
             from cwtwb.layout import generate_dashboard_zones
             generate_dashboard_zones(zones, layout_dict, width, height, self._next_zone_id)
