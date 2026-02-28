@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-28
+
+### Added
+
+- **Database Connections**:
+  - `TWBEditor.set_mysql_connection`: Configure TWB to load data from a Local MySQL database.
+  - `TWBEditor.set_tableauserver_connection`: Configure TWB for a Tableau Server hosted datasource.
+  - Automatically clears template-included dashboards, worksheets, metadata, and column aliases during config to prevent phantom "ghost" fields.
+- **Dynamic Field Registration**:
+  - The `field_registry` will now automatically infer the field type natively via naming heuristics when initializing `configure_chart` on strictly offline unknown schemas.
+- **MCP Server Tools**:
+  - Exposed `set_mysql_connection` and `set_tableauserver_connection` to the MCP Server.
+
 ## [0.1.0] - 2026-02-27
 
 ### Added
