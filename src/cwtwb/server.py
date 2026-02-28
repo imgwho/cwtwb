@@ -282,7 +282,7 @@ def set_tableauserver_connection(
     """Configure the workbook datasource to use a Tableau Server connection.
 
     Args:
-        server: Tableau Server address (e.g. "tbs.fstyun.cn")
+        server: Tableau Server address (e.g. "xxx.com")
         dbname: Database name on Tableau Server
         username: Username (can be empty)
         table_name: Target table name

@@ -63,7 +63,7 @@ def test_set_tableauserver_connection(superstore_template, tmp_path):
     editor = TWBEditor(superstore_template)
     
     msg = editor.set_tableauserver_connection(
-        server="tbs.fstyun.cn",
+        server="xxx.com",
         dbname="data16_",
         username="",
         table_name="sqlproxy",
@@ -86,7 +86,7 @@ def test_set_tableauserver_connection(superstore_template, tmp_path):
     
     proxy_conn = ds.find("connection[@class='sqlproxy']")
     assert proxy_conn is not None
-    assert proxy_conn.get("server") == "tbs.fstyun.cn"
+    assert proxy_conn.get("server") == "xxx.com"
     assert proxy_conn.get("dbname") == "data16_"
     assert proxy_conn.get("directory") == "/dataserver"
     assert proxy_conn.get("port") == "82"

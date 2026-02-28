@@ -48,7 +48,7 @@ def main():
     editor_tbs = TWBEditor(template_path)
     
     msg = editor_tbs.set_tableauserver_connection(
-        server="tbs.fstyun.cn",
+        server="xxx.com",
         dbname="data16_",
         username="",
         table_name="sqlproxy",
