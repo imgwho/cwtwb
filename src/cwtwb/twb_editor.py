@@ -944,7 +944,11 @@ class TWBEditor:
                 layout_path = Path(layout)
                 if layout_path.exists() and layout_path.is_file():
                     with open(layout_path, 'r', encoding='utf-8') as f:
-                        layout_dict = json.load(f)
+                        loaded_json = json.load(f)
+                        if isinstance(loaded_json, dict) and "layout_schema" in loaded_json:
+                            layout_dict = loaded_json["layout_schema"]
+                        else:
+                            layout_dict = loaded_json
                 elif layout == "horizontal":
                     layout_dict = {
                         "type": "container",
