@@ -27,16 +27,49 @@ pip install -e .
 
 ## Quick Start
 
-### As MCP Server
+### As MCP Server (Recommended for AI Tools)
 
-Add to your MCP client configuration:
+To allow your AI Assistant to build Tableau Dashboards automatically, you need to add `cwtwb` to your MCP client's configuration file.
+
+The easiest and safest way to use `cwtwb` is via `uvx` (an isolated Python environment runner via [uv](https://docs.astral.sh/uv/)). This requires zero installation.
+
+#### 1. Claude Desktop
+Open `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows) and add:
 
 ```json
 {
   "mcpServers": {
     "cwtwb": {
-      "command": "cwtwb",
-      "args": []
+      "command": "uvx",
+      "args": ["cwtwb"]
+    }
+  }
+}
+```
+
+#### 2. Cursor IDE
+1. Open **Cursor Settings** -> **Features** -> **MCP**.
+2. Click **Add New MCP Server**.
+3. Set **Type** to `command`.
+4. Set **Name** to `cwtwb`.
+5. Set **Command** to `uvx cwtwb`.
+
+#### 3. Claude Code (CLI)
+Run the following command in your terminal to permanently add the server to your Claude Code workspace:
+
+```bash
+claude mcp add cwtwb -- uvx cwtwb
+```
+
+#### 4. VSCode (via Cline / RooCode)
+Open your MCP settings file (usually located at `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` or equivalent on Windows) and append:
+
+```json
+{
+  "mcpServers": {
+    "cwtwb": {
+      "command": "uvx",
+      "args": ["cwtwb"]
     }
   }
 }
