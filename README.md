@@ -180,9 +180,11 @@ cwtwb/
 # Install in editable mode
 pip install -e .
 
-# Run tests
-python tests/test_e2e.py
-python tests/test_c2_replica.py
+# Run test suite
+pytest
+
+# Test end-to-end workflow demo
+python examples/scripts/demo_e2e_mcp_workflow.py
 
 # Start MCP server
 cwtwb
