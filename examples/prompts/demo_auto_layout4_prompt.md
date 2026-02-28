@@ -6,15 +6,19 @@ This prompt can be directly sent to an AI with `cwtwb` MCP tool access (like Cli
 
 ```text
 Use cwtwb MCP to build a sales dashboard for me using `superstore.twb`.
+
+superstore.twb
+ 
+ 
  
 1. Create 2 KPIs: the measures are sales and profit, aggregate with sum, mark type is text. 
    Then create 2 Bar charts: "Sales By Ship Mode", "Sales By Category". Sales is the measure.
 
 2. Layout: Put all charts into a new dashboard named "Layout dashboard" (size: 1200x800). 
-   Please use a declarative JSON layout with the following structure: 
-   The root is a vertical container containing three rows:
-   - Row 1 (Horizontal, fixed height 100): Contains a Text area for "Logo Area", and a large Text header for the dashboard title.
-   - Row 2 (Horizontal, distribute evenly, fixed height 150): Contains the 2 KPI worksheets.
+   Please use  JSON layout: 
+   The root is a vertical container containing 3 rows:
+   - Row 1 (Horizontal, fixed size 100): Contains a Text area for "Logo Area", and a large Text header for the dashboard title.
+   - Row 2 (Horizontal, distribute evenly, fixed size  150): Contains the 2 KPI worksheets.
    - Row 3 (Horizontal, distribute evenly): Contains the 2 Bar chart worksheets side by side.
 
 3. Save the final workbook to `output/demo_auto_layout4.twb`.
