@@ -241,6 +241,69 @@ def configure_chart(
 
 
 @server.tool()
+def set_mysql_connection(
+    server: str,
+    dbname: str,
+    username: str,
+    table_name: str,
+    port: str = "3306",
+) -> str:
+    """Configure the workbook datasource to use a Local MySQL connection.
+
+    Args:
+        server: MySQL server address (e.g. "127.0.0.1")
+        dbname: Database name
+        username: Database username
+        table_name: Table name to query
+        port: MySQL port (default: 3306)
+
+    Returns:
+        Confirmation message.
+    """
+    editor = _get_editor()
+    return editor.set_mysql_connection(
+        server=server,
+        dbname=dbname,
+        username=username,
+        table_name=table_name,
+        port=port,
+    )
+
+
+@server.tool()
+def set_tableauserver_connection(
+    server: str,
+    dbname: str,
+    username: str,
+    table_name: str,
+    directory: str = "/dataserver",
+    port: str = "82",
+) -> str:
+    """Configure the workbook datasource to use a Tableau Server connection.
+
+    Args:
+        server: Tableau Server address (e.g. "tbs.fstyun.cn")
+        dbname: Database name on Tableau Server
+        username: Username (can be empty)
+        table_name: Target table name
+        directory: Directory path on server (default: "/dataserver")
+        port: Port number (default: 82. Common options: 80, 443, 82)
+
+    Returns:
+        Confirmation message.
+    """
+    editor = _get_editor()
+    return editor.set_tableauserver_connection(
+        server=server,
+        dbname=dbname,
+        username=username,
+        table_name=table_name,
+        directory=directory,
+        port=port,
+    )
+
+
+@server.tool()
 def add_dashboard(
     dashboard_name: str,
     worksheet_names: list[str],
