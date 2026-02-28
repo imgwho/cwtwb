@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-28
+
+### Added
+
+- **Agentic UX Tool: `generate_layout_json`**:
+  - Introduced a dedicated MCP tool tailored for Language Models to handle complex dashboard layouts gracefully avoiding `EOF` (End of File) payload oversize crashes.
+  - Automatically wraps standard nested `layout` dicts inside the payload with a human-readable `_ascii_layout_preview`, persisting an easy-to-review design draft to local disk.
+  - Generates perfectly calculated XML `<zone>` absolute coordinates (in Tableau's 100,000 scale) for both relative weighting (`weight`) and exact sizes (`fixed_size`).
+- `TWBEditor.add_dashboard()` intelligent parsing:
+  - If given a file path, it now smartly unpacks the layout JSON, automatically extracting `"layout_schema"` and safely discarding extraneous metadata (like the ASCII diagram).
+- **Prompt Strategies (`demo_simple.md`)**:
+  - Updated the golden prompt strategy guide showing models how to seamlessly split reasoning logic: Step 1 (Tool: write layout to disk) -> Step 2 (Tool: pass file path to build dashboard).
+
 ## [0.2.0] - 2026-02-28
 
 ### Added
