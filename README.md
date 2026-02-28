@@ -16,7 +16,7 @@
 ## Installation
 
 ```bash
-pip install -e .
+pip install cwtwb
 ```
 
 ### Requirements
@@ -73,12 +73,6 @@ Open your MCP settings file (usually located at `~/Library/Application Support/C
     }
   }
 }
-```
-
-Or run directly:
-
-```bash
-cwtwb
 ```
 
 ### As Python Library
