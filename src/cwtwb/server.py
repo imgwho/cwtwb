@@ -346,7 +346,7 @@ def add_dashboard(
 def generate_layout_json(
     output_path: str,
     layout_tree: dict,
-    ascii_preview: str = "",
+    ascii_preview: str,
 ) -> str:
     """Generate and save a Dashboard layout JSON file.
 
@@ -360,7 +360,7 @@ def generate_layout_json(
             If container, set 'direction' ("vertical" or "horizontal") and 'children' (list).
             If worksheet, set 'name' (string).
             Use 'layout_strategy'="distribute-evenly" for standard containers.
-        ascii_preview: Optional. An ASCII string previewing the layout for human readers. 
+        ascii_preview: REQUIRED. An ASCII string previewing the layout for human readers. 
             Use dashes, pipes, and brackets to represent containers and worksheets.
 
     Returns:
