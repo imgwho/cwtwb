@@ -1,0 +1,113 @@
+{
+    "type": "container",
+    "direction": "vertical",
+    "children": [
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "fixed_size": 70,
+            "style": {
+                "background_color": "#ffffff"
+            },
+            "children": [
+                {
+                    "type": "text",
+                    "text": "COMPANY LOGO",
+                    "font_size": "14",
+                    "font_color": "#111e29",
+                    "bold": true,
+                    "fixed_size": 150
+                },
+                {
+                    "type": "text",
+                    "text": "C.2 (2) Executive Replica",
+                    "font_size": "20",
+                    "font_color": "#111e29",
+                    "bold": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "fixed_size": 30,
+            "style": {
+                "background_color": "#192f3e"
+            },
+            "children": [
+                {
+                    "type": "text",
+                    "text": "FILTERS AREA",
+                    "font_size": "10",
+                    "font_color": "#ffffff",
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "fixed_size": 100,
+            "layout_strategy": "distribute-evenly",
+            "children": [
+                {
+                    "type": "worksheet",
+                    "name": "Sales By Category - KPI"
+                },
+                {
+                    "type": "worksheet",
+                    "name": "Profit Map - KPI"
+                },
+                {
+                    "type": "worksheet",
+                    "name": "Discount Trend - KPI"
+                },
+                {
+                    "type": "worksheet",
+                    "name": "Daily Highlights - KPI"
+                }
+            ]
+        },
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "weight": 1,
+            "layout_strategy": "distribute-evenly",
+            "children": [
+                {
+                    "type": "container",
+                    "direction": "vertical",
+                    "weight": 1,
+                    "layout_strategy": "distribute-evenly",
+                    "children": [
+                        {
+                            "type": "worksheet",
+                            "name": "Sales By Category"
+                        },
+                        {
+                            "type": "worksheet",
+                            "name": "Profit Map"
+                        }
+                    ]
+                },
+                {
+                    "type": "container",
+                    "direction": "vertical",
+                    "weight": 1,
+                    "layout_strategy": "distribute-evenly",
+                    "children": [
+                        {
+                            "type": "worksheet",
+                            "name": "Discount Trend"
+                        },
+                        {
+                            "type": "worksheet",
+                            "name": "Daily Highlights"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

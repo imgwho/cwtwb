@@ -121,7 +121,7 @@ editor.save("output/my_workbook.twb")
 | `grid-2x2` | 2×2 grid layout (up to 4 worksheets) |
 | `dict` (JSON) | **Declarative Custom Layouts**: An infinitely nestable FlexBox-style JSON structure for enterprise dashboards. |
 
-Custom layouts can be built programmatically using the `TWBEditor` API by passing a `layout` nested dictionary. See `examples/demo_declarative_layout.py` for a complete example of generating a side-bar executive dashboard.
+Custom layouts can be built programmatically using the `TWBEditor` API by passing a `layout` nested dictionary. See `examples/scripts/demo_declarative_layout.py` for a complete example of generating a side-bar executive dashboard.
 
 ## Project Structure
 
@@ -137,10 +137,12 @@ cwtwb/
 │   ├── test_e2e.py          # End-to-end integration test
 │   └── test_c2_replica.py   # Full dashboard layout replica
 ├── templates/
-│   └── superstore.twb       # Base TWB template with data connection
+│   ├── superstore.twb       # Base TWB template with data connection
+├── examples/                # Example scripts and prompts
+│   ├── scripts/             # Python examples for SDK and workflow
+│   ├── prompts/             # Natural language prompts for MCP LLM
+│   └── layouts/             # JSON declarative layout definitions
 ├── docs/                    # Design documents
-├── vizs/                    # Reference visualizations and sample data
-├── layout/                  # Reference dashboard layouts
 ├── pyproject.toml           # Package configuration
 └── README.md
 ```
