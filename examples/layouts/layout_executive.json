@@ -1,0 +1,80 @@
+{
+    "type": "container",
+    "direction": "vertical",
+    "children": [
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "fixed_size": 100,
+            "style": {
+                "background_color": "#182b3a"
+            },
+            "children": [
+                {
+                    "type": "text",
+                    "text": "MY DECLARATIVE EXECUTIVE DASHBOARD",
+                    "font_size": "24",
+                    "font_color": "#ffffff",
+                    "bold": true,
+                    "fixed_size": 800
+                },
+                {
+                    "type": "text",
+                    "text": "Powered by cwtwb JSON Engine",
+                    "font_color": "#aaaaaa",
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "weight": 1,
+            "children": [
+                {
+                    "type": "container",
+                    "direction": "vertical",
+                    "fixed_size": 300,
+                    "layout_strategy": "distribute-evenly",
+                    "style": {
+                        "background_color": "#f3f3f3"
+                    },
+                    "children": [
+                        {
+                            "type": "worksheet",
+                            "name": "Daily Highlights"
+                        }
+                    ]
+                },
+                {
+                    "type": "container",
+                    "direction": "vertical",
+                    "weight": 2,
+                    "children": [
+                        {
+                            "type": "container",
+                            "direction": "horizontal",
+                            "weight": 1,
+                            "layout_strategy": "distribute-evenly",
+                            "children": [
+                                {
+                                    "type": "worksheet",
+                                    "name": "Sales By Category"
+                                },
+                                {
+                                    "type": "worksheet",
+                                    "name": "Discount Trend"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "worksheet",
+                            "name": "Profit Map",
+                            "weight": 2
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

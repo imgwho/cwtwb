@@ -1,0 +1,64 @@
+{
+    "type": "container",
+    "direction": "vertical",
+    "children": [
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "fixed_size": 80,
+            "style": {"background_color": "#2c3e50"},
+            "children": [
+                {
+                    "type": "text",
+                    "text": "C.1 Style Overview Dashboard",
+                    "font_size": "20",
+                    "font_color": "#ffffff",
+                    "bold": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "fixed_size": 40,
+            "style": {"background_color": "#ecf0f1", "margin_top": "4", "margin_bottom": "4"},
+            "children": [
+                {
+                    "type": "text",
+                    "text": "Filters / Controls Area",
+                    "font_size": "10",
+                    "font_color": "#7f8c8d",
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "type": "container",
+            "direction": "horizontal",
+            "weight": 1,
+            "children": [
+                {
+                    "type": "worksheet",
+                    "name": "Sales By Category",
+                    "weight": 1
+                },
+                {
+                    "type": "worksheet",
+                    "name": "Profit Map",
+                    "weight": 1
+                },
+                {
+                    "type": "worksheet",
+                    "name": "Discount Trend",
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "type": "worksheet",
+            "name": "Daily Highlights",
+            "fixed_size": 250
+        }
+    ]
+}

@@ -17,11 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `field_registry` will now automatically infer the field type natively via naming heuristics when initializing `configure_chart` on strictly offline unknown schemas.
 - **Declarative JSON Dashboard Layouts**:
   - `add_dashboard` now accepts a deeply nested dictionary (JSON-friendly) `layout` schema, allowing complex, FlexBox-like hierarchical layouts.
+  - `add_dashboard` `layout` parameter also directly accepts a file path (string) to a `.json` file, easing the payload size for MCP LLM calls.
   - Generates perfectly calculated XML `<zone>` absolute coordinates (in Tableau's 100,000 scale) for both relative weighting (`weight`) and exact sizes (`fixed_size`).
   - Added `demo_declarative_layout.py` showcasing the JSON engine.
 - **MCP Server Tools**:
   - Exposed `set_mysql_connection` and `set_tableauserver_connection` to the MCP Server.
-  - Upgraded `add_dashboard` MCP tool to accept JSON-based dictionaries for the `layout` schema.
+  - Upgraded `add_dashboard` MCP tool to accept JSON-based dictionaries and JSON file paths for the `layout` schema.
+- **Examples & Documentation**:
+  - Reorganized the `examples/` directory into `scripts/` (for Python demos) and `prompts/` (for natural language MCP prompts).
+  - Extracted test workflows into runnable demos (`demo_e2e_mcp_workflow.py` and `demo_connections.py`).
 
 ## [0.1.0] - 2026-02-27
 
