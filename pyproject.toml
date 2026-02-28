@@ -1,6 +1,6 @@
 [project]
 name = "cwtwb"
-version = "0.1.0"
+version = "0.1.1"
 description = "Tableau Workbook (.twb) Generation MCP Server"
 readme = "README.md"
 license = {text = "MIT"}
@@ -35,6 +35,14 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cwtwb"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.env",
+  "/.venv",
+  "/venv/",
+  "/env/",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
