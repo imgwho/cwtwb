@@ -23,7 +23,7 @@
             <connection authentication='auth-none' author-locale='zh_CN' class='hyper' dbname='C:/Users/imgwho/Desktop/projects/tableau-viz-generate/Visual Vocabulary- Credit Andy Kriebel.twb 个文件/Data/Extracts/Sample _ Superstore.hyper' default-settings='yes' server='' sslmode='' username='tableau_internal_user' />
           </named-connection>
           <named-connection caption='Sample - Superstore' name='excel-direct.0ap29e80je8vze1cyf2z2076vhiv'>
-            <connection class='excel-direct' cleaning='no' compat='no' dataRefreshTime='' filename='C:/Users/imgwho/Desktop/projects/20260227-cwtwb/vizs/Sample - Superstore.xls' interpretationMode='0' password='' server='' validate='no' />
+            <connection class='excel-direct' cleaning='no' compat='no' dataRefreshTime='' filename='C:/Users/imgwho/Desktop/projects/20260227-cwtwb/templates/Sample - Superstore.xls' interpretationMode='0' password='' server='' validate='no' />
           </named-connection>
         </named-connections>
         <relation connection='excel-direct.0ap29e80je8vze1cyf2z2076vhiv' name='Orders' table='[Orders$]' type='table'>
