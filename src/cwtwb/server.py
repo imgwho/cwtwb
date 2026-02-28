@@ -11,8 +11,7 @@ Provides the following MCP tools:
 - save_workbook: Save the TWB file
 """
 
-from __future__ import annotations
-
+import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -22,6 +21,10 @@ from mcp.server.fastmcp import FastMCP
 from .twb_editor import TWBEditor
 
 logger = logging.getLogger(__name__)
+
+# Resource paths
+DOCS_DIR = Path(__file__).parent.parent.parent / "docs"
+TABLEAU_FUNCTIONS_JSON = DOCS_DIR / "tableau_all_functions.json"
 
 # ---------- MCP Server ----------
 
@@ -43,6 +46,23 @@ def _get_editor() -> TWBEditor:
             "No active workbook. Call create_workbook first."
         )
     return _editor
+
+
+# ---------- Resources ----------
+
+@server.resource("file://docs/tableau_all_functions.json")
+def read_tableau_functions() -> str:
+    """Read the complete list of Tableau calculation functions.
+    
+    Returns a JSON array of function objects, containing the syntax,
+    definition, examples, and output data types for all documented
+    Tableau functions.
+    """
+    if not TABLEAU_FUNCTIONS_JSON.exists():
+        raise FileNotFoundError(f"Tableau functions JSON not found at: {TABLEAU_FUNCTIONS_JSON}")
+    
+    with TABLEAU_FUNCTIONS_JSON.open("r", encoding="utf-8") as f:
+        return f.read()
 
 
 # ---------- Tools ----------
