@@ -47,8 +47,11 @@ class TWBEditor:
         # Zone ID counter (used by dashboards)
         self._zone_id_counter = 2
 
-        # Initialize field registry
+        # Initialize field registry corresponding to metadata
         self._init_fields()
+
+        # Clear out default worksheets/dashboards to avoid ghost fields
+        self.clear_worksheets()
 
     # ================================================================
     # Initialization
@@ -125,6 +128,11 @@ class TWBEditor:
                     is_calculated=True,
                 )
 
+    def _reinit_fields(self) -> None:
+        """Clear the field registry and re-initialize it."""
+        self.field_registry._fields.clear()
+        self._init_fields()
+
     # ================================================================
     # Database Connections
     # ================================================================
@@ -192,11 +200,27 @@ class TWBEditor:
             for cols in og_rel.findall("columns"):
                 og_rel.remove(cols)
 
-        # 4. Cleanup old generic/excel connections
+        # 4. Cleanup old generic/excel connections and leftover fields
         excel_conn = self._datasource.find("connection[@class='excel-direct']")
         if excel_conn is not None:
             self._datasource.remove(excel_conn)
+            
+        old_cols = fed_conn.find("cols")
+        if old_cols is not None:
+            fed_conn.remove(old_cols)
+            
+        for c in self._datasource.findall("column"):
+            self._datasource.remove(c)
+            
+        aliases = self._datasource.find("aliases")
+        if aliases is not None:
+            self._datasource.remove(aliases)
 
+        # 6. Clean metadata-records
+        for mr in self._datasource.findall(".//metadata-record"):
+            mr.getparent().remove(mr)
+
+        self._reinit_fields()
         return f"Configured MySQL connection to {server}/{dbname} (table: {table_name})"
 
     def set_tableauserver_connection(
@@ -253,7 +277,20 @@ class TWBEditor:
             og_rel.set("type", "table")
             for cols in og_rel.findall("columns"):
                 og_rel.remove(cols)
+                
+        # 5. Cleanup old fields and aliases
+        for c in self._datasource.findall("column"):
+            self._datasource.remove(c)
+            
+        aliases = self._datasource.find("aliases")
+        if aliases is not None:
+            self._datasource.remove(aliases)
 
+        # 6. Clean metadata-records
+        for mr in self._datasource.findall(".//metadata-record"):
+            mr.getparent().remove(mr)
+
+        self._reinit_fields()
         return f"Configured Tableau Server connection to {server}/{dbname} (table: {table_name})"
 
     # ================================================================
@@ -339,18 +376,24 @@ class TWBEditor:
     # ================================================================
 
     def clear_worksheets(self) -> None:
-        """Clear all worksheets from the template."""
-        worksheets = self.root.find("worksheets")
+        """Clear all worksheets and dashboards from the template."""
+        # Clean worksheets
+        worksheets = self.root.find(".//worksheets")
         if worksheets is not None:
-            for ws in list(worksheets):
-                worksheets.remove(ws)
+            for child in list(worksheets):
+                worksheets.remove(child)
 
-        # Also clear window entries
-        windows = self.root.find("windows")
+        # Clean dashboards
+        dashboards = self.root.find(".//dashboards")
+        if dashboards is not None:
+            for child in list(dashboards):
+                dashboards.remove(child)
+
+        # Clean windows to avoid ghost references
+        windows = self.root.find(".//windows")
         if windows is not None:
-            for w in list(windows):
-                if w.tag == "window":
-                    windows.remove(w)
+            for child in list(windows):
+                windows.remove(child)
 
         # Clear thumbnails
         thumbnails = self.root.find("thumbnails")

@@ -184,7 +184,10 @@ class FieldRegistry:
     # ---- Internal methods ----
 
     def _find_field(self, name: str) -> FieldInfo:
-        """Find a field by display name, with exact and fuzzy matching."""
+        """Find a field by display name, with exact and fuzzy matching.
+        If the field doesn't exist, we assume it's a dynamic field from a new database connection
+        and dynamically register it as a generic dimension/measure.
+        """
         # Exact match
         if name in self._fields:
             return self._fields[name]
@@ -203,7 +206,25 @@ class FieldRegistry:
         if len(candidates) == 1:
             return candidates[0]
 
-        available = ", ".join(self._fields.keys())
-        raise ValueError(
-            f"Field '{name}' not found. Available fields: {available}"
+        # Dynamic Field Registration for new database connections 
+        # (Since we lack schema info offline, we guess type based on name)
+        # E.g. assume integer/measure if it contains 'id', 'sales', 'profit', 'qty', 'amount'
+        guessed_role = "dimension"
+        guessed_datatype = "string"
+        guessed_type = "nominal"
+        
+        lower_name = name.lower()
+        if any(kw in lower_name for kw in ['sales', 'profit', 'discount', 'quantity', 'amount', 'cost', 'id']):
+            guessed_role = "measure"
+            guessed_datatype = "real"
+            guessed_type = "quantitative"
+            
+        self.register(
+            display_name=name,
+            local_name=f"[{name}]",
+            datatype=guessed_datatype,
+            role=guessed_role,
+            field_type=guessed_type,
+            is_calculated=False,
         )
+        return self._fields[name]

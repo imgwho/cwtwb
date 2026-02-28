@@ -12,10 +12,10 @@ def main():
     output_dir = project_root / "output"
     output_dir.mkdir(exist_ok=True)
 
-    print("=== 测试 1: 生成 Local MySQL 连接的 TWB ===")
+    print("=== Test 1: Generate TWB with Local MySQL Connection ===")
     editor_mysql = TWBEditor(template_path)
     
-    # 设置连接信息
+    # Set connection information
     msg1 = editor_mysql.set_mysql_connection(
         server="127.0.0.1",
         dbname="superstore",
@@ -25,18 +25,18 @@ def main():
     )
     print(msg1)
     
-    # 添加一个简单的工作表以验证连接是否真的被绑定到了图表
+    # Add a simple worksheet to verify if the connection correctly binds to the chart
     editor_mysql.add_worksheet("Test Sheet")
-    editor_mysql.configure_chart("Test Sheet", mark_type="Bar", rows=["Category"], columns=["SUM(Sales)"])
+    editor_mysql.configure_chart("Test Sheet", mark_type="Bar", rows=["ship_mode"], columns=["SUM(sales)"])
     
     out_mysql = output_dir / "demo_mysql.twb"
     print(editor_mysql.save(out_mysql))
 
 
-    print("\n=== 测试 2: 生成 Tableau Server 连接的 TWB ===")
+    print("\n=== Test 2: Generate TWB with Tableau Server Connection ===")
     editor_tbs = TWBEditor(template_path)
     
-    # 设置连接信息
+    # Set connection information
     msg2 = editor_tbs.set_tableauserver_connection(
         server="tbs.fstyun.cn",
         dbname="data16_",
@@ -47,14 +47,18 @@ def main():
     )
     print(msg2)
     
+    # Add a simple worksheet to verify if the connection correctly binds to the chart
+    editor_tbs.add_worksheet("Test Server Sheet")
+    editor_tbs.configure_chart("Test Server Sheet", mark_type="Bar", rows=["省"], columns=["SUM(订单营业额)"])
+    
     out_tbs = output_dir / "demo_tableauserver.twb"
     print(editor_tbs.save(out_tbs))
     
-    print("\n=== 验证指引 ===")
-    print(f"1. 请使用 Tableau Desktop 打开 {out_mysql}")
-    print("   -> 预期表现：Tableau 会尝试连接到你的本地 127.0.0.1:3306 数据库 (如果是密码错误，会弹出输入密码的提示框，说明连接参数已生效)。")
-    print(f"2. 请使用 Tableau Desktop 打开 {out_tbs}")
-    print("   -> 预期表现：Tableau 会尝试登录到 tbs.fstyun.cn 验证数据源。")
+    print("\n=== Verification Guide ===")
+    print(f"1. Open {out_mysql} with Tableau Desktop")
+    print("   -> Expected behavior: Tableau will attempt to connect to your local 127.0.0.1:3306 database.")
+    print(f"2. Open {out_tbs} with Tableau Desktop")
+    print("   -> Expected behavior: Tableau will attempt to authenticate with tbs.fstyun.cn server datasource.")
 
 if __name__ == "__main__":
     main()

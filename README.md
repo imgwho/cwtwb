@@ -98,6 +98,8 @@ editor.save("output/my_workbook.twb")
 | `add_worksheet` | Add a new blank worksheet |
 | `configure_chart` | Configure chart type and field mappings |
 | `add_dashboard` | Create a dashboard combining worksheets |
+| `set_mysql_connection` | Configure the datasource to use a local MySQL connection |
+| `set_tableauserver_connection` | Configure connection to an online Tableau Server |
 | `save_workbook` | Save the final TWB file |
 
 ## Supported Chart Types
