@@ -15,8 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatically clears template-included dashboards, worksheets, metadata, and column aliases during config to prevent phantom "ghost" fields.
 - **Dynamic Field Registration**:
   - The `field_registry` will now automatically infer the field type natively via naming heuristics when initializing `configure_chart` on strictly offline unknown schemas.
+- **Declarative JSON Dashboard Layouts**:
+  - `add_dashboard` now accepts a deeply nested dictionary (JSON-friendly) `layout` schema, allowing complex, FlexBox-like hierarchical layouts.
+  - Generates perfectly calculated XML `<zone>` absolute coordinates (in Tableau's 100,000 scale) for both relative weighting (`weight`) and exact sizes (`fixed_size`).
+  - Added `demo_declarative_layout.py` showcasing the JSON engine.
 - **MCP Server Tools**:
   - Exposed `set_mysql_connection` and `set_tableauserver_connection` to the MCP Server.
+  - Upgraded `add_dashboard` MCP tool to accept JSON-based dictionaries for the `layout` schema.
 
 ## [0.1.0] - 2026-02-27
 

@@ -882,18 +882,19 @@ class TWBEditor:
         dashboard_name: str,
         width: int = 1200,
         height: int = 800,
-        layout: str = "vertical",
+        layout: str | dict = "vertical",
         worksheet_names: Optional[list[str]] = None,
     ) -> str:
         """Create a dashboard and arrange worksheets.
 
-        Uses layout-flow zone structure (per Tableau c.2 (2) reference).
+        Uses layout-flow zone structure. The layout parameter can be a simple string
+        ('vertical', 'horizontal', 'grid-2x2') or a complex declarative JSON layout dictionary.
 
         Args:
             dashboard_name: Dashboard name.
             width: Canvas width in pixels.
             height: Canvas height in pixels.
-            layout: Layout type: vertical/horizontal/grid-2x2.
+            layout: Layout type: vertical/horizontal/grid-2x2 or nested dict.
             worksheet_names: List of worksheet names to include.
 
         Returns:
@@ -935,125 +936,50 @@ class TWBEditor:
         # zones
         zones = etree.SubElement(db, "zones")
 
-        if worksheet_names:
-            self._build_dashboard_zones(zones, worksheet_names, layout)
+        if worksheet_names or isinstance(layout, dict):
+            if isinstance(layout, str):
+                if layout == "horizontal":
+                    layout_dict = {
+                        "type": "container",
+                        "direction": "horizontal",
+                        "layout_strategy": "distribute-evenly",
+                        "children": [{"type": "worksheet", "name": w} for w in worksheet_names]
+                    }
+                elif layout == "grid-2x2":
+                    n = len(worksheet_names)
+                    row1_children = [{"type": "worksheet", "name": w} for w in worksheet_names[:2]]
+                    row2_children = [{"type": "worksheet", "name": w} for w in worksheet_names[2:4]]
+                    layout_dict = {
+                        "type": "container",
+                        "direction": "vertical",
+                        "layout_strategy": "distribute-evenly",
+                        "children": [
+                            {"type": "container", "direction": "horizontal", "layout_strategy": "distribute-evenly", "children": row1_children},
+                        ]
+                    }
+                    if row2_children:
+                        layout_dict["children"].append({"type": "container", "direction": "horizontal", "layout_strategy": "distribute-evenly", "children": row2_children})
+                else:  # vertical
+                    layout_dict = {
+                        "type": "container",
+                        "direction": "vertical",
+                        "layout_strategy": "distribute-evenly",
+                        "children": [{"type": "worksheet", "name": w} for w in worksheet_names]
+                    }
+            else:
+                layout_dict = layout
+                
+            from cwtwb.layout import generate_dashboard_zones
+            generate_dashboard_zones(zones, layout_dict, width, height, self._next_zone_id)
 
         # simple-id (required)
         db_simple_id = etree.SubElement(db, "simple-id")
         db_simple_id.set("uuid", _generate_uuid())
 
         # Register dashboard window
-        self._add_window(dashboard_name, window_class="dashboard", worksheet_names=worksheet_names)
+        self._add_window(dashboard_name, window_class="dashboard", worksheet_names=(worksheet_names or []))
 
-        return f"Created dashboard '{dashboard_name}' with {len(worksheet_names)} worksheets"
-
-    def _build_dashboard_zones(
-        self,
-        zones: etree._Element,
-        worksheet_names: list[str],
-        layout: str,
-    ) -> None:
-        """Build dashboard zone structure.
-
-        Uses layout-flow zones (per Tableau c.2 reference).
-        """
-        n = len(worksheet_names)
-
-        if layout == "horizontal":
-            # Single horizontal container
-            container = etree.SubElement(zones, "zone")
-            container.set("h", "100000")
-            container.set("id", str(self._next_zone_id()))
-            container.set("param", "horz")
-            container.set("type-v2", "layout-flow")
-            container.set("w", "100000")
-            container.set("x", "0")
-            container.set("y", "0")
-
-            w_each = 100000 // n
-            for i, ws_name in enumerate(worksheet_names):
-                z = etree.SubElement(container, "zone")
-                z.set("h", "100000")
-                z.set("id", str(self._next_zone_id()))
-                z.set("name", ws_name)
-                z.set("w", str(w_each))
-                z.set("x", str(i * w_each))
-                z.set("y", "0")
-
-        elif layout == "grid-2x2":
-            # Outer vertical container with two horizontal rows
-            container = etree.SubElement(zones, "zone")
-            container.set("h", "100000")
-            container.set("id", str(self._next_zone_id()))
-            container.set("param", "vert")
-            container.set("type-v2", "layout-flow")
-            container.set("w", "100000")
-            container.set("x", "0")
-            container.set("y", "0")
-
-            # Top row
-            row1 = etree.SubElement(container, "zone")
-            row1.set("h", "50000")
-            row1.set("id", str(self._next_zone_id()))
-            row1.set("param", "horz")
-            row1.set("type-v2", "layout-flow")
-            row1.set("w", "100000")
-            row1.set("x", "0")
-            row1.set("y", "0")
-
-            positions_r1 = [(0, 0, 50000, 50000), (50000, 0, 50000, 50000)]
-            for i, (x, y, w, h) in enumerate(positions_r1):
-                if i < n:
-                    z = etree.SubElement(row1, "zone")
-                    z.set("h", str(h))
-                    z.set("id", str(self._next_zone_id()))
-                    z.set("name", worksheet_names[i])
-                    z.set("w", str(w))
-                    z.set("x", str(x))
-                    z.set("y", str(y))
-
-            # Bottom row
-            if n > 2:
-                row2 = etree.SubElement(container, "zone")
-                row2.set("h", "50000")
-                row2.set("id", str(self._next_zone_id()))
-                row2.set("param", "horz")
-                row2.set("type-v2", "layout-flow")
-                row2.set("w", "100000")
-                row2.set("x", "0")
-                row2.set("y", "50000")
-
-                positions_r2 = [(0, 50000, 50000, 50000), (50000, 50000, 50000, 50000)]
-                for i, (x, y, w, h) in enumerate(positions_r2):
-                    idx = i + 2
-                    if idx < n:
-                        z = etree.SubElement(row2, "zone")
-                        z.set("h", str(h))
-                        z.set("id", str(self._next_zone_id()))
-                        z.set("name", worksheet_names[idx])
-                        z.set("w", str(w))
-                        z.set("x", str(x))
-                        z.set("y", str(y))
-
-        else:  # vertical (default)
-            container = etree.SubElement(zones, "zone")
-            container.set("h", "100000")
-            container.set("id", str(self._next_zone_id()))
-            container.set("param", "vert")
-            container.set("type-v2", "layout-flow")
-            container.set("w", "100000")
-            container.set("x", "0")
-            container.set("y", "0")
-
-            h_each = 100000 // n
-            for i, ws_name in enumerate(worksheet_names):
-                z = etree.SubElement(container, "zone")
-                z.set("h", str(h_each))
-                z.set("id", str(self._next_zone_id()))
-                z.set("name", ws_name)
-                z.set("w", "100000")
-                z.set("x", "0")
-                z.set("y", str(i * h_each))
+        return f"Created dashboard '{dashboard_name}'"
 
     def _next_zone_id(self) -> int:
         self._zone_id_counter += 1

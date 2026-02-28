@@ -309,7 +309,7 @@ def add_dashboard(
     worksheet_names: list[str],
     width: int = 1200,
     height: int = 800,
-    layout: str = "vertical",
+    layout: str | dict = "vertical",
 ) -> str:
     """Create a dashboard combining multiple worksheets.
 
@@ -322,6 +322,7 @@ def add_dashboard(
             - "vertical": Stack worksheets vertically.
             - "horizontal": Place worksheets side by side.
             - "grid-2x2": 2x2 grid layout (max 4 worksheets).
+            - A nested `dict` defining a complex declarative JSON layout.
 
     Returns:
         Confirmation message.

@@ -119,8 +119,9 @@ editor.save("output/my_workbook.twb")
 | `vertical` | Stack worksheets top to bottom |
 | `horizontal` | Place worksheets side by side |
 | `grid-2x2` | 2×2 grid layout (up to 4 worksheets) |
+| `dict` (JSON) | **Declarative Custom Layouts**: An infinitely nestable FlexBox-style JSON structure for enterprise dashboards. |
 
-Custom layouts can be built programmatically using the `TWBEditor` API with direct zone manipulation (see `tests/test_c2_replica.py` for a complete example replicating a production dashboard layout).
+Custom layouts can be built programmatically using the `TWBEditor` API by passing a `layout` nested dictionary. See `examples/demo_declarative_layout.py` for a complete example of generating a side-bar executive dashboard.
 
 ## Project Structure
 
