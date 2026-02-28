@@ -53,7 +53,7 @@ cwtwb
 ```python
 from cwtwb.twb_editor import TWBEditor
 
-editor = TWBEditor("templates/superstore.twb")
+editor = TWBEditor("templates/twb/superstore.twb")
 editor.clear_worksheets()
 
 # Add a calculated field
