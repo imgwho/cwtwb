@@ -64,7 +64,7 @@ class TWBEditor:
         # If using the default template, dynamically fix the excel connection filename
         if getattr(self, "_is_default_template", False):
             from .server import REFERENCES_DIR
-            default_excel = REFERENCES_DIR / "Sample - Superstore - simple.xls"
+            default_excel = REFERENCES_DIR / "Sample _ Superstore (Simple).xls"
             # Find the excel-direct connection and update its filename
             excel_conn = self._datasource.find(".//connection[@class='excel-direct']")
             if excel_conn is not None:
@@ -712,6 +712,11 @@ class TWBEditor:
                 label_el = etree.SubElement(encodings_el, "text")
                 label_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
 
+            if detail:
+                ci = instances[detail]
+                detail_el = etree.SubElement(encodings_el, "lod")
+                detail_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
+
         # 5) Set pane style (mark labels, etc.)
         pane_style = pane.find("style")
         if pane_style is None:
@@ -998,7 +1003,6 @@ class TWBEditor:
                         "children": [{"type": "worksheet", "name": w} for w in worksheet_names]
                     }
                 elif layout == "grid-2x2":
-                    n = len(worksheet_names)
                     row1_children = [{"type": "worksheet", "name": w} for w in worksheet_names[:2]]
                     row2_children = [{"type": "worksheet", "name": w} for w in worksheet_names[2:4]]
                     layout_dict = {

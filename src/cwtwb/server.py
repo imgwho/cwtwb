@@ -85,7 +85,6 @@ def create_workbook(template_path: str = "", workbook_name: str = "") -> str:
     """
     global _editor
     _editor = TWBEditor(template_path)
-    _editor.clear_worksheets()
 
     lines = []
     if workbook_name:
