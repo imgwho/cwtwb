@@ -13,7 +13,7 @@ from __future__ import annotations
 import copy
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, List, Dict
 
 from lxml import etree
 
@@ -559,6 +559,8 @@ class TWBEditor:
         detail: Optional[str] = None,
         wedge_size: Optional[str] = None,
         sort_descending: Optional[str] = None,
+        tooltip: Optional[Union[str, list[str]]] = None,
+        filters: Optional[list[dict]] = None,
     ) -> str:
         """Configure chart type and field mappings for a worksheet.
 
@@ -575,6 +577,8 @@ class TWBEditor:
             sort_descending: Sort a dimension descending by this measure expression.
                 The dimension is auto-detected from rows/columns.
                 e.g. sort_descending="SUM(Sales)" sorts the row dimension by Sales DESC.
+            tooltip: Tooltip encoding expression(s). Can be a single string or list of strings.
+            filters: List of filter dictionaries, e.g. [{"column": "Region", "values": ["East", "West"]}].
 
         Returns:
             Confirmation message.
@@ -597,6 +601,17 @@ class TWBEditor:
         for enc in (color, size, label, detail, wedge_size, sort_descending):
             if enc:
                 all_exprs.append(enc)
+        
+        if tooltip:
+            if isinstance(tooltip, str):
+                all_exprs.append(tooltip)
+            else:
+                all_exprs.extend(tooltip)
+                
+        if filters:
+            for f in filters:
+                if "column" in f:
+                    all_exprs.append(f["column"])
 
         # Parse all expressions into ColumnInstances
         instances: dict[str, ColumnInstance] = {}
@@ -688,7 +703,7 @@ class TWBEditor:
         if old_enc is not None:
             pane.remove(old_enc)
 
-        has_encodings = any(x is not None for x in (color, size, label, detail, wedge_size))
+        has_encodings = any(x is not None for x in (color, size, label, detail, wedge_size, tooltip))
         if has_encodings:
             encodings_el = etree.SubElement(pane, "encodings")
 
@@ -716,6 +731,13 @@ class TWBEditor:
                 ci = instances[detail]
                 detail_el = etree.SubElement(encodings_el, "lod")
                 detail_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
+
+            if tooltip:
+                tooltip_list = [tooltip] if isinstance(tooltip, str) else tooltip
+                for tt in tooltip_list:
+                    ci = instances[tt]
+                    tt_el = etree.SubElement(encodings_el, "tooltip")
+                    tt_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
 
         # 5) Set pane style (mark labels, etc.)
         pane_style = pane.find("style")
@@ -754,7 +776,70 @@ class TWBEditor:
         if sort_descending:
             self._add_shelf_sort(view, ds_name, instances, rows, sort_descending)
 
+        # 9) Add filters if specified
+        if filters:
+            self._add_filters(view, instances, filters)
+
         return f"Configured worksheet '{worksheet_name}' as {mark_type} chart"
+
+    def _add_filters(
+        self,
+        view: etree._Element,
+        instances: dict[str, "ColumnInstance"],
+        filters: list[dict],
+    ) -> None:
+        """Add categorical filters to the worksheet view.
+        
+        Args:
+            view: The <view> xml element.
+            instances: Parsed column instances mapping.
+            filters: List of filter dictionaries, e.g. [{"column": "Region", "values": ["East", "West"]}].
+        """
+        for f in filters:
+            expr = f.get("column")
+            if not expr:
+                continue
+            values = f.get("values", [])
+            ci = instances.get(expr)
+            if not ci:
+                continue
+            
+            filter_el = etree.Element("filter")
+            filter_el.set("class", "categorical")
+            filter_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
+            
+            USER_NS = "{http://www.tableausoftware.com/xml/user}"
+            if len(values) == 1:
+                gf = etree.SubElement(filter_el, "groupfilter")
+                gf.set("function", "member")
+                gf.set("level", ci.instance_name)
+                gf.set("member", f'"{values[0]}"')
+                gf.set(f"{USER_NS}ui-domain", "database")
+                gf.set(f"{USER_NS}ui-enumeration", "inclusive")
+                gf.set(f"{USER_NS}ui-marker", "enumerate")
+            elif len(values) > 1:
+                gf = etree.SubElement(filter_el, "groupfilter")
+                gf.set("function", "union")
+                gf.set(f"{USER_NS}ui-domain", "database")
+                gf.set(f"{USER_NS}ui-enumeration", "inclusive")
+                gf.set(f"{USER_NS}ui-marker", "enumerate")
+                for v in values:
+                    member_el = etree.SubElement(gf, "groupfilter")
+                    member_el.set("function", "member")
+                    member_el.set("level", ci.instance_name)
+                    member_el.set("member", f'"{v}"')
+            
+            # Find insertion point (must be before sort, perspectives, slices, aggregation)
+            insert_before = None
+            for tag in ("sort", "perspectives", "slices", "aggregation"):
+                insert_before = view.find(tag)
+                if insert_before is not None:
+                    break
+                    
+            if insert_before is not None:
+                insert_before.addprevious(filter_el)
+            else:
+                view.append(filter_el)
 
     def _add_shelf_sort(
         self,

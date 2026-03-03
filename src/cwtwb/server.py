@@ -180,6 +180,8 @@ def configure_chart(
     detail: str | None = None,
     wedge_size: str | None = None,
     sort_descending: str | None = None,
+    tooltip: str | list[str] | None = None,
+    filters: list[dict] | None = None,
 ) -> str:
     """Configure chart type and field mappings for a worksheet.
 
@@ -206,6 +208,8 @@ def configure_chart(
         detail: Detail encoding field expression.
         wedge_size: Pie chart wedge size field expression (e.g. "SUM(Sales)").
         sort_descending: Sort dimension descending by this measure (e.g. "SUM(Sales)").
+        tooltip: Tooltip encoding field expression(s). Can be a single string or list of strings.
+        filters: List of categorical filters, e.g. [{"column": "Region", "values": ["East", "West"]}].
 
     Returns:
         Confirmation message.
@@ -236,6 +240,8 @@ def configure_chart(
         detail=detail,
         wedge_size=wedge_size,
         sort_descending=sort_descending,
+        tooltip=tooltip,
+        filters=filters,
     )
 
 
