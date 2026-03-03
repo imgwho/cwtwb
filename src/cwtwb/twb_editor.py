@@ -1144,6 +1144,168 @@ class TWBEditor:
         return self._zone_id_counter
 
     # ================================================================
+    # Dashboard Actions
+    # ================================================================
+
+    def add_dashboard_action(
+        self,
+        dashboard_name: str,
+        action_type: str,
+        source_sheet: str,
+        target_sheet: str,
+        fields: list[str],
+        event_type: str = "on-select",
+        caption: str = "",
+    ) -> str:
+        """Add an interaction action to a dashboard.
+
+        Supports 'filter' or 'highlight' actions between two worksheets on the dashboard.
+
+        Args:
+            dashboard_name: The name of the dashboard containing the source worksheet.
+            action_type: Type of action ('filter' or 'highlight').
+            source_sheet: The worksheet triggering the action.
+            target_sheet: The worksheet being affected by the action.
+            fields: List of fields to match on (e.g., ["Region", "State"]).
+            event_type: Trigger event ('on-select', 'on-hover', 'on-menu'). Default is 'on-select'.
+            caption: Optional caption for the action.
+
+        Returns:
+            Confirmation message.
+            
+        Raises:
+            ValueError: If dashboard or worksheets not found, or unsupported action type.
+        """
+        if action_type not in ("filter", "highlight"):
+            raise ValueError(f"Unsupported action_type '{action_type}'. Use 'filter' or 'highlight'.")
+
+        db_el = self.root.find(f".//dashboards/dashboard[@name='{dashboard_name}']")
+        if db_el is None:
+            raise ValueError(f"Dashboard '{dashboard_name}' not found.")
+
+        self._find_worksheet(source_sheet)
+        self._find_worksheet(target_sheet)
+
+        actions_el = self.root.find("actions")
+        if actions_el is None:
+            actions_el = etree.Element("actions")
+            insert_before = None
+            for tag in ("worksheets", "dashboards", "windows", "thumbnails"):
+                insert_before = self.root.find(tag)
+                if insert_before is not None:
+                    break
+            
+            if insert_before is not None:
+                insert_before.addprevious(actions_el)
+            else:
+                self.root.append(actions_el)
+
+        USER_NS = "http://www.tableausoftware.com/xml/user"
+        
+        # We need to set the xmlns:user via a workaround in lxml or just use nsmap
+        action_el = etree.Element("action", nsmap={"user": USER_NS})
+        actions_el.append(action_el)
+        
+        action_caption = caption or f"{action_type.capitalize()} Action {len(actions_el)}"
+        action_el.set("caption", action_caption)
+        action_el.set("name", f"[Action{len(actions_el)}]")
+
+        act_el = etree.SubElement(action_el, "activation")
+        act_el.set("auto-clear", "true")
+        if event_type != "on-select":
+            act_el.set("type", event_type)
+        elif event_type == "on-select":
+             act_el.set("type", "on-select")
+
+        source_el = etree.SubElement(action_el, "source")
+        source_el.set("dashboard", dashboard_name)
+        source_el.set("type", "sheet")
+        if source_sheet:
+            source_el.set("worksheet", source_sheet)
+            
+        # Get all worksheets in this dashboard to build the 'exclude' list
+        zones_el = db_el.find("zones")
+        all_sheets = []
+        if zones_el is not None:
+            for z in zones_el.findall(".//zone"):
+                ws_name = z.get("name")
+                if ws_name and ws_name not in all_sheets:
+                    all_sheets.append(ws_name)
+                    
+        # Calculate excluded sheets (everything except target)
+        # Note: According to Tableau, standard interactions target the Dashboard,
+        # but exclude all sheets EXCEPT the target.
+        exclude_sheets = [s for s in all_sheets if s != target_sheet]
+
+        if action_type == "filter":
+            cmd_el = etree.SubElement(action_el, "command")
+            cmd_el.set("command", "tsc:tsl-filter")
+            
+            if exclude_sheets:
+                param_ex = etree.SubElement(cmd_el, "param")
+                param_ex.set("name", "exclude")
+                param_ex.set("value", ",".join(exclude_sheets))
+                
+            if not fields:
+                param_sp = etree.SubElement(cmd_el, "param")
+                param_sp.set("name", "special-fields")
+                param_sp.set("value", "all")
+            else:
+                # Still use link for specific fields filter
+                from urllib.parse import quote
+                ds_name = self._datasource.get("name", "")
+                link_el = etree.SubElement(action_el, "link")
+                link_el.set("caption", action_caption)
+                link_el.set("delimiter", ",")
+                link_el.set("escape", "\\")
+                
+                field_expressions = []
+                for f in fields:
+                    ci = self.field_registry.parse_expression(f)
+                    col_name = ci.column_local_name
+                    encoded_ds = quote(f"[{ds_name}]")
+                    encoded_col = quote(f"[{col_name}]")
+                    field_expressions.append(f"{encoded_ds}.{encoded_col}~s0=<[{col_name}]~na>")
+                
+                expr_str = f"tsl:{dashboard_name}?" + "&".join(field_expressions)
+                link_el.set("expression", expr_str)
+                link_el.set("include-null", "true")
+                link_el.set("multi-select", "true")
+                link_el.set("url-escape", "true")
+                
+            param_tgt = etree.SubElement(cmd_el, "param")
+            param_tgt.set("name", "target")
+            param_tgt.set("value", dashboard_name)
+
+        elif action_type == "highlight":
+            cmd_el = etree.SubElement(action_el, "command")
+            cmd_el.set("command", "tsc:brush")
+            
+            if exclude_sheets:
+                param_ex = etree.SubElement(cmd_el, "param")
+                param_ex.set("name", "exclude")
+                param_ex.set("value", ",".join(exclude_sheets))
+            
+            if not fields:
+                param_sp = etree.SubElement(cmd_el, "param")
+                param_sp.set("name", "special-fields")
+                param_sp.set("value", "all")
+            else:
+                 # Note: in Correct Action we see special-fields=all
+                 # If user provides fields, we map them as field-captions maybe?
+                 # But in correct XML it used special-fields="all" even with highlight.
+                 # Let's trust field-captions for specific fields if provided.
+                 param_fields = etree.SubElement(cmd_el, "param")
+                 param_fields.set("name", "field-captions")
+                 param_fields.set("value", ",".join(fields))
+                
+            param_tgt = etree.SubElement(cmd_el, "param")
+            param_tgt.set("name", "target")
+            param_tgt.set("value", dashboard_name)
+
+        return f"Added {action_type} action '{action_caption}' to '{dashboard_name}'"
+
+    # ================================================================
     # List Fields
     # ================================================================
 

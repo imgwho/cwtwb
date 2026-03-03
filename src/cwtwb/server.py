@@ -348,6 +348,44 @@ def add_dashboard(
 
 
 @server.tool()
+def add_dashboard_action(
+    dashboard_name: str,
+    action_type: str,
+    source_sheet: str,
+    target_sheet: str,
+    fields: list[str],
+    event_type: str = "on-select",
+    caption: str = "",
+) -> str:
+    """Add an interaction action to a dashboard.
+
+    Supports 'filter' or 'highlight' actions between two worksheets on the dashboard.
+
+    Args:
+        dashboard_name: The name of the dashboard containing the source worksheet.
+        action_type: Type of action ('filter' or 'highlight').
+        source_sheet: The worksheet triggering the action.
+        target_sheet: The worksheet being affected by the action.
+        fields: List of fields to match on (e.g., ["Region", "State"]).
+        event_type: Trigger event ('on-select', 'on-hover', 'on-menu'). Default is 'on-select'.
+        caption: Optional caption for the action.
+
+    Returns:
+        Confirmation message.
+    """
+    editor = _get_editor()
+    return editor.add_dashboard_action(
+        dashboard_name=dashboard_name,
+        action_type=action_type,
+        source_sheet=source_sheet,
+        target_sheet=target_sheet,
+        fields=fields,
+        event_type=event_type,
+        caption=caption,
+    )
+
+
+@server.tool()
 def generate_layout_json(
     output_path: str,
     layout_tree: dict,
