@@ -52,9 +52,14 @@ class TestDashboardActions(unittest.TestCase):
         self.assertEqual(cmd_el.get("command"), "tsc:tsl-filter")
         
         params = cmd_el.findall("param")
-        self.assertEqual(len(params), 1)
-        self.assertEqual(params[0].get("name"), "target")
-        self.assertEqual(params[0].get("value"), "TargetBar")
+        self.assertEqual(len(params), 2)
+        
+        target_param = next(p for p in params if p.get("name") == "target")
+        self.assertEqual(target_param.get("value"), "ActionTestDash")
+
+        exclude_param = next(p for p in params if p.get("name") == "exclude")
+        # In this dashboard we expect TargetBar to be excluded since standard interactions target dashboard 
+        self.assertEqual(exclude_param.get("value"), "SourceMap")
 
 if __name__ == "__main__":
     unittest.main()

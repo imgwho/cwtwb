@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-files = ['superstore.twb', 'superstore - localmysql.twb', 'superstore - tableauserver.twb']
+files = ['superstore.twb', 'superstore - localmysql.twb']
 for f in files:
     tree = ET.parse('templates/twb/' + f)
     ds = tree.find('.//datasource')
