@@ -3,7 +3,7 @@ name = "cwtwb"
 version = "0.5.1"
 description = "Tableau Workbook (.twb) Generation MCP Server"
 readme = "README.md"
-license = {text = "AGPL-3.0-or-later"}
+license = {file = "LICENSE"}
 requires-python = ">=3.10"
 keywords = ["tableau", "twb", "mcp", "visualization", "workbook"]
 classifiers = [
