@@ -153,6 +153,52 @@ def remove_calculated_field(field_name: str) -> str:
 
 
 @server.tool()
+def add_parameter(
+    name: str,
+    datatype: str = "real",
+    default_value: str = "0",
+    domain_type: str = "range",
+    min_value: str = "",
+    max_value: str = "",
+    granularity: str = "",
+    allowed_values: list[str] | None = None,
+    default_format: str = "",
+) -> str:
+    """Add a parameter to the workbook.
+
+    Parameters are interactive controls that let users change values
+    dynamically. They can be referenced in calculated fields using
+    [Parameters].[ParameterName] syntax.
+
+    Args:
+        name: Display name for the parameter (e.g. "Target Profit").
+        datatype: Data type: real, integer, string, date, boolean.
+        default_value: Default/current value.
+        domain_type: "range" (slider with min/max) or "list" (dropdown).
+        min_value: Minimum value (range mode only).
+        max_value: Maximum value (range mode only).
+        granularity: Step size (range mode only).
+        allowed_values: List of allowed values (list mode only).
+        default_format: Optional Tableau number format string (e.g. "p0.00%").
+
+    Returns:
+        Confirmation message.
+    """
+    editor = _get_editor()
+    return editor.add_parameter(
+        name=name,
+        datatype=datatype,
+        default_value=default_value,
+        domain_type=domain_type,
+        min_value=min_value,
+        max_value=max_value,
+        granularity=granularity,
+        allowed_values=allowed_values,
+        default_format=default_format,
+    )
+
+
+@server.tool()
 def add_worksheet(worksheet_name: str) -> str:
     """Add a new blank worksheet to the workbook.
 
@@ -182,6 +228,7 @@ def configure_chart(
     sort_descending: str | None = None,
     tooltip: str | list[str] | None = None,
     filters: list[dict] | None = None,
+    geographic_field: str | None = None,
 ) -> str:
     """Configure chart type and field mappings for a worksheet.
 
@@ -196,10 +243,15 @@ def configure_chart(
     For Bar/Line charts, put dimensions in rows and measures in columns
     (or vice versa).
 
+    For Map charts (mark_type="Map"), set 'geographic_field' to the
+    geographic dimension (e.g. "State/Province"). The map automatically
+    uses generated Latitude/Longitude fields. You can also set 'color'
+    and 'size' encodings on the map.
+
     Args:
         worksheet_name: Target worksheet name.
         mark_type: Chart mark type. One of:
-            Bar, Line, Pie, Area, Circle, Square, Text, Automatic.
+            Bar, Line, Pie, Area, Circle, Square, Text, Map, Automatic.
         columns: Column shelf field expressions (e.g. ["SUM(Sales)"]).
         rows: Row shelf field expressions (e.g. ["Category"]).
         color: Color encoding field expression.
@@ -210,6 +262,7 @@ def configure_chart(
         sort_descending: Sort dimension descending by this measure (e.g. "SUM(Sales)").
         tooltip: Tooltip encoding field expression(s). Can be a single string or list of strings.
         filters: List of categorical filters, e.g. [{"column": "Region", "values": ["East", "West"]}].
+        geographic_field: Geographic dimension for Map charts (e.g. "State/Province").
 
     Returns:
         Confirmation message.
@@ -227,6 +280,11 @@ def configure_chart(
         configure_chart("Sheet1", mark_type="Line",
                         columns=["MONTH(Order Date)"],
                         rows=["SUM(Sales)"])
+
+        # Map chart: Sales by State
+        configure_chart("Sheet1", mark_type="Map",
+                        geographic_field="State/Province",
+                        color="SUM(Sales)", size="SUM(Profit)")
     """
     editor = _get_editor()
     return editor.configure_chart(
@@ -242,6 +300,7 @@ def configure_chart(
         sort_descending=sort_descending,
         tooltip=tooltip,
         filters=filters,
+        geographic_field=geographic_field,
     )
 
 

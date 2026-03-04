@@ -3,9 +3,16 @@
 This module provides a FlexBox-like layout engine that translates nested
 JSON/dict definitions into Tableau's complex <zone> hierarchy with absolute
 and proportional coordinate math geometry applied.
+
+Supported zone types:
+- container: layout container (vertical/horizontal)
+- worksheet: embedded worksheet
+- text: text label
+- filter: dashboard filter control (dropdown, checkdropdown, slider, etc.)
+- paramctrl: parameter control (slider, type_in)
 """
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from lxml import etree
 
 
@@ -13,7 +20,7 @@ class FlexNode:
     """A node in the declarative dashboard layout tree."""
     
     def __init__(self, d: dict[str, Any]):
-        self.type = d.get("type", "container")  # container, worksheet, text
+        self.type = d.get("type", "container")  # container, worksheet, text, filter, paramctrl
         self.direction = d.get("direction", "vertical")  # vertical, horizontal
         self.children = [FlexNode(c) for c in d.get("children", [])]
         self.fixed_size = d.get("fixed_size")
@@ -26,6 +33,15 @@ class FlexNode:
         self.font_color = d.get("font_color", "#111e29")
         self.bold = d.get("bold", False)
         self.layout_strategy = d.get("layout_strategy")
+        
+        # Filter zone properties
+        self.worksheet = d.get("worksheet")  # Source worksheet for the filter
+        self.field = d.get("field")  # Field name for filter (e.g. "Region")
+        self.mode = d.get("mode", "")  # dropdown, checkdropdown, slider, list, type_in
+        self.show_title = d.get("show_title", True)
+        
+        # ParamCtrl zone properties
+        self.parameter = d.get("parameter")  # Parameter name for paramctrl
         
         # Computed bounds (in Tableau's 100000 coordinate system)
         self.x = 0
@@ -79,8 +95,17 @@ class FlexNode:
                     c.compute_layout(px_x, curr_y, px_w, c_px_h, dash_w, dash_h)
                     curr_y += c_px_h
 
-    def render_to_xml(self, parent_el: etree._Element, get_id_fn: Callable[[], str]) -> etree._Element:
-        """Render the computed node directly to lxml tree."""
+    def render_to_xml(self, parent_el: etree._Element, get_id_fn: Callable[[], str],
+                      context: Optional[dict[str, Any]] = None) -> etree._Element:
+        """Render the computed node directly to lxml tree.
+        
+        Args:
+            parent_el: Parent XML element to append to.
+            get_id_fn: Callable that returns a new unique zone ID.
+            context: Optional dict with 'field_registry' and 'parameters' for resolving
+                     filter/paramctrl field references.
+        """
+        context = context or {}
         zone = etree.SubElement(parent_el, "zone")
         zone.set("id", str(get_id_fn()))
         zone.set("x", str(self.x))
@@ -98,7 +123,7 @@ class FlexNode:
             if self.layout_strategy:
                 zone.set("layout-strategy-id", self.layout_strategy)
             for c in self.children:
-                c.render_to_xml(zone, get_id_fn)
+                c.render_to_xml(zone, get_id_fn, context)
                 
         elif self.type == "worksheet":
             if self.name:
@@ -115,6 +140,55 @@ class FlexNode:
             run.set("fontcolor", self.font_color)
             run.set("fontsize", str(self.font_size))
             run.text = self.text_content
+
+        elif self.type == "filter":
+            # Dashboard filter control zone
+            zone.set("type-v2", "filter")
+            if self.worksheet:
+                zone.set("name", self.worksheet)
+            if self.mode:
+                zone.set("mode", self.mode)
+            if not self.show_title:
+                zone.set("show-title", "false")
+            # Resolve field to fully-qualified param reference
+            if self.field and context.get("field_registry"):
+                fr = context["field_registry"]
+                try:
+                    ci = fr.parse_expression(self.field)
+                    zone.set("param", fr.resolve_full_reference(ci.instance_name))
+                except Exception:
+                    zone.set("param", self.field)
+            elif self.field:
+                zone.set("param", self.field)
+
+        elif self.type == "paramctrl":
+            # Parameter control zone (slider/type_in)
+            zone.set("type-v2", "paramctrl")
+            if self.mode:
+                zone.set("mode", self.mode)
+            # Resolve parameter name to internal reference
+            if self.parameter and context.get("parameters"):
+                params = context["parameters"]
+                param_info = params.get(self.parameter)
+                if param_info:
+                    zone.set("param", f"[Parameters].{param_info['internal_name']}")
+                else:
+                    zone.set("param", f"[Parameters].[{self.parameter}]")
+            elif self.parameter:
+                zone.set("param", f"[Parameters].[{self.parameter}]")
+
+        elif self.type == "color":
+            # Color legend zone
+            zone.set("type-v2", "color")
+            if self.worksheet:
+                zone.set("name", self.worksheet)
+            if self.field and context.get("field_registry"):
+                fr = context["field_registry"]
+                try:
+                    ci = fr.parse_expression(self.field)
+                    zone.set("param", fr.resolve_full_reference(ci.instance_name))
+                except Exception:
+                    zone.set("param", self.field)
             
         # Apply standard or custom styles
         self._apply_style(zone, self.style)
@@ -148,8 +222,20 @@ class FlexNode:
             fmt.set("value", str(v))
 
 
-def generate_dashboard_zones(parent_zones_el: etree._Element, layout_config: dict[str, Any], width: int, height: int, get_id_fn: Callable[[], str]) -> None:
-    """Helper to compute and render the full layout tree."""
+def generate_dashboard_zones(parent_zones_el: etree._Element, layout_config: dict[str, Any],
+                             width: int, height: int, get_id_fn: Callable[[], str],
+                             context: Optional[dict[str, Any]] = None) -> None:
+    """Helper to compute and render the full layout tree.
+    
+    Args:
+        parent_zones_el: The <zones> XML element.
+        layout_config: Layout configuration dictionary.
+        width: Dashboard width in pixels.
+        height: Dashboard height in pixels.
+        get_id_fn: Callable returning unique zone IDs.
+        context: Optional dict with 'field_registry' and 'parameters' for
+                 resolving filter/paramctrl field references.
+    """
     root_node = FlexNode(layout_config)
     
     # Optional outer wrapper for the dashboard itself to set size correctly in Tableau
@@ -164,5 +250,4 @@ def generate_dashboard_zones(parent_zones_el: etree._Element, layout_config: dic
     # We strip the artificial wrapper since Tableau uses "zones" as the top level, 
     # instead we render the single actual layout root child which inherited dimensions
     if wrapper_node.children:
-        wrapper_node.children[0].render_to_xml(parent_zones_el, get_id_fn)
-
+        wrapper_node.children[0].render_to_xml(parent_zones_el, get_id_fn, context)

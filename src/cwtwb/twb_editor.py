@@ -55,6 +55,9 @@ class TWBEditor:
         # Zone ID counter (used by dashboards)
         self._zone_id_counter = 2
 
+        # Parameter tracking (name -> {internal_name, datatype, domain_type})
+        self._parameters: dict[str, dict] = {}
+
         # Initialize field registry corresponding to metadata
         self._init_fields()
 
@@ -150,6 +153,112 @@ class TWBEditor:
         """Clear the field registry and re-initialize it."""
         self.field_registry._fields.clear()
         self._init_fields()
+
+    # ================================================================
+    # Parameters
+    # ================================================================
+
+    def add_parameter(
+        self,
+        name: str,
+        datatype: str = "real",
+        default_value: str = "0",
+        domain_type: str = "range",
+        min_value: str = "",
+        max_value: str = "",
+        granularity: str = "",
+        allowed_values: Optional[list[str]] = None,
+        default_format: str = "",
+    ) -> str:
+        """Add a parameter to the workbook.
+
+        Parameters live in a special `<datasource name='Parameters'>` node.
+        They can be referenced in calculated field formulas as
+        `[Parameters].[ParameterName]`.
+
+        Args:
+            name: Display name for the parameter, e.g. "Target Profit".
+            datatype: Data type: real/integer/string/date/boolean.
+            default_value: Default/current value.
+            domain_type: "range" or "list".
+            min_value: Minimum value (range mode).
+            max_value: Maximum value (range mode).
+            granularity: Step size (range mode).
+            allowed_values: List of allowed values (list mode).
+            default_format: Optional Tableau number format string.
+
+        Returns:
+            Confirmation message.
+        """
+        # Find or create Parameters datasource
+        datasources = self.root.find("datasources")
+        if datasources is None:
+            datasources = etree.SubElement(self.root, "datasources")
+
+        params_ds = None
+        for ds in datasources.findall("datasource"):
+            if ds.get("name") == "Parameters":
+                params_ds = ds
+                break
+
+        if params_ds is None:
+            params_ds = etree.Element("datasource")
+            params_ds.set("hasconnection", "false")
+            params_ds.set("inline", "true")
+            params_ds.set("name", "Parameters")
+            params_ds.set("version", "18.1")
+            aliases = etree.SubElement(params_ds, "aliases")
+            aliases.set("enabled", "yes")
+            # Insert as the FIRST datasource (Tableau convention)
+            datasources.insert(0, params_ds)
+
+        # Generate internal name
+        param_counter = len(params_ds.findall("column")) + 1
+        internal_name = f"[Parameter {param_counter}]"
+
+        # Create column element
+        col = etree.Element("column")
+        col.set("caption", name)
+        col.set("datatype", datatype)
+        if default_format:
+            col.set("default-format", default_format)
+        col.set("name", internal_name)
+        col.set("param-domain-type", domain_type)
+        col.set("role", "measure")
+        col.set("type", "quantitative")
+        col.set("value", default_value)
+
+        # Add calculation (default value formula)
+        calc = etree.SubElement(col, "calculation")
+        calc.set("class", "tableau")
+        calc.set("formula", default_value)
+
+        if domain_type == "range":
+            range_el = etree.SubElement(col, "range")
+            if granularity:
+                range_el.set("granularity", granularity)
+            if max_value:
+                range_el.set("max", max_value)
+            if min_value:
+                range_el.set("min", min_value)
+        elif domain_type == "list" and allowed_values:
+            members = etree.SubElement(col, "members")
+            for v in allowed_values:
+                member = etree.SubElement(members, "member")
+                member.set("value", v)
+
+        params_ds.append(col)
+
+        # Track the parameter for later reference (filter zones, paramctrl zones)
+        if not hasattr(self, "_parameters"):
+            self._parameters = {}
+        self._parameters[name] = {
+            "internal_name": internal_name,
+            "datatype": datatype,
+            "domain_type": domain_type,
+        }
+
+        return f"Added parameter '{name}' (type={datatype}, domain={domain_type}, default={default_value})"
 
     # ================================================================
     # Database Connections
@@ -561,12 +670,13 @@ class TWBEditor:
         sort_descending: Optional[str] = None,
         tooltip: Optional[Union[str, list[str]]] = None,
         filters: Optional[list[dict]] = None,
+        geographic_field: Optional[str] = None,
     ) -> str:
         """Configure chart type and field mappings for a worksheet.
 
         Args:
             worksheet_name: Target worksheet name.
-            mark_type: Mark type: Bar/Line/Pie/Area/Circle/Automatic.
+            mark_type: Mark type: Bar/Line/Pie/Area/Circle/Map/Automatic.
             columns: Column shelf expressions, e.g. ["SUM(Sales)"].
             rows: Row shelf expressions, e.g. ["Category"].
             color: Color encoding expression.
@@ -575,16 +685,16 @@ class TWBEditor:
             detail: Detail encoding expression.
             wedge_size: Pie chart wedge size expression.
             sort_descending: Sort a dimension descending by this measure expression.
-                The dimension is auto-detected from rows/columns.
-                e.g. sort_descending="SUM(Sales)" sorts the row dimension by Sales DESC.
             tooltip: Tooltip encoding expression(s). Can be a single string or list of strings.
-            filters: List of filter dictionaries, e.g. [{"column": "Region", "values": ["East", "West"]}].
+            filters: List of filter dictionaries.
+            geographic_field: Geographic dimension for Map charts (e.g. "State/Province").
 
         Returns:
             Confirmation message.
         """
         columns = columns or []
         rows = rows or []
+        is_map = mark_type == "Map"
 
         # Find worksheet
         ws = self._find_worksheet(worksheet_name)
@@ -612,6 +722,10 @@ class TWBEditor:
             for f in filters:
                 if "column" in f:
                     all_exprs.append(f["column"])
+
+        # For Map charts, add geographic_field to expressions
+        if is_map and geographic_field:
+            all_exprs.append(geographic_field)
 
         # Parse all expressions into ColumnInstances
         instances: dict[str, ColumnInstance] = {}
@@ -677,17 +791,46 @@ class TWBEditor:
         for el in sorted(instance_elements, key=lambda e: e.get("name", "")):
             deps.append(el)
 
-        # 2) Set mark type
+        # 2) Set mark type (Map uses Automatic internally)
+        actual_mark_type = "Automatic" if is_map else mark_type
         pane = table.find(".//pane")
         if pane is None:
             raise ValueError("Malformed structure: missing <pane>")
 
         mark_el = pane.find("mark")
         if mark_el is not None:
-            mark_el.set("class", mark_type)
+            mark_el.set("class", actual_mark_type)
         else:
             mark_el = etree.SubElement(pane, "mark")
-            mark_el.set("class", mark_type)
+            mark_el.set("class", actual_mark_type)
+
+        # 2b) For Map charts, add mapsources to view
+        if is_map:
+            # Remove old mapsources if any
+            for old_ms in view.findall("mapsources"):
+                view.remove(old_ms)
+            # Schema order: datasources → mapsources → datasource-dependencies
+            mapsources = etree.Element("mapsources")
+            ms = etree.SubElement(mapsources, "mapsource")
+            ms.set("name", "Tableau")
+            # Insert mapsources right after <datasources> in <view>
+            view_ds = view.find("datasources")
+            if view_ds is not None:
+                view_ds.addnext(mapsources)
+            else:
+                view.insert(0, mapsources)
+            # Also add mapsources at workbook root if not present
+            root_ms = self.root.find("mapsources")
+            if root_ms is None:
+                root_ms = etree.Element("mapsources")
+                # Insert after datasources
+                ds_el = self.root.find("datasources")
+                if ds_el is not None:
+                    ds_el.addnext(root_ms)
+                else:
+                    self.root.append(root_ms)
+                rms = etree.SubElement(root_ms, "mapsource")
+                rms.set("name", "Tableau")
 
         # 3) Set style (add special styles for Pie charts)
         table_style = table.find("style")
@@ -703,7 +846,7 @@ class TWBEditor:
         if old_enc is not None:
             pane.remove(old_enc)
 
-        has_encodings = any(x is not None for x in (color, size, label, detail, wedge_size, tooltip))
+        has_encodings = any(x is not None for x in (color, size, label, detail, wedge_size, tooltip, geographic_field if is_map else None))
         if has_encodings:
             encodings_el = etree.SubElement(pane, "encodings")
 
@@ -732,6 +875,12 @@ class TWBEditor:
                 detail_el = etree.SubElement(encodings_el, "lod")
                 detail_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
 
+            # For Map charts, add geographic_field as lod (detail) encoding
+            if is_map and geographic_field and geographic_field != detail:
+                ci = instances[geographic_field]
+                geo_lod = etree.SubElement(encodings_el, "lod")
+                geo_lod.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
+
             if tooltip:
                 tooltip_list = [tooltip] if isinstance(tooltip, str) else tooltip
                 for tt in tooltip_list:
@@ -750,23 +899,30 @@ class TWBEditor:
         rows_el = table.find("rows")
         cols_el = table.find("cols")
 
-        if rows_el is not None and rows:
-            row_refs = []
-            for expr in rows:
-                ci = instances[expr]
-                row_refs.append(self.field_registry.resolve_full_reference(ci.instance_name))
-            rows_el.text = " ".join(row_refs)
-        elif rows_el is not None:
-            rows_el.text = None
+        if is_map:
+            # Map charts use generated Latitude/Longitude fields
+            if rows_el is not None:
+                rows_el.text = f"[{ds_name}].[Latitude (generated)]"
+            if cols_el is not None:
+                cols_el.text = f"[{ds_name}].[Longitude (generated)]"
+        else:
+            if rows_el is not None and rows:
+                row_refs = []
+                for expr in rows:
+                    ci = instances[expr]
+                    row_refs.append(self.field_registry.resolve_full_reference(ci.instance_name))
+                rows_el.text = " ".join(row_refs)
+            elif rows_el is not None:
+                rows_el.text = None
 
-        if cols_el is not None and columns:
-            col_refs = []
-            for expr in columns:
-                ci = instances[expr]
-                col_refs.append(self.field_registry.resolve_full_reference(ci.instance_name))
-            cols_el.text = " ".join(col_refs)
-        elif cols_el is not None:
-            cols_el.text = None
+            if cols_el is not None and columns:
+                col_refs = []
+                for expr in columns:
+                    ci = instances[expr]
+                    col_refs.append(self.field_registry.resolve_full_reference(ci.instance_name))
+                cols_el.text = " ".join(col_refs)
+            elif cols_el is not None:
+                cols_el.text = None
 
         # 7) For Pie charts, add viewpoint/highlight in window
         if mark_type == "Pie" and color:
@@ -1128,7 +1284,11 @@ class TWBEditor:
                 seen_sheets.add(sheet)
                 
             from cwtwb.layout import generate_dashboard_zones
-            generate_dashboard_zones(zones, layout_dict, width, height, self._next_zone_id)
+            context = {
+                "field_registry": self.field_registry,
+                "parameters": self._parameters,
+            }
+            generate_dashboard_zones(zones, layout_dict, width, height, self._next_zone_id, context)
 
         # simple-id (required)
         db_simple_id = etree.SubElement(db, "simple-id")
