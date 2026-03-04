@@ -151,7 +151,25 @@ class FlexNode:
             if not self.show_title:
                 zone.set("show-title", "false")
             # Resolve field to fully-qualified param reference
-            if self.field and context.get("field_registry"):
+            found_param = None
+            if self.field and context.get("editor") and self.worksheet:
+                # 1. Look up the actual worksheet XML to find the exact filter column name matching this field
+                editor = context["editor"]
+                try:
+                    ws_el = editor._find_worksheet(self.worksheet)
+                    if ws_el is not None:
+                        for idx, f_el in enumerate(ws_el.findall('.//filter')):
+                            col = f_el.get("column", "")
+                            # Basic match: does the field name appear inside the column string?
+                            if self.field in col:
+                                found_param = col
+                                break
+                except ValueError:
+                    pass  # worksheet not found, fallback to parsing
+                    
+            if found_param:
+                zone.set("param", found_param)
+            elif self.field and context.get("field_registry"):
                 fr = context["field_registry"]
                 try:
                     ci = fr.parse_expression(self.field)

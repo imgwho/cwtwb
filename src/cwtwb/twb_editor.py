@@ -454,24 +454,19 @@ class TWBEditor:
         import re
         resolved_formula = formula
 
-        # First, resolve bare parameter names (without brackets) → [Parameters].[internal_name]
+        # First, resolve [ParamName] bracketed parameter references
         for param_name, param_info in self._parameters.items():
-            # Replace bare parameter name (word boundary match to avoid partial replacement)
-            pattern = re.compile(re.escape(param_name))
             internal = param_info["internal_name"]  # e.g. "[Parameter 1]"
             replacement = f"[Parameters].{internal}"
-            resolved_formula = pattern.sub(replacement, resolved_formula)
+            resolved_formula = resolved_formula.replace(f"[{param_name}]", replacement)
 
         # Then resolve [FieldName] references → [local_name]
-        for match in re.finditer(r'\[([^\]]+)\]', resolved_formula):
+        # Re-scan after parameter resolution
+        temp_formula = resolved_formula
+        for match in re.finditer(r'\[([^\]]+)\]', temp_formula):
             ref_name = match.group(1)
-            # Skip parameter references like [Parameters].[...]
-            if ref_name == "Parameters":
-                continue
-            # Check if it's a parameter display name in brackets
-            if ref_name in self._parameters:
-                internal = self._parameters[ref_name]["internal_name"]
-                resolved_formula = resolved_formula.replace(f"[{ref_name}]", f"[Parameters].{internal}")
+            # Skip already-resolved parameter references
+            if ref_name == "Parameters" or ref_name.startswith("Parameter "):
                 continue
             # Try to find the field in registry
             try:
@@ -703,6 +698,7 @@ class TWBEditor:
         tooltip: Optional[Union[str, list[str]]] = None,
         filters: Optional[list[dict]] = None,
         geographic_field: Optional[str] = None,
+        measure_values: Optional[list[str]] = None,
     ) -> str:
         """Configure chart type and field mappings for a worksheet.
 
@@ -727,6 +723,7 @@ class TWBEditor:
         columns = columns or []
         rows = rows or []
         is_map = mark_type == "Map"
+        is_mnv = bool(measure_values)  # Measure Names/Values mode
 
         # Find worksheet
         ws = self._find_worksheet(worksheet_name)
@@ -759,11 +756,30 @@ class TWBEditor:
         if is_map and geographic_field:
             all_exprs.append(geographic_field)
 
+        # For Measure Names/Values, add all measure expressions
+        if is_mnv:
+            for mv_expr in measure_values:
+                if mv_expr not in all_exprs:
+                    all_exprs.append(mv_expr)
+
         # Parse all expressions into ColumnInstances
         instances: dict[str, ColumnInstance] = {}
         for expr in all_exprs:
             ci = self.field_registry.parse_expression(expr)
             instances[expr] = ci
+            
+        # If any filter is quantitative, force its instances to use 'qk'
+        if filters:
+            from dataclasses import replace
+            for f in filters:
+                if f.get("type") == "quantitative" and f["column"] in instances:
+                    expr = f["column"]
+                    ci = instances[expr]
+                    # Update instance name to use 'qk' suffix if it was 'nk'
+                    new_inst_name = ci.instance_name
+                    if new_inst_name.endswith(":nk]"):
+                        new_inst_name = new_inst_name[:-4] + ":qk]"
+                    instances[expr] = replace(ci, ci_type="quantitative", instance_name=new_inst_name)
 
         # 1) Set datasource-dependencies
         view = table.find("view")
@@ -1032,6 +1048,10 @@ class TWBEditor:
         if filters:
             self._add_filters(view, instances, filters)
 
+        # 10) Measure Names/Values mode
+        if is_mnv:
+            self._apply_measure_values(view, table, pane, ds_name, instances, measure_values)
+
         return f"Configured worksheet '{worksheet_name}' as {mark_type} chart"
 
     def _add_filters(
@@ -1057,29 +1077,43 @@ class TWBEditor:
                 continue
             
             filter_el = etree.Element("filter")
-            filter_el.set("class", "categorical")
-            filter_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
+            filter_type = f.get("type", "categorical")
             
             USER_NS = "{http://www.tableausoftware.com/xml/user}"
-            if len(values) == 1:
-                gf = etree.SubElement(filter_el, "groupfilter")
-                gf.set("function", "member")
-                gf.set("level", ci.instance_name)
-                gf.set("member", f'"{values[0]}"')
-                gf.set(f"{USER_NS}ui-domain", "database")
-                gf.set(f"{USER_NS}ui-enumeration", "inclusive")
-                gf.set(f"{USER_NS}ui-marker", "enumerate")
-            elif len(values) > 1:
-                gf = etree.SubElement(filter_el, "groupfilter")
-                gf.set("function", "union")
-                gf.set(f"{USER_NS}ui-domain", "database")
-                gf.set(f"{USER_NS}ui-enumeration", "inclusive")
-                gf.set(f"{USER_NS}ui-marker", "enumerate")
-                for v in values:
-                    member_el = etree.SubElement(gf, "groupfilter")
-                    member_el.set("function", "member")
-                    member_el.set("level", ci.instance_name)
-                    member_el.set("member", f'"{v}"')
+            
+            if filter_type == "quantitative":
+                filter_el.set("class", "quantitative")
+                filter_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
+                filter_el.set("included-values", "in-range")
+                
+                if "min" in f:
+                    min_el = etree.SubElement(filter_el, "min")
+                    min_el.text = f["min"]
+                if "max" in f:
+                    max_el = etree.SubElement(filter_el, "max")
+                    max_el.text = f["max"]
+            else:
+                filter_el.set("class", "categorical")
+                filter_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
+                if len(values) == 1:
+                    gf = etree.SubElement(filter_el, "groupfilter")
+                    gf.set("function", "member")
+                    gf.set("level", ci.instance_name)
+                    gf.set("member", f'"{values[0]}"')
+                    gf.set(f"{USER_NS}ui-domain", "database")
+                    gf.set(f"{USER_NS}ui-enumeration", "inclusive")
+                    gf.set(f"{USER_NS}ui-marker", "enumerate")
+                elif len(values) > 1:
+                    gf = etree.SubElement(filter_el, "groupfilter")
+                    gf.set("function", "union")
+                    gf.set(f"{USER_NS}ui-domain", "database")
+                    gf.set(f"{USER_NS}ui-enumeration", "inclusive")
+                    gf.set(f"{USER_NS}ui-marker", "enumerate")
+                    for v in values:
+                        member_el = etree.SubElement(gf, "groupfilter")
+                        member_el.set("function", "member")
+                        member_el.set("level", ci.instance_name)
+                        member_el.set("member", f'"{v}"')
             
             # Find insertion point (must be before sort, perspectives, slices, aggregation)
             insert_before = None
@@ -1092,6 +1126,119 @@ class TWBEditor:
                 insert_before.addprevious(filter_el)
             else:
                 view.append(filter_el)
+
+    def _apply_measure_values(
+        self,
+        view: etree._Element,
+        table: etree._Element,
+        pane: etree._Element,
+        ds_name: str,
+        instances: dict[str, "ColumnInstance"],
+        measure_values: list[str],
+    ) -> None:
+        """Apply Measure Names/Values mode to a worksheet.
+        
+        This enables the special Tableau pattern for KPI cards where
+        multiple measures are shown in a single text table.
+        
+        Structure:
+          - cols = [ds].[:Measure Names]
+          - encoding: text = [ds].[Multiple Values] 
+          - filter on [:Measure Names] to select which measures to show
+          - KPI card styling (centered, bold, no grid lines)
+        """
+        # 1) Set cols to [:Measure Names]
+        cols_el = table.find("cols")
+        if cols_el is not None:
+            cols_el.text = f"[{ds_name}].[:Measure Names]"
+        
+        # Clear rows (KPI cards don't use rows)
+        rows_el = table.find("rows")
+        if rows_el is not None:
+            rows_el.text = None
+        
+        # 2) Set text encoding to [Multiple Values]
+        # Remove existing encodings and replace
+        old_enc = pane.find("encodings")
+        if old_enc is not None:
+            pane.remove(old_enc)
+        
+        enc_el = etree.Element("encodings")
+        text_el = etree.SubElement(enc_el, "text")
+        text_el.set("column", f"[{ds_name}].[Multiple Values]")
+        
+        style_el = pane.find("style")
+        if style_el is not None:
+            style_el.addprevious(enc_el)
+        else:
+            pane.append(enc_el)
+        
+        # 3) Add [:Measure Names] filter to select specific measures
+        USER_NS = "{http://www.tableausoftware.com/xml/user}"
+        measure_refs = []
+        for mv_expr in measure_values:
+            if mv_expr in instances:
+                ci = instances[mv_expr]
+                full_ref = self.field_registry.resolve_full_reference(ci.instance_name)
+                measure_refs.append(full_ref)
+        
+        if measure_refs:
+            filter_el = etree.Element("filter")
+            filter_el.set("class", "categorical")
+            filter_el.set("column", f"[{ds_name}].[:Measure Names]")
+            
+            gf = etree.SubElement(filter_el, "groupfilter")
+            gf.set("function", "union")
+            gf.set(f"{USER_NS}ui-domain", "database")
+            gf.set(f"{USER_NS}ui-enumeration", "inclusive")
+            gf.set(f"{USER_NS}ui-marker", "enumerate")
+            
+            for ref in measure_refs:
+                member = etree.SubElement(gf, "groupfilter")
+                member.set("function", "member")
+                member.set("level", "[:Measure Names]")
+                member.set("member", f'"{ref}"')
+            
+            # Insert filter before sort/perspectives/slices/aggregation
+            insert_before = None
+            for tag in ("sort", "perspectives", "slices", "aggregation"):
+                insert_before = view.find(tag)
+                if insert_before is not None:
+                    break
+            if insert_before is not None:
+                insert_before.addprevious(filter_el)
+            else:
+                view.append(filter_el)
+        
+        # 4) Apply KPI card styling
+        table_style = table.find("style")
+        if table_style is None:
+            table_style = etree.SubElement(table, "style")
+        
+        # Cell style: centered, bold, larger font
+        cell_rule = etree.SubElement(table_style, "style-rule")
+        cell_rule.set("element", "cell")
+        for attr, val in [("text-align", "center"), ("font-weight", "bold"), ("font-size", "12")]:
+            fmt = etree.SubElement(cell_rule, "format")
+            fmt.set("attr", attr)
+            fmt.set("value", val)
+        
+        # Label style: centered
+        label_rule = etree.SubElement(table_style, "style-rule")
+        label_rule.set("element", "label")
+        for attr, val in [("text-align", "center"), ("font-size", "10")]:
+            fmt = etree.SubElement(label_rule, "format")
+            fmt.set("attr", attr)
+            fmt.set("value", val)
+        
+        # Table divider: hide grid lines
+        div_rule = etree.SubElement(table_style, "style-rule")
+        div_rule.set("element", "table-div")
+        for scope in ("rows", "cols"):
+            fmt = etree.SubElement(div_rule, "format")
+            fmt.set("attr", "line-visibility")
+            fmt.set("scope", scope)
+            fmt.set("value", "off")
 
     def _add_parameter_deps(self, view: etree._Element) -> None:
         """Add Parameters datasource-dependencies to a view element.
@@ -1471,6 +1618,7 @@ class TWBEditor:
             context = {
                 "field_registry": self.field_registry,
                 "parameters": self._parameters,
+                "editor": self
             }
             generate_dashboard_zones(zones, layout_dict, width, height, self._next_zone_id, context)
 
@@ -1702,6 +1850,29 @@ class TWBEditor:
         exclude_sheets = [s for s in all_sheets if s != target_sheet]
 
         if action_type == "filter":
+            if fields:
+                # Use link for specific fields filter
+                from urllib.parse import quote
+                ds_name = self._datasource.get("name", "")
+                link_el = etree.SubElement(action_el, "link")
+                link_el.set("caption", action_caption)
+                link_el.set("delimiter", ",")
+                link_el.set("escape", "\\")
+                
+                field_expressions = []
+                for f in fields:
+                    ci = self.field_registry.parse_expression(f)
+                    col_name = ci.column_local_name # already has brackets, e.g. "[State/Province]"
+                    encoded_ds = quote(f"[{ds_name}]")
+                    encoded_col = quote(col_name) # Remove extra brackets
+                    field_expressions.append(f"{encoded_ds}.{encoded_col}~s0=<{col_name}~na>")
+                
+                expr_str = f"tsl:{dashboard_name}?" + "&".join(field_expressions)
+                link_el.set("expression", expr_str)
+                link_el.set("include-null", "true")
+                link_el.set("multi-select", "true")
+                link_el.set("url-escape", "true")
+
             cmd_el = etree.SubElement(action_el, "command")
             cmd_el.set("command", "tsc:tsl-filter")
             
@@ -1714,28 +1885,6 @@ class TWBEditor:
                 param_sp = etree.SubElement(cmd_el, "param")
                 param_sp.set("name", "special-fields")
                 param_sp.set("value", "all")
-            else:
-                # Still use link for specific fields filter
-                from urllib.parse import quote
-                ds_name = self._datasource.get("name", "")
-                link_el = etree.SubElement(action_el, "link")
-                link_el.set("caption", action_caption)
-                link_el.set("delimiter", ",")
-                link_el.set("escape", "\\")
-                
-                field_expressions = []
-                for f in fields:
-                    ci = self.field_registry.parse_expression(f)
-                    col_name = ci.column_local_name
-                    encoded_ds = quote(f"[{ds_name}]")
-                    encoded_col = quote(f"[{col_name}]")
-                    field_expressions.append(f"{encoded_ds}.{encoded_col}~s0=<[{col_name}]~na>")
-                
-                expr_str = f"tsl:{dashboard_name}?" + "&".join(field_expressions)
-                link_el.set("expression", expr_str)
-                link_el.set("include-null", "true")
-                link_el.set("multi-select", "true")
-                link_el.set("url-escape", "true")
                 
             param_tgt = etree.SubElement(cmd_el, "param")
             param_tgt.set("name", "target")

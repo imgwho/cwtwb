@@ -229,6 +229,7 @@ def configure_chart(
     tooltip: str | list[str] | None = None,
     filters: list[dict] | None = None,
     geographic_field: str | None = None,
+    measure_values: list[str] | None = None,
 ) -> str:
     """Configure chart type and field mappings for a worksheet.
 
@@ -263,6 +264,9 @@ def configure_chart(
         tooltip: Tooltip encoding field expression(s). Can be a single string or list of strings.
         filters: List of categorical filters, e.g. [{"column": "Region", "values": ["East", "West"]}].
         geographic_field: Geographic dimension for Map charts (e.g. "State/Province").
+        measure_values: List of measure expressions for Measure Names/Values mode.
+            Creates a KPI card showing multiple measures as a text table.
+            E.g. ["SUM(Sales)", "SUM(Profit)", "Profit Ratio", "AVG(Discount)"].
 
     Returns:
         Confirmation message.
@@ -285,6 +289,11 @@ def configure_chart(
         configure_chart("Sheet1", mark_type="Map",
                         geographic_field="State/Province",
                         color="SUM(Sales)", size="SUM(Profit)")
+
+        # KPI card: Multiple measures
+        configure_chart("Sheet1", mark_type="Text",
+                        measure_values=["SUM(Sales)", "SUM(Profit)",
+                                        "Profit Ratio", "AVG(Discount)"])
     """
     editor = _get_editor()
     return editor.configure_chart(
@@ -301,6 +310,7 @@ def configure_chart(
         tooltip=tooltip,
         filters=filters,
         geographic_field=geographic_field,
+        measure_values=measure_values,
     )
 
 
