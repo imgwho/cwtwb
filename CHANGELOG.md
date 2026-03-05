@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-03-05
+
+### Fixed
+- **Calculated Field Parsing**: Improved parameter replacement regex to safely handle both `[ParamName]` and `[Parameters].[ParamName]` formats, preventing double-prefixing and broken expressions.
+
 ## [0.5.2] - 2026-03-05
 
 ### Added

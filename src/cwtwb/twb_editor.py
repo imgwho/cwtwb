@@ -487,7 +487,9 @@ class TWBEditor:
         for param_name, param_info in self._parameters.items():
             internal = param_info["internal_name"]  # e.g. "[Parameter 1]"
             replacement = f"[Parameters].{internal}"
-            resolved_formula = resolved_formula.replace(f"[{param_name}]", replacement)
+            # Safely replace [ParamName] or [Parameters].[ParamName]
+            pattern = rf"(?:\[Parameters\]\.)?\[{re.escape(param_name)}\]"
+            resolved_formula = re.sub(pattern, replacement, resolved_formula)
 
         # Then resolve [FieldName] references → [local_name]
         # Re-scan after parameter resolution
