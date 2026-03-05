@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-03-05
+
+### Added
+- **Business Profitability Overview Prompt**: Added `examples/prompts/overview_business_demo.md` to demonstrate creating an interactive what-if profitability dashboard with parameters and dashboard actions.
+
+### Fixed
+- **Packaging Issues**: Pinned `hatchling<1.27.0` to workaround a `twine` metadata validation error related to `license-files` and fixed Windows encoding issues during package build.
+
 ## [0.5.1] - 2026-03-04
 
 ### Changed
