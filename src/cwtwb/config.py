@@ -21,3 +21,6 @@ DEFAULT_TEMPLATE = REFERENCES_DIR / "empty_template.twb"
 
 # Path to the Tableau functions JSON
 TABLEAU_FUNCTIONS_JSON = REFERENCES_DIR / "tableau_all_functions.json"
+
+# Directory containing skill files for AI agents
+SKILLS_DIR = Path(__file__).parent / "skills"

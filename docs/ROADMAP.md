@@ -1,7 +1,7 @@
 # cwtwb 项目路线图 & 审核报告
 
 > 最后更新: 2026-03-06  
-> 目标：持续改进 cwtwb，建立社区共创生态
+> 目标：持续改进 cwtwb，建立社区共创生态，构建 Dashboard-as-Code 工程化能力
 
 ---
 
@@ -9,11 +9,11 @@
 
 ### 🔴 P0 — 紧急
 
-| # | 问题 | 影响 | 建议 |
-|---|---|---|---|
-| 1 | `twb_editor.py` 单文件 2078 行 | 可维护性差，改动容易引发回归 | 拆分为 `parameters.py`、`charts.py`、`dashboards.py` 等模块 |
-| 2 | 错误处理薄弱，大量 `except Exception: pass` | 调试困难，静默失败 | 添加 logging，改为具体异常类型 |
-| 3 | `__init__.py` 版本号 (0.5.0) 与 `pyproject.toml` (0.5.3) 不同步 | 用户困惑 | 使用单一版本源 |
+| # | 问题 | 影响 | 建议 | 状态 |
+|---|---|---|---|---|
+| 1 | `twb_editor.py` 单文件 2078 行 | 可维护性差，改动容易引发回归 | 拆分为 `parameters.py`、`charts.py`、`dashboards.py` 等模块 | ✅ 已完成 |
+| 2 | 错误处理薄弱，大量 `except Exception: pass` | 调试困难，静默失败 | 添加 logging，改为具体异常类型 | 🔄 进行中 |
+| 3 | `__init__.py` 版本号 (0.5.0) 与 `pyproject.toml` (0.5.3) 不同步 | 用户困惑 | 使用单一版本源 | ✅ 已完成 |
 
 ### 🟠 P1 — 高优先级
 
@@ -377,3 +377,43 @@ gantt
 ---
 
 *本文档是 cwtwb 项目的持续更新路线图，欢迎所有贡献者参与讨论和完善。*
+
+---
+
+## 五、Agent Skills 工作流系统 ⭐ NEW
+
+> 灵感来源: Jeffrey Shaffer (Tableau Visionary 名人堂) 建议的专业化 Agent Skills 工作流
+
+### 核心理念
+
+将 Dashboard 构建过程分解为 4 个专业化阶段，每个阶段有独立的 **Skill 文件**提供领域专家级指导。AI Agent 在执行不同阶段时加载对应 Skill，获得最佳实践指导。
+
+```
+Phase 1: calculation_builder  →  参数定义、计算字段、LOD 表达式
+Phase 2: chart_builder         →  图表类型选择、编码配置、筛选器
+Phase 3: dashboard_designer    →  布局设计、控件面板、交互动作
+Phase 4: formatting            →  数字格式、配色、排序、工具提示
+```
+
+### Skills 与 Prompts 的区别
+
+| 维度 | Prompts (`examples/prompts/`) | Skills (`src/cwtwb/skills/`) |
+|------|------|------|
+| 定位 | 告诉 AI **做什么** | 告诉 AI **怎么做好** |
+| 粒度 | 一次性完整任务 | 分阶段专业知识 |
+| 加载方式 | 用户复制粘贴 | AI 按需 `read_resource` |
+| 内容 | 具体的字段名、公式、布局 | 最佳实践、反模式、检查清单 |
+
+### 技术实现
+
+- Skills 文件位于 `src/cwtwb/skills/`，随 PyPI 包分发
+- 通过 MCP Resources 暴露：`cwtwb://skills/index` 和 `cwtwb://skills/{name}`
+- AI Agent 调用 `list_resources` 或 `read_resource` 按需加载
+- MCP server instructions 已提示 AI 在每个阶段读取对应 Skill
+
+### 后续扩展方向
+
+- [ ] `data_connection.md` — 数据源连接专家技能
+- [ ] `accessibility.md` — 无障碍设计技能（色盲友好配色等）
+- [ ] `performance.md` — 大数据集性能优化技能
+- [ ] 自定义 Skills — 允许用户创建自己的 Skill 文件

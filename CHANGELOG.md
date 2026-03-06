@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-03-06
+
+### Added
+- **Agent Skills Workflow System**: Introduced 4 specialized skill files that provide expert-level guidance to AI agents during dashboard creation, inspired by Jeffrey Shaffer (Tableau Visionary Hall of Fame).
+  - `calculation_builder.md` — Phase 1: Parameters, calculated fields, LOD expressions
+  - `chart_builder.md` — Phase 2: Chart type selection, encodings, filter strategy
+  - `dashboard_designer.md` — Phase 3: Layout design, filter panels, interaction actions
+  - `formatting.md` — Phase 4: Number formats, color strategy, sorting, tooltips
+- **Skills MCP Resources**: Skills are exposed via MCP protocol as `cwtwb://skills/index` and `cwtwb://skills/{skill_name}`, allowing AI agents to load domain expertise on demand.
+- **Updated MCP Server Instructions**: Server instructions now prompt AI agents to read skills before each phase for professional-quality output.
+
+### Changed
+- **ROADMAP**: Updated `docs/ROADMAP.md` — marked completed P0 items (module refactor ✅, version sync ✅), added new Skills workflow section.
+- **Package Build**: Added `artifacts` config in `pyproject.toml` to ensure `.md` skill files are distributed with the PyPI wheel.
+
 ## [0.6.0] - 2026-03-06
 
 ### Added

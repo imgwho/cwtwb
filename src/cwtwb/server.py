@@ -23,7 +23,7 @@ from .twb_editor import TWBEditor
 logger = logging.getLogger(__name__)
 
 # Resource paths
-from .config import REFERENCES_DIR, TABLEAU_FUNCTIONS_JSON
+from .config import REFERENCES_DIR, TABLEAU_FUNCTIONS_JSON, SKILLS_DIR
 
 # ---------- MCP Server ----------
 
@@ -31,7 +31,9 @@ server = FastMCP(
     "cwtwb",
     instructions="Tableau Workbook (.twb) generation MCP Server. "
     "Create visualizations by calling create_workbook first, "
-    "then add_worksheet + configure_chart, and finally save_workbook.",
+    "then add_worksheet + configure_chart, and finally save_workbook. "
+    "For professional-quality output, read the agent skills "
+    "(cwtwb://skills/index) before starting each phase.",
 )
 
 # Global state: current active TWBEditor instance
@@ -62,6 +64,76 @@ def read_tableau_functions() -> str:
     
     with TABLEAU_FUNCTIONS_JSON.open("r", encoding="utf-8") as f:
         return f.read()
+
+
+# Available skill names (without .md extension)
+_SKILL_NAMES = [
+    "calculation_builder",
+    "chart_builder",
+    "dashboard_designer",
+    "formatting",
+]
+
+
+@server.resource("cwtwb://skills/index")
+def read_skills_index() -> str:
+    """List all available cwtwb agent skills.
+
+    Skills are expert-level guidance files that help AI agents produce
+    professional-quality Tableau workbooks. Each skill focuses on one
+    phase of the dashboard creation process.
+
+    Workflow: calculation_builder → chart_builder → dashboard_designer → formatting
+
+    Returns:
+        Index of available skills with descriptions.
+    """
+    lines = [
+        "# cwtwb Agent Skills",
+        "",
+        "Load a skill before each phase for expert-level guidance.",
+        "Read a skill with: read_resource('cwtwb://skills/<skill_name>')",
+        "",
+        "## Available Skills (in recommended order)",
+        "",
+    ]
+    for name in _SKILL_NAMES:
+        skill_path = SKILLS_DIR / f"{name}.md"
+        if skill_path.exists():
+            # Extract description from YAML frontmatter
+            content = skill_path.read_text(encoding="utf-8")
+            desc = ""
+            for line in content.split("\n"):
+                if line.startswith("description:"):
+                    desc = line.split(":", 1)[1].strip()
+                    break
+            lines.append(f"- **{name}**: {desc}")
+    return "\n".join(lines)
+
+
+@server.resource("cwtwb://skills/{skill_name}")
+def read_skill(skill_name: str) -> str:
+    """Read a specific cwtwb agent skill.
+
+    Skills provide expert-level guidance for each phase of dashboard creation:
+    - calculation_builder: Parameters, calculated fields, LOD expressions
+    - chart_builder: Chart type selection, encodings, filters
+    - dashboard_designer: Layout design, filter panels, interaction actions
+    - formatting: Number formats, colors, sorting, tooltips
+
+    Args:
+        skill_name: Name of the skill (e.g. "chart_builder").
+
+    Returns:
+        Full skill content with best practices, examples, and checklists.
+    """
+    skill_path = SKILLS_DIR / f"{skill_name}.md"
+    if not skill_path.exists():
+        available = ", ".join(_SKILL_NAMES)
+        raise FileNotFoundError(
+            f"Skill '{skill_name}' not found. Available skills: {available}"
+        )
+    return skill_path.read_text(encoding="utf-8")
 
 
 # ---------- Tools ----------
