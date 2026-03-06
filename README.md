@@ -1,7 +1,7 @@
 # cwtwb
 
 > **Tableau Workbook (.twb) Generation MCP Server**  
-> Programmatically create Tableau workbooks with calculated fields, multiple chart types, and dashboard layouts.
+> Programmatically create Tableau workbooks with calculated fields, multiple chart types, dashboard layouts, and built-in structural validation.
 
 ## Overview
 
@@ -138,9 +138,18 @@ editor.save("output/my_workbook.twb")
 - **Line** — line charts and trends
 - **Pie** — pie charts with color and wedge-size encodings
 - **Area** — area charts
+- **Map** — geographic maps with `geographic_field` and optional `map_fields` for LOD
 - **Circle** / **Square** — shape marks
-- **Text** — text tables
+- **Text** — text tables and KPI cards (via `measure_values`)
 - **Automatic** — Tableau's automatic mark type
+
+## Built-in Validation
+
+`save()` automatically validates the TWB XML structure before writing:
+
+- **Fatal errors** (missing `<workbook>`, `<datasources>`, etc.) raise `TWBValidationError` and block saving
+- **Warnings** (missing `<view>`, `<panes>`, etc.) are logged but don't block saving
+- Disable with `editor.save("output.twb", validate=False)`
 
 ## Dashboard Layouts
 
@@ -158,21 +167,28 @@ Custom layouts can be built programmatically using the `TWBEditor` API by passin
 ```
 cwtwb/
 ├── src/cwtwb/
-│   ├── __init__.py          # Package init
+│   ├── __init__.py          # Package init + API exports
+│   ├── config.py            # Shared constants and utilities
 │   ├── field_registry.py    # Field name ↔ TWB reference mapping
-│   ├── twb_editor.py        # Core TWB XML editor (lxml)
+│   ├── twb_editor.py        # Core TWBEditor class (Mixin-based)
+│   ├── charts.py            # ChartsMixin — chart configuration
+│   ├── dashboards.py        # DashboardsMixin — dashboard creation
+│   ├── connections.py       # ConnectionsMixin — DB connections
+│   ├── parameters.py        # ParametersMixin — parameter management
+│   ├── validator.py         # Runtime TWB XML structural validator
+│   ├── layout.py            # Dashboard layout engine
 │   └── server.py            # MCP server with FastMCP
 ├── tests/
-│   ├── test_debug.py        # Step-by-step debug tests
-│   ├── test_e2e.py          # End-to-end integration test
-│   └── test_c2_replica.py   # Full dashboard layout replica
-├── templates/
-│   ├── superstore.twb       # Base TWB template with data connection
+│   ├── twb_assert.py        # TWBAssert chainable assertion DSL
+│   ├── conftest.py          # Shared pytest fixtures
+│   ├── test_twb_structure.py # Structural validation tests
+│   └── ...                  # Other integration tests
 ├── examples/                # Example scripts and prompts
-│   ├── scripts/             # Python examples for SDK and workflow
+│   ├── scripts/             # Python examples for SDK
 │   ├── prompts/             # Natural language prompts for MCP LLM
 │   └── layouts/             # JSON declarative layout definitions
-├── docs/                    # Design documents
+├── docs/
+│   └── ROADMAP.md           # Project roadmap and priorities
 ├── pyproject.toml           # Package configuration
 └── README.md
 ```

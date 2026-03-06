@@ -6,7 +6,7 @@ You can use the following conversational prompt with any LLM connected to the `c
 
 ```text
 Hi! I want to build an Executive Dashboard related to sales using the cwtwb tool.
-Please use the `examples/templates/twb/superstore.twb` template.
+
 
 First, I need 8 worksheets in total. Four of them are detail charts:
 - "Sales By Category", "Profit Map", "Discount Trend", "Daily Highlights"
@@ -23,5 +23,5 @@ For the layout parameter, please read the file `examples/layouts/layout_executiv
 2. "C.2 Layout Replica" (1200x800)
 For this one's layout, please read `examples/layouts/layout_c2.json` and pass it. Include the 8 worksheets here too.
 
-Finally, save this workbook to `output/demo_declarative_mcp_natural.twb`. Thanks!
+Finally, save this workbook to `output`. Thanks!
 ```

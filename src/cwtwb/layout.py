@@ -12,8 +12,11 @@ Supported zone types:
 - paramctrl: parameter control (slider, type_in)
 """
 
+import logging
 from typing import Any, Callable, Optional
 from lxml import etree
+
+logger = logging.getLogger(__name__)
 
 
 class FlexNode:
@@ -174,7 +177,8 @@ class FlexNode:
                 try:
                     ci = fr.parse_expression(self.field)
                     zone.set("param", fr.resolve_full_reference(ci.instance_name))
-                except Exception:
+                except (KeyError, ValueError) as e:
+                    logger.warning("Failed to resolve filter field '%s': %s", self.field, e)
                     zone.set("param", self.field)
             elif self.field:
                 zone.set("param", self.field)
@@ -205,7 +209,8 @@ class FlexNode:
                 try:
                     ci = fr.parse_expression(self.field)
                     zone.set("param", fr.resolve_full_reference(ci.instance_name))
-                except Exception:
+                except (KeyError, ValueError) as e:
+                    logger.warning("Failed to resolve color field '%s': %s", self.field, e)
                     zone.set("param", self.field)
             
         # For filter/paramctrl zones, add default white background

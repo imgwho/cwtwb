@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-06
+
+### Added
+- **Runtime TWB Validator**: `save()` now automatically validates TWB XML structure before writing to disk. Fatal errors (missing `<workbook>`, `<datasources>`, `<table>`) raise `TWBValidationError` and block saving; non-fatal warnings are logged. Validation can be disabled via `save(path, validate=False)`.
+- **`map_fields` Parameter**: New parameter for `configure_chart(mark_type="Map", ...)` allowing users to specify additional geographic LOD fields (e.g. `map_fields=["Country/Region", "City"]`).
+- **TWBAssert DSL**: Chainable assertion API (`tests/twb_assert.py`) for structural TWB validation in tests, with 20+ assertion methods covering worksheets, encodings, filters, parameters, calculated fields, dashboards, and maps.
+- **Shared Test Fixtures**: Added `tests/conftest.py` with `editor` and `editor_superstore` pytest fixtures.
+- **Structure Test Suite**: 19 new tests in `tests/test_twb_structure.py` covering Bar, Line, Pie, Area, Map, KPI, Parameters, Calculated Fields, Dashboards, and Filters.
+- **Project Roadmap**: Added `docs/ROADMAP.md` with P0–P3 priority issues and feature plans.
+
+### Changed
+- **Module Architecture**: Refactored `twb_editor.py` (2083→375 lines) into Mixin classes:
+  - `charts.py` (ChartsMixin) — `configure_chart` and 9 chart helper methods
+  - `dashboards.py` (DashboardsMixin) — `add_dashboard` and dashboard actions
+  - `connections.py` (ConnectionsMixin) — MySQL and Tableau Server connections
+  - `parameters.py` (ParametersMixin) — parameter management
+  - `config.py` — shared constants and `_generate_uuid`
+- **Version Management**: `__init__.py` now dynamically reads the version from `pyproject.toml` via `importlib.metadata` instead of hardcoding it.
+- **API Exports**: `__init__.py` now exports `TWBEditor`, `FieldRegistry`, and `TWBValidationError`.
+- **Worksheet XML Structure**: Improved `add_worksheet` to generate proper `<panes>/<pane>/<view>` hierarchy, `<style>` element, and `<simple-id>` placement per Tableau XSD schema.
+
+### Fixed
+- **Error Handling**: Replaced 6 instances of `except Exception: pass` with specific exception types (`KeyError`, `ValueError`) and proper `logging` output across `twb_editor.py`, `layout.py`.
+- **Circular Import**: Extracted `REFERENCES_DIR` and path constants to `config.py`, eliminating circular imports between `twb_editor.py` and `server.py`.
+- **Redundant Imports**: Removed 4 function-level `import` statements (`re`, `copy`, `dataclasses.replace`) by consolidating them at module level.
+
+### Breaking Changes
+- **Map Charts**: `configure_chart(mark_type="Map")` no longer automatically adds `Country/Region` as an LOD field. Users must now explicitly pass `map_fields=["Country/Region"]` if needed.
+
 ## [0.5.3] - 2026-03-05
 
 ### Fixed

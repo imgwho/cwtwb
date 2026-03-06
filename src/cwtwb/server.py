@@ -23,8 +23,7 @@ from .twb_editor import TWBEditor
 logger = logging.getLogger(__name__)
 
 # Resource paths
-REFERENCES_DIR = Path(__file__).parent / "references"
-TABLEAU_FUNCTIONS_JSON = REFERENCES_DIR / "tableau_all_functions.json"
+from .config import REFERENCES_DIR, TABLEAU_FUNCTIONS_JSON
 
 # ---------- MCP Server ----------
 
@@ -230,6 +229,7 @@ def configure_chart(
     filters: list[dict] | None = None,
     geographic_field: str | None = None,
     measure_values: list[str] | None = None,
+    map_fields: list[str] | None = None,
 ) -> str:
     """Configure chart type and field mappings for a worksheet.
 
@@ -267,6 +267,9 @@ def configure_chart(
         measure_values: List of measure expressions for Measure Names/Values mode.
             Creates a KPI card showing multiple measures as a text table.
             E.g. ["SUM(Sales)", "SUM(Profit)", "Profit Ratio", "AVG(Discount)"].
+        map_fields: Additional geographic fields to add as LOD (level of detail) on Map charts.
+            E.g. ["Country/Region", "City"]. Use this to specify which geographic hierarchy
+            fields the map should include beyond the primary geographic_field.
 
     Returns:
         Confirmation message.
@@ -288,7 +291,8 @@ def configure_chart(
         # Map chart: Sales by State
         configure_chart("Sheet1", mark_type="Map",
                         geographic_field="State/Province",
-                        color="SUM(Sales)", size="SUM(Profit)")
+                        color="SUM(Sales)", size="SUM(Profit)",
+                        map_fields=["Country/Region"])
 
         # KPI card: Multiple measures
         configure_chart("Sheet1", mark_type="Text",
@@ -311,6 +315,7 @@ def configure_chart(
         filters=filters,
         geographic_field=geographic_field,
         measure_values=measure_values,
+        map_fields=map_fields,
     )
 
 
