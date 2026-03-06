@@ -1,6 +1,6 @@
 [project]
 name = "cwtwb"
-version = "0.6.0"
+version = "0.7.0"
 description = "Tableau Workbook (.twb) Generation MCP Server"
 readme = "README.md"
 
@@ -37,6 +37,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cwtwb"]
+artifacts = [
+  "src/cwtwb/skills/*.md",
+]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
