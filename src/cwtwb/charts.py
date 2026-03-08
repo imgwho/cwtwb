@@ -40,28 +40,46 @@ class ChartsMixin:
         measure_values: Optional[list[str]] = None,
         map_fields: Optional[list[str]] = None,
     ) -> str:
-        """Configure chart type and field mappings for a worksheet.
-
-        Args:
-            worksheet_name: Target worksheet name.
-            mark_type: Mark type: Bar/Line/Pie/Area/Circle/Map/Automatic.
-            columns: Column shelf expressions, e.g. ["SUM(Sales)"].
-            rows: Row shelf expressions, e.g. ["Category"].
-            color: Color encoding expression.
-            size: Size encoding expression.
-            label: Label encoding expression.
-            detail: Detail encoding expression.
-            wedge_size: Pie chart wedge size expression.
-            sort_descending: Sort a dimension descending by this measure expression.
-            tooltip: Tooltip encoding expression(s). Can be a single string or list of strings.
-            filters: List of filter dictionaries.
-            geographic_field: Geographic dimension for Map charts (e.g. "State/Province").
-
-        Returns:
-            Confirmation message.
-        """
+        # Configure chart type and field mappings for a worksheet.
+        #
+        # Args:
+        #     worksheet_name: Target worksheet name.
+        #     mark_type: Mark type: Bar/Line/Pie/Area/Circle/Map/Automatic.
+        #     columns: Column shelf expressions, e.g. ["SUM(Sales)"].
+        #     rows: Row shelf expressions, e.g. ["Category"].
+        #     color: Color encoding expression.
+        #     size: Size encoding expression.
+        #     label: Label encoding expression.
+        #     detail: Detail encoding expression.
+        #     wedge_size: Pie chart wedge size expression.
+        #     sort_descending: Sort a dimension descending by this measure expression.
+        #     tooltip: Tooltip encoding expression(s). Can be a single string or list of strings.
+        #     filters: List of filter dictionaries.
+        #     geographic_field: Geographic dimension for Map charts (e.g. "State/Province").
+        #
+        # Returns:
+        #     Confirmation message.
         columns = columns or []
         rows = rows or []
+
+        original_mark_type = mark_type
+        
+        # Apply simplified mark type macros
+        if mark_type == "Scatterplot":
+            mark_type = "Circle"
+        elif mark_type == "Heatmap":
+            mark_type = "Square"
+            if not color and len(columns) == 0 and len(rows) == 0:
+                pass # Heatmap needs color to be meaningful, but we won't strictly validate here to allow partial builds
+        elif mark_type == "Tree Map":
+            mark_type = "Square"
+            columns = [] # Tree maps do not use columns/rows
+            rows = []
+        elif mark_type == "Bubble Chart":
+            mark_type = "Circle"
+            columns = [] # Bubble charts do not use columns/rows
+            rows = []
+
         is_map = mark_type == "Map"
         is_mnv = bool(measure_values)  # Measure Names/Values mode
 
@@ -206,7 +224,7 @@ class ChartsMixin:
                 continue
             formula = calc_el.get("formula", "")
             # Extract every [FieldName] token from the formula
-            for ref_name in _re.findall(r'\[([^\]]+)\]', formula):
+            for ref_name in _re.findall(r"\[([^\]]+)\]", formula):
                 local_ref = f"[{ref_name}]"
                 # Skip if already in deps or if it looks like a parameter ref
                 if local_ref in seen_columns:
@@ -299,6 +317,8 @@ class ChartsMixin:
 
         if mark_type == "Pie":
             self._apply_pie_style(table_style)
+        elif original_mark_type in ("Tree Map", "Bubble Chart"):
+            self._apply_no_axis_style(table_style)
 
         # 4) Set encodings
         # Remove old encodings
@@ -387,7 +407,7 @@ class ChartsMixin:
         if pane_style is None:
             pane_style = etree.SubElement(pane, "style")
         # Ensure mark style exists
-        self._ensure_mark_style(pane_style, mark_type)
+        self._ensure_mark_style(pane_style, mark_type, original_mark_type)
 
         # 6) Set rows and cols
         rows_el = table.find("rows")
@@ -451,13 +471,12 @@ class ChartsMixin:
         instances: dict[str, "ColumnInstance"],
         filters: list[dict],
     ) -> None:
-        """Add categorical filters to the worksheet view.
-        
-        Args:
-            view: The <view> xml element.
-            instances: Parsed column instances mapping.
-            filters: List of filter dictionaries, e.g. [{"column": "Region", "values": ["East", "West"]}].
-        """
+        # Add categorical filters to the worksheet view.
+        #
+        # Args:
+        #    view: The <view> xml element.
+        #    instances: Parsed column instances mapping.
+        #    filters: List of filter dictionaries.
         for f in filters:
             expr = f.get("column")
             if not expr:
@@ -546,17 +565,16 @@ class ChartsMixin:
         instances: dict[str, "ColumnInstance"],
         measure_values: list[str],
     ) -> None:
-        """Apply Measure Names/Values mode to a worksheet.
-        
-        This enables the special Tableau pattern for KPI cards where
-        multiple measures are shown in a single text table.
-        
-        Structure:
-          - cols = [ds].[:Measure Names]
-          - encoding: text = [ds].[Multiple Values] 
-          - filter on [:Measure Names] to select which measures to show
-          - KPI card styling (centered, bold, no grid lines)
-        """
+        # Apply Measure Names/Values mode to a worksheet.
+        # 
+        # This enables the special Tableau pattern for KPI cards where
+        # multiple measures are shown in a single text table.
+        # 
+        # Structure:
+        #   - cols = [ds].[:Measure Names]
+        #   - encoding: text = [ds].[Multiple Values] 
+        #   - filter on [:Measure Names] to select which measures to show
+        #   - KPI card styling (centered, bold, no grid lines)
         # 1) Set cols to [:Measure Names]
         cols_el = table.find("cols")
         if cols_el is not None:
@@ -656,12 +674,11 @@ class ChartsMixin:
         ds_name: str,
         all_exprs: list[str],
     ) -> None:
-        """Add calculated field columns to datasource-dependencies when used.
-        
-        If any encoding or field expression references a calculated field,
-        that calculated field's full column definition (including formula)
-        should be included in the worksheet's datasource-dependencies.
-        """
+        # Add calculated field columns to datasource-dependencies when used.
+        #
+        # If any encoding or field expression references a calculated field,
+        # that calculated field's full column definition (including formula)
+        # should be included in the worksheet's datasource-dependencies.
         deps = view.find(f"datasource-dependencies[@datasource='{ds_name}']")
         if deps is None:
             return
@@ -697,12 +714,11 @@ class ChartsMixin:
         rows: list[str],
         sort_measure_expr: str,
     ) -> None:
-        """Add shelf-sort for descending sort on a dimension by a measure.
-
-        Generates <shelf-sorts><shelf-sort-v2 .../></shelf-sorts> in <view>.
-        Auto-detects the dimension from rows (first dimension found).
-        Also adds required manifest entries (IntuitiveSorting).
-        """
+        # Add shelf-sort for descending sort on a dimension by a measure.
+        #
+        # Generates <shelf-sorts><shelf-sort-v2 .../></shelf-sorts> in <view>.
+        # Auto-detects the dimension from rows (first dimension found).
+        # Also adds required manifest entries (IntuitiveSorting).
         # Find the dimension to sort (first dimension in rows)
         dim_ci = None
         for expr in rows:
@@ -744,7 +760,7 @@ class ChartsMixin:
             view.append(shelf_sorts)
 
     def _ensure_manifest_entry(self, entry_name: str) -> None:
-        """Ensure a <document-format-change-manifest> entry exists."""
+        # Ensure a <document-format-change-manifest> entry exists.
         manifest = self.root.find("document-format-change-manifest")
         if manifest is None:
             manifest = etree.SubElement(self.root, "document-format-change-manifest")
@@ -752,7 +768,7 @@ class ChartsMixin:
             etree.SubElement(manifest, entry_name)
 
     def _apply_pie_style(self, table_style: etree._Element) -> None:
-        """Add special style rules for Pie charts."""
+        # Add special style rules for Pie charts.
         # Axis line-visibility off
         axis_rule = etree.SubElement(table_style, "style-rule")
         axis_rule.set("element", "axis")
@@ -776,8 +792,19 @@ class ChartsMixin:
         fmt.set("attr", "line-visibility")
         fmt.set("value", "off")
 
-    def _ensure_mark_style(self, pane_style: etree._Element, mark_type: str) -> None:
-        """Ensure mark style rule exists in the pane."""
+    def _apply_no_axis_style(self, table_style: etree._Element) -> None:
+        # Add special style rules for charts that shouldn't show axes (e.g. Tree Map, Bubble Chart).
+        # Worksheet: hide field labels
+        ws_rule = etree.SubElement(table_style, "style-rule")
+        ws_rule.set("element", "worksheet")
+        for scope in ("cols", "rows"):
+            fmt = etree.SubElement(ws_rule, "format")
+            fmt.set("attr", "display-field-labels")
+            fmt.set("scope", scope)
+            fmt.set("value", "false")
+
+    def _ensure_mark_style(self, pane_style: etree._Element, mark_type: str, original_mark_type: str = None) -> None:
+        # Ensure mark style rule exists in the pane.
         # Check if mark style-rule already exists
         for sr in pane_style.findall("style-rule"):
             if sr.get("element") == "mark":
@@ -786,11 +813,18 @@ class ChartsMixin:
         sr = etree.SubElement(pane_style, "style-rule")
         sr.set("element", "mark")
 
-        if mark_type == "Pie":
+        # Use original_mark_type for styling logic if provided, otherwise mark_type
+        style_mark_type = original_mark_type or mark_type
+
+        if style_mark_type == "Pie":
             # Set pie size
             fmt = etree.SubElement(sr, "format")
             fmt.set("attr", "size")
             fmt.set("value", "1.8")
+        elif style_mark_type in ("Tree Map", "Bubble Chart"):
+            fmt = etree.SubElement(sr, "format")
+            fmt.set("attr", "size")
+            fmt.set("value", "2")
 
         # Show labels
         fmt = etree.SubElement(sr, "format")
@@ -804,10 +838,9 @@ class ChartsMixin:
     def _add_viewpoint_highlight(
         self, worksheet_name: str, color_ci: ColumnInstance
     ) -> None:
-        """Add viewpoint/highlight for Pie chart color encoding.
-
-        The viewpoint is inserted before simple-id, matching Tableau Desktop structure.
-        """
+        # Add viewpoint/highlight for Pie chart color encoding.
+        #
+        # The viewpoint is inserted before simple-id, matching Tableau Desktop structure.
         windows = self.root.find("windows")
         if windows is None:
             return

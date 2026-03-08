@@ -406,13 +406,29 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
 
         if window_class == "worksheet":
             cards = etree.SubElement(win, "cards")
-            # Edge-based cards (matching Desktop)
-            for edge in ("left", "top", "right", "bottom"):
-                card = etree.SubElement(cards, "edge")
-                card.set("name", edge)
-                strip = etree.SubElement(card, "strip")
-                strip.set("size", "160")
-                etree.SubElement(strip, "card")
+            
+            # Left edge (pages, filters, marks)
+            edge_left = etree.SubElement(cards, "edge")
+            edge_left.set("name", "left")
+            strip_left = etree.SubElement(edge_left, "strip", size="160")
+            etree.SubElement(strip_left, "card", type="pages")
+            etree.SubElement(strip_left, "card", type="filters")
+            etree.SubElement(strip_left, "card", type="marks")
+            
+            # Top edge (columns, rows, title)
+            edge_top = etree.SubElement(cards, "edge")
+            edge_top.set("name", "top")
+            for t in ["columns", "rows", "title"]:
+                strip_top = etree.SubElement(edge_top, "strip", size="2147483647")
+                etree.SubElement(strip_top, "card", type=t)
+                
+            # Right edge (will be populated by chart encodings with legends later)
+            edge_right = etree.SubElement(cards, "edge")
+            edge_right.set("name", "right")
+            
+            # Bottom edge
+            edge_bottom = etree.SubElement(cards, "edge")
+            edge_bottom.set("name", "bottom")
         elif window_class == "dashboard":
             # For dashboards: add viewpoints per worksheet + active marker
             if worksheet_names:

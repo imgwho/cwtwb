@@ -168,3 +168,88 @@ class ConnectionsMixin:
 
         self._reinit_fields()
         return f"Configured Tableau Server connection to {server}/{dbname} (table: {table_name})"
+
+    def set_hyper_connection(
+        self,
+        filepath: str,
+        table_name: str = "Extract",
+    ) -> str:
+        """Configure the datasource to use a local Hyper extract connection."""
+        # 1. Update <connection class='federated'>
+        fed_conn = self._datasource.find("connection[@class='federated']")
+        if fed_conn is None:
+            for old_conn in self._datasource.findall("connection"):
+                self._datasource.remove(old_conn)
+            fed_conn = etree.Element("connection")
+            fed_conn.set("class", "federated")
+            self._datasource.insert(0, fed_conn)
+
+        # Update <named-connections>
+        named_conns = fed_conn.find("named-connections")
+        if named_conns is None:
+            named_conns = etree.SubElement(fed_conn, "named-connections")
+        else:
+            for child in list(named_conns):
+                named_conns.remove(child)
+
+        conn_name = f"hyper.{_generate_uuid().strip('{}').lower()}"
+
+        nc = etree.SubElement(named_conns, "named-connection")
+        nc.set("caption", filepath.split("/")[-1].split("\\")[-1])
+        nc.set("name", conn_name)
+
+        hyper_conn = etree.SubElement(nc, "connection")
+        hyper_conn.set("authentication", "auth-none")
+        hyper_conn.set("author-locale", "en_US")
+        hyper_conn.set("class", "hyper")
+        hyper_conn.set("dbname", filepath)
+        hyper_conn.set("default-settings", "yes")
+        hyper_conn.set("schema", "Extract")
+        hyper_conn.set("sslmode", "")
+        hyper_conn.set("tablename", "Extract")
+        hyper_conn.set("username", "")
+
+        # 2. Update <relation>
+        relation = fed_conn.find("relation")
+        if relation is None:
+            relation = etree.SubElement(fed_conn, "relation")
+
+        relation.set("connection", conn_name)
+        relation.set("name", table_name)
+        relation.set("table", f"[Extract].[{table_name}]")
+        relation.set("type", "table")
+        for cols in relation.findall("columns"):
+            relation.remove(cols)
+
+        # 3. Update <object-graph> relation
+        for og_rel in self._datasource.findall(".//object-graph//relation"):
+            og_rel.set("connection", conn_name)
+            og_rel.set("name", table_name)
+            og_rel.set("table", f"[Extract].[{table_name}]")
+            og_rel.set("type", "table")
+            for cols in og_rel.findall("columns"):
+                og_rel.remove(cols)
+
+        # 4. Cleanup old generic/excel connections and leftover fields
+        excel_conn = self._datasource.find("connection[@class='excel-direct']")
+        if excel_conn is not None:
+            self._datasource.remove(excel_conn)
+            
+        old_cols = fed_conn.find("cols")
+        if old_cols is not None:
+            fed_conn.remove(old_cols)
+            
+        for c in self._datasource.findall("column"):
+            self._datasource.remove(c)
+            
+        aliases = self._datasource.find("aliases")
+        if aliases is not None:
+            self._datasource.remove(aliases)
+
+        # 6. Clean metadata-records
+        for mr in self._datasource.findall(".//metadata-record"):
+            mr.getparent().remove(mr)
+
+        self._reinit_fields()
+        return f"Configured Hyper connection to {filepath} (table: {table_name})"
+

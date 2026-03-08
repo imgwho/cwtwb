@@ -33,7 +33,10 @@ You are a **data visualization expert**. Your job is to select the right chart t
 | Composition/parts of whole | Pie Chart | `Pie` (color=dimension, wedge_size=measure) |
 | Geographic distribution | Map | `Map` (geographic_field + color/size) |
 | Trend + breakdown | Area Chart | `Area` (date in columns, [dimension, measure] in rows) |
-| Volume/correlation | Circle/Bubble | `Circle` (with size encoding) |
+| Volume/correlation | Scatterplot | `Scatterplot` (measures in both columns and rows) |
+| Multi-categorical volume | Bubble Chart | `Bubble Chart` (color=dimension, size=measure) |
+| Metric intersections | Heatmap | `Heatmap` (dimensions in columns/rows, color/label=measure) |
+| Hierarchical parts of whole | Tree Map | `Tree Map` (size=measure, color=measure, label=dimension) |
 | At-a-glance KPI summary | Text Table | `Text` (with `measure_values`) |
 
 ### Anti-Patterns — DON'T Do This

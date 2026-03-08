@@ -101,3 +101,39 @@ def test_set_tableauserver_connection(superstore_template, tmp_path):
     # Ensure no old federated connections remain
     assert ds.find("connection[@class='federated']") is None
     assert ds.find("connection[@class='excel-direct']") is None
+
+def test_set_hyper_connection(superstore_template, tmp_path):
+    editor = TWBEditor(superstore_template)
+    
+    msg = editor.set_hyper_connection(
+        filepath="my_data.hyper",
+        table_name="Extract"
+    )
+    assert "Configured Hyper connection" in msg
+    
+    out_file = tmp_path / "superstore_hyper.twb"
+    editor.save(out_file)
+    
+    # Verify XML content
+    tree = ET.parse(out_file)
+    ds = tree.find(".//datasource")
+    
+    fed_conn = ds.find("connection[@class='federated']")
+    assert fed_conn is not None
+    
+    named_conns = fed_conn.find("named-connections")
+    assert named_conns is not None
+    
+    nc = named_conns.find("named-connection")
+    assert nc is not None
+    
+    hyper_conn = nc.find("connection")
+    assert hyper_conn is not None
+    assert hyper_conn.get("class") == "hyper"
+    assert hyper_conn.get("dbname") == "my_data.hyper"
+    
+    relation = fed_conn.find("relation")
+    assert relation is not None
+    assert relation.get("type") == "table"
+    assert relation.get("name") == "Extract"
+    assert relation.get("table") == "[Extract].[Extract]"

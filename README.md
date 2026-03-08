@@ -130,6 +130,7 @@ editor.save("output/my_workbook.twb")
 | `generate_layout_json` | Build an interactive structured dashboard flexbox layout |
 | `set_mysql_connection` | Configure the datasource to use a local MySQL connection |
 | `set_tableauserver_connection` | Configure connection to an online Tableau Server |
+| `set_hyper_connection` | Configure the datasource to use a local Hyper extract connection |
 | `save_workbook` | Save the final TWB file |
 
 ## Supported Chart Types
@@ -140,6 +141,10 @@ editor.save("output/my_workbook.twb")
 - **Area** — area charts
 - **Map** — geographic maps with `geographic_field` and optional `map_fields` for LOD
 - **Circle** / **Square** — shape marks
+- **Scatterplot** — visual comparison between two measures
+- **Heatmap** — categorical intersections colored by a measure
+- **Tree Map** — hierarchical data sized and colored by measures
+- **Bubble Chart** — categorical data represented as circles sized by a measure
 - **Text** — text tables and KPI cards (via `measure_values`)
 - **Automatic** — Tableau's automatic mark type
 
