@@ -455,6 +455,27 @@ def set_tableauserver_connection(
 
 
 @server.tool()
+def set_hyper_connection(
+    filepath: str,
+    table_name: str = "Extract",
+) -> str:
+    """Configure the workbook datasource to use a local Hyper extract connection.
+
+    Args:
+        filepath: Absolute path to the .hyper file.
+        table_name: Target table name inside the hyper file (default is usually "Extract" but may vary).
+
+    Returns:
+        Confirmation message.
+    """
+    editor = _get_editor()
+    return editor.set_hyper_connection(
+        filepath=filepath,
+        table_name=table_name,
+    )
+
+
+@server.tool()
 def add_dashboard(
     dashboard_name: str,
     worksheet_names: list[str],
