@@ -13,12 +13,31 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from cwtwb import TWBEditor
 
 
-def _find_sample_hyper(project_root: Path) -> Path | None:
-    bundle_dir = project_root / "templates" / "viz" / "Tableau Advent Calendar.twb 个文件"
+ADVENT_BUNDLE_DIR = (
+    Path("templates")
+    / "viz"
+    / "Tableau Advent Calendar.twb \u4e2a\u6587\u4ef6"
+    / "Data"
+    / "Tableau Advent Calendar"
+)
+PREFERRED_HYPER_FILE = "Sample - EU Superstore.hyper"
+PREFERRED_HYPER_TABLE = "Extract"
+
+
+def _find_sample_hyper(project_root: Path) -> tuple[Path, str] | None:
+    """Prefer the Advent Calendar Superstore extract over unrelated bundle files."""
+    bundle_dir = project_root / ADVENT_BUNDLE_DIR
     if not bundle_dir.exists():
         return None
-    candidates = sorted(bundle_dir.rglob("*.hyper"))
-    return candidates[0] if candidates else None
+
+    preferred = bundle_dir / PREFERRED_HYPER_FILE
+    if preferred.exists():
+        return preferred, PREFERRED_HYPER_TABLE
+
+    candidates = sorted(bundle_dir.glob("*.hyper"))
+    if not candidates:
+        return None
+    return candidates[0], PREFERRED_HYPER_TABLE
 
 
 def main():
@@ -29,13 +48,11 @@ def main():
     print("Initializing Editor...")
     editor = TWBEditor(str(template_path) if template_path.exists() else None)
 
-    hyper_path = _find_sample_hyper(project_root)
-    if hyper_path is not None:
+    hyper_info = _find_sample_hyper(project_root)
+    if hyper_info is not None:
+        hyper_path, table_name = hyper_info
         print(f"Switching to Hyper extract: {hyper_path.name}")
-        editor.set_hyper_connection(
-            str(hyper_path),
-            table_name="Orders_4A2273C4362E41DEA7258D5051022F80",
-        )
+        editor.set_hyper_connection(str(hyper_path), table_name=table_name)
     else:
         print("Hyper extract not found. Continuing with the template datasource.")
 
