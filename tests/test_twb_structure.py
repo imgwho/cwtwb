@@ -164,7 +164,11 @@ class TestKPICard:
         (TWBAssert(editor)
             .xml_valid()
             .worksheet_exists("KPI")
-            .mark_type("KPI", "Text"))
+            .mark_type("KPI", "Text")
+            .has_encoding("KPI", "text")
+            .encoding_contains("KPI", "text", "Multiple Values")
+            .cols_contain("KPI", "Measure Names")
+            .has_filter("KPI", "Measure Names"))
 
 
 class TestParameters:

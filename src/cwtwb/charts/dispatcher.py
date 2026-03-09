@@ -8,13 +8,14 @@ from .builder_basic import BasicChartBuilder
 from .builder_dual_axis import DualAxisChartBuilder
 from .builder_maps import MapChartBuilder
 from .builder_pie import PieChartBuilder
+from .builder_text import TextChartBuilder
 from .routing_policy import ChartRouteProfile, profile_chart_request, profile_dual_axis_request
 
 
-def decide_chart_builder(mark_type: str) -> ChartRouteProfile:
+def decide_chart_builder(mark_type: str, *, measure_values: Optional[list[str]] = None) -> ChartRouteProfile:
     """Choose the stable builder layer for a chart request."""
 
-    return profile_chart_request(mark_type)
+    return profile_chart_request(mark_type, measure_values_mode=bool(measure_values))
 
 
 def decide_dual_axis_builder() -> ChartRouteProfile:
@@ -43,8 +44,7 @@ def configure_chart(
 ) -> str:
     """Route chart configuration to the correct builder."""
 
-    _ = measure_values
-    decision = decide_chart_builder(mark_type)
+    decision = decide_chart_builder(mark_type, measure_values=measure_values)
 
     if decision.builder_name == "pie":
         builder = PieChartBuilder(
@@ -64,6 +64,23 @@ def configure_chart(
             tooltip,
             map_fields,
             filters,
+        )
+        return builder.build()
+
+    if decision.builder_name == "text":
+        builder = TextChartBuilder(
+            editor,
+            worksheet_name,
+            columns,
+            rows,
+            color,
+            size,
+            label,
+            detail,
+            sort_descending,
+            tooltip,
+            filters,
+            measure_values,
         )
         return builder.build()
 

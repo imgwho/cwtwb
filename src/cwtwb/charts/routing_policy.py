@@ -29,8 +29,17 @@ def _resolve_support_level(mark_type: str) -> CapabilityLevel | None:
     return None if spec is None else spec.level
 
 
-def profile_chart_request(mark_type: str) -> ChartRouteProfile:
+def profile_chart_request(mark_type: str, *, measure_values_mode: bool = False) -> ChartRouteProfile:
     """Classify a chart request without changing compatibility behavior."""
+
+    if mark_type == "Text" and measure_values_mode:
+        return ChartRouteProfile(
+            requested_mark_type=mark_type,
+            actual_mark_type="Text",
+            support_level=_resolve_support_level(mark_type),
+            route_family="primitive",
+            builder_name="text",
+        )
 
     if mark_type == "Pie":
         return ChartRouteProfile(

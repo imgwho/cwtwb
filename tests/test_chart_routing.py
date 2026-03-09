@@ -42,6 +42,7 @@ def test_dispatch_decisions_cover_basic_pie_map_and_dual_axis():
     assert decide_chart_builder("Pie").route_family == "primitive"
     assert decide_chart_builder("Map").builder_name == "map"
     assert decide_chart_builder("Map").route_family == "primitive"
+    assert decide_chart_builder("Text", measure_values=["SUM(Sales)"]).builder_name == "text"
     assert decide_dual_axis_builder().builder_name == "dual_axis"
     assert decide_dual_axis_builder().route_family == "composition"
 
@@ -116,3 +117,24 @@ def test_dispatch_routes_basic_and_dual_axis_builders(monkeypatch):
     assert dispatch_dual_axis(object(), "ComboSheet", columns=["SUM(Sales)", "SUM(Profit)"]) == "dual-built"
     assert calls[0][0] == "basic"
     assert calls[1][0] == "dual"
+
+
+def test_dispatch_routes_text_measure_values_to_text_builder(monkeypatch):
+    calls: list[tuple[str, tuple, dict]] = []
+
+    class FakeTextBuilder:
+        def __init__(self, *args, **kwargs):
+            calls.append(("text", args, kwargs))
+
+        def build(self):
+            return "text-built"
+
+    monkeypatch.setattr(dispatcher, "TextChartBuilder", FakeTextBuilder)
+
+    assert dispatch_chart(
+        object(),
+        "KpiSheet",
+        mark_type="Text",
+        measure_values=["SUM(Sales)", "SUM(Profit)"],
+    ) == "text-built"
+    assert calls[0][0] == "text"
