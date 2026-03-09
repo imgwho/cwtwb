@@ -10,6 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from tableauhyperapi import Connection, HyperException, HyperProcess, Telemetry
+
 from cwtwb import TWBEditor
 
 
@@ -21,7 +23,7 @@ ADVENT_BUNDLE_DIR = (
     / "Tableau Advent Calendar"
 )
 PREFERRED_HYPER_FILE = "Sample - EU Superstore.hyper"
-PREFERRED_HYPER_TABLE = "Extract"
+PREFERRED_ORDERS_TABLE = "Orders_4A2273C4362E41DEA7258D5051022F80"
 
 
 def _find_sample_hyper(project_root: Path) -> tuple[Path, str] | None:
@@ -32,12 +34,30 @@ def _find_sample_hyper(project_root: Path) -> tuple[Path, str] | None:
 
     preferred = bundle_dir / PREFERRED_HYPER_FILE
     if preferred.exists():
-        return preferred, PREFERRED_HYPER_TABLE
+        return preferred, _resolve_orders_table_name(preferred)
 
     candidates = sorted(bundle_dir.glob("*.hyper"))
     if not candidates:
         return None
-    return candidates[0], PREFERRED_HYPER_TABLE
+    fallback = candidates[0]
+    return fallback, _resolve_orders_table_name(fallback)
+
+
+def _resolve_orders_table_name(hyper_path: Path) -> str:
+    """Resolve the physical Orders table name from a Hyper extract."""
+    try:
+        with HyperProcess(Telemetry.DO_NOT_SEND_USAGE_DATA_TO_TABLEAU) as hyper:
+            with Connection(endpoint=hyper.endpoint, database=str(hyper_path)) as connection:
+                for schema_name in connection.catalog.get_schema_names():
+                    for table_name in connection.catalog.get_table_names(schema_name):
+                        if str(table_name.schema_name.name) != '"Extract"':
+                            continue
+                        raw_table_name = str(table_name.name).strip('"')
+                        if raw_table_name.startswith("Orders_"):
+                            return raw_table_name
+    except HyperException:
+        return PREFERRED_ORDERS_TABLE
+    raise ValueError(f"Could not find an Orders_* table in Hyper extract: {hyper_path}")
 
 
 def main():
