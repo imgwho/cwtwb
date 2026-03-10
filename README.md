@@ -165,7 +165,7 @@ editor.save("output/my_workbook.twb")
 | `describe_capability` | Explain whether a chart or feature is core, advanced, recipe, or unsupported |
 | `analyze_twb` | Analyze a `.twb` file against the capability catalog |
 | `diff_template_gap` | Summarize the non-core gap of a template |
-| `migrate_twb_guided` | Run the built-in TWB migration workflow from schema scan through apply |
+| `migrate_twb_guided` | Run the built-in TWB migration workflow and pause for warning confirmation when needed |
 | `set_mysql_connection` | Configure the datasource to use a local MySQL connection |
 | `set_tableauserver_connection` | Configure connection to an online Tableau Server |
 | `set_hyper_connection` | Configure the datasource to use a local Hyper extract connection |
@@ -259,10 +259,10 @@ template `.twb`, the original Superstore Excel, the target Chinese Superstore
 Excel, and a runnable script that writes the migrated workbook plus JSON reports
 back into that same example folder.
 
-If `OPENAI_API_KEY` is set, migration tools can optionally ask OpenAI to review
-only the low-confidence warning mappings after the deterministic matcher has
-finished. This AI pass never replaces the core rule engine; it only reviews the
-warning tail.
+The guided migration workflow now pauses when only low-confidence warnings
+remain and returns a compact `warning_review_bundle`. You can confirm those
+suggested mappings by passing them back through `mapping_overrides`, which keeps
+the core migration flow deterministic and avoids any server-side model keys.
 
 ## Project Structure
 

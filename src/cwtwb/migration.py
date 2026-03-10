@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import difflib
 import json
-import os
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib import error as urllib_error
-from urllib import request as urllib_request
 
 from lxml import etree
 import xlrd
@@ -53,7 +50,7 @@ class MigrationPreview:
     candidate_field_mapping: list[MappingCandidate]
     calculation_rewrite_summary: dict[str, int]
     issues: list[MigrationIssue] = field(default_factory=list)
-    ai_review: dict[str, Any] = field(default_factory=dict)
+    warning_review_bundle: dict[str, Any] = field(default_factory=dict)
     removable_datasources: list[str] = field(default_factory=list)
     capability_summary: dict[str, Any] = field(default_factory=dict)
 
@@ -61,9 +58,14 @@ class MigrationPreview:
     def blocking_issue_count(self) -> int:
         return sum(1 for issue in self.issues if issue.severity == "blocking")
 
+    @property
+    def warning_issue_count(self) -> int:
+        return sum(1 for issue in self.issues if issue.severity == "warning")
+
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["blocking_issue_count"] = self.blocking_issue_count
+        payload["warning_issue_count"] = self.warning_issue_count
         return payload
 
 
@@ -129,182 +131,57 @@ def _sequence_similarity(left: str, right: str) -> float:
         return 0.0
     return difflib.SequenceMatcher(a=left, b=right).ratio()
 
-
-def _is_ai_warning_review_enabled(use_ai_for_warnings: bool | None) -> bool:
-    if use_ai_for_warnings is not None:
-        return use_ai_for_warnings
-    return bool(os.environ.get("OPENAI_API_KEY"))
-
-
-def _get_ai_warning_review_model() -> str:
-    return os.environ.get("CWTWB_OPENAI_MODEL") or os.environ.get("OPENAI_MODEL") or "gpt-5-mini"
-
-
-def _extract_response_output_text(payload: dict[str, Any]) -> str:
-    if isinstance(payload.get("output_text"), str) and payload["output_text"].strip():
-        return payload["output_text"].strip()
-
-    parts: list[str] = []
-    for output_item in payload.get("output", []):
-        for content_item in output_item.get("content", []):
-            text_value = content_item.get("text")
-            if isinstance(text_value, str) and text_value.strip():
-                parts.append(text_value.strip())
-    return "\n".join(parts).strip()
-
-
-def _parse_json_object_from_text(text: str) -> dict[str, Any]:
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = stripped.strip("`")
-        if stripped.startswith("json"):
-            stripped = stripped[4:].strip()
-    start = stripped.find("{")
-    end = stripped.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        raise ValueError("AI response did not contain a JSON object.")
-    return json.loads(stripped[start : end + 1])
-
-
-def _request_ai_warning_review(prompt: str, model: str) -> dict[str, Any]:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not configured.")
-
-    base_url = (os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
-    body = {
-        "model": model,
-        "input": prompt,
-    }
-    request = urllib_request.Request(
-        url=f"{base_url}/responses",
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    organization = os.environ.get("OPENAI_ORGANIZATION")
-    if organization:
-        request.add_header("OpenAI-Organization", organization)
-    project = os.environ.get("OPENAI_PROJECT")
-    if project:
-        request.add_header("OpenAI-Project", project)
-
-    try:
-        with urllib_request.urlopen(request, timeout=60) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib_error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpenAI warning review request failed: {exc.code} {detail}") from exc
-
-
-def _review_warning_candidates_with_ai(
+def _build_warning_review_bundle(
     warning_candidates: list[MappingCandidate],
     ranked_by_source: dict[str, list[tuple[float, str, list[str]]]],
     source_profiles: dict[str, ColumnProfile],
     target_profiles: dict[str, ColumnProfile],
-    assigned_targets: set[str],
-    use_ai_for_warnings: bool | None,
 ) -> dict[str, Any]:
     if not warning_candidates:
         return {
-            "enabled": False,
-            "attempted": False,
-            "used": False,
             "status": "not-needed",
-            "model": None,
-            "reviewed_fields": [],
-            "applied_suggestions": [],
+            "fields_requiring_review": [],
+            "instructions": (
+                "No low-confidence mappings require confirmation. "
+                "You can apply the migration immediately."
+            ),
         }
 
-    enabled = _is_ai_warning_review_enabled(use_ai_for_warnings)
-    if not enabled:
-        return {
-            "enabled": False,
-            "attempted": False,
-            "used": False,
-            "status": "disabled",
-            "model": None,
-            "reviewed_fields": [candidate.source_field for candidate in warning_candidates],
-            "applied_suggestions": [],
-        }
-
-    model = _get_ai_warning_review_model()
-    if not os.environ.get("OPENAI_API_KEY"):
-        return {
-            "enabled": False,
-            "attempted": False,
-            "used": False,
-            "status": "disabled",
-            "model": model,
-            "reviewed_fields": [candidate.source_field for candidate in warning_candidates],
-            "applied_suggestions": [],
-            "reason": "OPENAI_API_KEY is not configured",
-        }
-    review_payload = []
+    review_items: list[dict[str, Any]] = []
     for candidate in warning_candidates:
-        ranked_options = []
+        alternatives: list[dict[str, Any]] = []
         for confidence, target_field, reasons in ranked_by_source.get(candidate.source_field, [])[:4]:
+            if target_field == candidate.target_field:
+                continue
             target_profile = target_profiles[target_field]
-            ranked_options.append(
+            alternatives.append(
                 {
                     "target_field": target_field,
-                    "rule_confidence": confidence,
-                    "reason": ", ".join(reasons[:4]),
-                    "profile": target_profile.to_dict(),
-                    "already_assigned": target_field in assigned_targets and target_field != candidate.target_field,
+                    "confidence": confidence,
+                    "reason": ", ".join(reasons[:4]) or "profile similarity match",
+                    "target_profile": target_profile.to_dict(),
                 }
             )
-        review_payload.append(
+
+        review_items.append(
             {
                 "source_field": candidate.source_field,
-                "current_target_field": candidate.target_field,
-                "current_rule_confidence": candidate.confidence,
+                "suggested_target_field": candidate.target_field,
+                "confidence": candidate.confidence,
+                "reason": candidate.reason,
                 "source_profile": source_profiles[candidate.source_field].to_dict(),
-                "candidate_targets": ranked_options,
+                "suggested_target_profile": target_profiles[candidate.target_field].to_dict(),
+                "alternative_targets": alternatives,
             }
         )
 
-    prompt = (
-        "You are reviewing low-confidence Tableau field mappings.\n"
-        "Pick the best target field for each source field from the provided candidate_targets only.\n"
-        "Prefer keeping the current_target_field unless another candidate is clearly better.\n"
-        "Never reuse a target field that is marked already_assigned=true.\n"
-        "Return JSON only in this exact shape: "
-        "{\"suggestions\":[{\"source_field\":\"...\",\"target_field\":\"...\",\"confidence\":0.0,\"reason\":\"...\"}]}\n\n"
-        f"{json.dumps({'warning_candidates': review_payload}, ensure_ascii=False)}"
-    )
-
-    try:
-        response_payload = _request_ai_warning_review(prompt, model=model)
-        output_text = _extract_response_output_text(response_payload)
-        parsed = _parse_json_object_from_text(output_text)
-    except Exception as exc:  # noqa: BLE001
-        return {
-            "enabled": True,
-            "attempted": True,
-            "used": False,
-            "status": "error",
-            "model": model,
-            "reviewed_fields": [candidate.source_field for candidate in warning_candidates],
-            "applied_suggestions": [],
-            "error": str(exc),
-        }
-
-    suggestions = parsed.get("suggestions", [])
-    if not isinstance(suggestions, list):
-        suggestions = []
-
     return {
-        "enabled": True,
-        "attempted": True,
-        "used": True,
-        "status": "completed",
-        "model": model,
-        "reviewed_fields": [candidate.source_field for candidate in warning_candidates],
-        "applied_suggestions": suggestions,
+        "status": "needs-review",
+        "fields_requiring_review": review_items,
+        "instructions": (
+            "Confirm each suggested target field or provide mapping_overrides. "
+            "To accept a suggestion as-is, pass that same target field back in mapping_overrides."
+        ),
     }
 
 
@@ -825,7 +702,6 @@ def propose_field_mapping(
     target_source: str | Path,
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
-    use_ai_for_warnings: bool | None = None,
 ) -> dict[str, Any]:
     profile = profile_twb_for_migration(file_path, scope=scope, target_source=target_source)
     target_schema = inspect_target_schema(target_source)
@@ -973,54 +849,12 @@ def propose_field_mapping(
     candidates.sort(key=lambda candidate: profile.source_schema.index(candidate.source_field))
     warning_fields = {issue.field for issue in issues if issue.issue_type == "low-confidence" and issue.field}
     warning_candidates = [candidate for candidate in candidates if candidate.source_field in warning_fields]
-    ai_review = _review_warning_candidates_with_ai(
+    warning_review_bundle = _build_warning_review_bundle(
         warning_candidates=warning_candidates,
         ranked_by_source=ranked_by_source,
         source_profiles=source_profiles,
         target_profiles=target_profiles,
-        assigned_targets={candidate.target_field for candidate in candidates},
-        use_ai_for_warnings=use_ai_for_warnings,
     )
-    if ai_review.get("status") == "completed":
-        candidate_by_source = {candidate.source_field: candidate for candidate in candidates}
-        assigned_by_source = {candidate.source_field: candidate.target_field for candidate in candidates}
-        target_to_source = {candidate.target_field: candidate.source_field for candidate in candidates}
-        reviewed_fields = set(ai_review.get("reviewed_fields", []))
-        retained_issues: list[MigrationIssue] = []
-        resolved_warning_fields: set[str] = set()
-        for suggestion in ai_review.get("applied_suggestions", []):
-            source_field = suggestion.get("source_field")
-            target_field = suggestion.get("target_field")
-            try:
-                confidence = float(suggestion.get("confidence", 0.0))
-            except (TypeError, ValueError):
-                confidence = 0.0
-            reason = str(suggestion.get("reason", "")).strip() or "ai warning review"
-            candidate = candidate_by_source.get(source_field)
-            if candidate is None or source_field not in reviewed_fields:
-                continue
-            if target_field not in target_fields:
-                continue
-            assigned_source = target_to_source.get(target_field)
-            if assigned_source is not None and assigned_source != source_field:
-                continue
-
-            previous_target = assigned_by_source[source_field]
-            if previous_target != target_field:
-                target_to_source.pop(previous_target, None)
-                target_to_source[target_field] = source_field
-                assigned_by_source[source_field] = target_field
-                candidate.target_field = target_field
-            candidate.confidence = max(candidate.confidence, round(confidence, 3))
-            candidate.reason = f"{candidate.reason}; ai review: {reason}"
-            if confidence >= 0.7:
-                resolved_warning_fields.add(source_field)
-
-        for issue in issues:
-            if issue.issue_type == "low-confidence" and issue.field in resolved_warning_fields:
-                continue
-            retained_issues.append(issue)
-        issues = retained_issues
 
     return {
         "template_file": profile.template_file,
@@ -1036,9 +870,10 @@ def propose_field_mapping(
             "row_count": target_schema["row_count"],
         },
         "candidate_field_mapping": [asdict(candidate) for candidate in candidates],
-        "ai_review": ai_review,
+        "warning_review_bundle": warning_review_bundle,
         "issues": [asdict(issue) for issue in issues],
         "blocking_issue_count": sum(1 for issue in issues if issue.severity == "blocking"),
+        "warning_issue_count": sum(1 for issue in issues if issue.severity == "warning"),
     }
 
 
@@ -1067,7 +902,6 @@ def preview_twb_migration(
     target_source: str | Path,
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
-    use_ai_for_warnings: bool | None = None,
 ) -> MigrationPreview:
     path = Path(file_path)
     root = etree.parse(str(path)).getroot()
@@ -1095,7 +929,6 @@ def preview_twb_migration(
         target_source=target_source,
         scope=scope,
         mapping_overrides=mapping_overrides,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
     issues = [MigrationIssue(**issue) for issue in mapping_payload["issues"]]
     if target_datasource is None:
@@ -1127,7 +960,7 @@ def preview_twb_migration(
         candidate_field_mapping=[MappingCandidate(**candidate) for candidate in mapping_payload["candidate_field_mapping"]],
         calculation_rewrite_summary=_calculation_summary(scope_worksheets),
         issues=issues,
-        ai_review=mapping_payload.get("ai_review", {}),
+        warning_review_bundle=mapping_payload.get("warning_review_bundle", {}),
         removable_datasources=[source_datasource_name],
         capability_summary={
             "fit_level": capability_report.fit_level,
@@ -1192,18 +1025,17 @@ def apply_twb_migration(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
     output_path: str | Path | None = None,
-    use_ai_for_warnings: bool | None = None,
 ) -> dict[str, Any]:
     preview = preview_twb_migration(
         file_path=file_path,
         target_source=target_source,
         scope=scope,
         mapping_overrides=mapping_overrides,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
-    if preview.blocking_issue_count:
+    if preview.blocking_issue_count or preview.warning_issue_count:
         raise ValueError(
-            f"Cannot apply migration while blocking issues remain ({preview.blocking_issue_count})."
+            "Cannot apply migration while unresolved blocking or warning issues remain "
+            f"(blocking={preview.blocking_issue_count}, warnings={preview.warning_issue_count})."
         )
 
     path = Path(file_path)
@@ -1250,24 +1082,26 @@ def migrate_twb_guided(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
     apply_if_no_blockers: bool = True,
-    use_ai_for_warnings: bool | None = None,
 ) -> dict[str, Any]:
     preview = preview_twb_migration(
         file_path=file_path,
         target_source=target_source,
         scope=scope,
         mapping_overrides=mapping_overrides,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
     payload = preview.to_dict()
-    payload["workflow_status"] = "blocked" if preview.blocking_issue_count else "ready"
-    payload["next_action"] = (
-        "review_mapping_or_fix_blockers"
-        if preview.blocking_issue_count
-        else "apply_migration"
-    )
+    if preview.blocking_issue_count:
+        payload["workflow_status"] = "blocked"
+        payload["next_action"] = "fix_blockers"
+        return payload
+    if preview.warning_issue_count:
+        payload["workflow_status"] = "needs_review"
+        payload["next_action"] = "confirm_warning_mappings"
+        return payload
+    payload["workflow_status"] = "ready"
+    payload["next_action"] = "apply_migration"
 
-    if preview.blocking_issue_count or not apply_if_no_blockers:
+    if not apply_if_no_blockers:
         return payload
 
     applied = apply_twb_migration(
@@ -1276,7 +1110,6 @@ def migrate_twb_guided(
         scope=scope,
         mapping_overrides=mapping_overrides,
         output_path=output_path,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
     payload.update(
         {
@@ -1303,14 +1136,12 @@ def propose_field_mapping_json(
     target_source: str | Path,
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
-    use_ai_for_warnings: bool | None = None,
 ) -> str:
     payload = propose_field_mapping(
         file_path=file_path,
         target_source=target_source,
         scope=scope,
         mapping_overrides=mapping_overrides,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -1320,14 +1151,12 @@ def preview_twb_migration_json(
     target_source: str | Path,
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
-    use_ai_for_warnings: bool | None = None,
 ) -> str:
     preview = preview_twb_migration(
         file_path=file_path,
         target_source=target_source,
         scope=scope,
         mapping_overrides=mapping_overrides,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
     return json.dumps(preview.to_dict(), ensure_ascii=False, indent=2)
 
@@ -1338,7 +1167,6 @@ def apply_twb_migration_json(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
     output_path: str | Path | None = None,
-    use_ai_for_warnings: bool | None = None,
 ) -> str:
     result = apply_twb_migration(
         file_path=file_path,
@@ -1346,7 +1174,6 @@ def apply_twb_migration_json(
         scope=scope,
         mapping_overrides=mapping_overrides,
         output_path=output_path,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
     return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -1358,7 +1185,6 @@ def migrate_twb_guided_json(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
     apply_if_no_blockers: bool = True,
-    use_ai_for_warnings: bool | None = None,
 ) -> str:
     payload = migrate_twb_guided(
         file_path=file_path,
@@ -1367,6 +1193,5 @@ def migrate_twb_guided_json(
         scope=scope,
         mapping_overrides=mapping_overrides,
         apply_if_no_blockers=apply_if_no_blockers,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
     return json.dumps(payload, ensure_ascii=False, indent=2)

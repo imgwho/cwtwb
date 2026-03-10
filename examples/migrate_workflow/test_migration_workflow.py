@@ -14,8 +14,16 @@ from cwtwb import migrate_twb_guided  # noqa: E402
 
 EXAMPLE_DIR = Path(__file__).resolve().parent
 TEMPLATE_PATH = EXAMPLE_DIR / "5 KPI Design Ideas (2).twb"
-TARGET_SOURCE = EXAMPLE_DIR / "示例 - 超市.xls"
-OUTPUT_PATH = EXAMPLE_DIR / "5 KPI Design Ideas (2) - migrated to 示例超市.twb"
+TARGET_SOURCE = next(path for path in EXAMPLE_DIR.glob("*.xls") if "Superstore" not in path.name)
+OUTPUT_PATH = EXAMPLE_DIR / "5 KPI Design Ideas (2) - migrated to target.twb"
+
+
+def _approve_warning_bundle(payload: dict) -> dict[str, str]:
+    bundle = payload.get("warning_review_bundle", {})
+    return {
+        item["source_field"]: item["suggested_target_field"]
+        for item in bundle.get("fields_requiring_review", [])
+    }
 
 
 def run_example() -> dict:
@@ -24,6 +32,13 @@ def run_example() -> dict:
         TARGET_SOURCE,
         output_path=OUTPUT_PATH,
     )
+    if result["workflow_status"] == "needs_review":
+        result = migrate_twb_guided(
+            TEMPLATE_PATH,
+            TARGET_SOURCE,
+            output_path=OUTPUT_PATH,
+            mapping_overrides=_approve_warning_bundle(result),
+        )
 
     assert result["workflow_status"] == "applied"
     assert result["blocking_issue_count"] == 0

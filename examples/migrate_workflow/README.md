@@ -13,9 +13,13 @@ Run it from the repo root:
 python examples/migrate_workflow/test_migration_workflow.py
 ```
 
+The script first runs `migrate_twb_guided()` to collect any
+`warning_review_bundle`, then confirms those warning mappings by passing the
+suggested targets back through `mapping_overrides`.
+
 By default the script writes these files back into this same folder:
 
-- `5 KPI Design Ideas (2) - migrated to 示例超市.twb`
+- `5 KPI Design Ideas (2) - migrated to target.twb`
 - `migration_report.json`
 - `field_mapping.json`
 

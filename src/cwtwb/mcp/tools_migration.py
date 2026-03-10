@@ -43,7 +43,6 @@ def propose_field_mapping(
     target_source: str,
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
-    use_ai_for_warnings: bool = True,
 ) -> str:
     """Scan source and target schema and propose a field mapping."""
 
@@ -52,7 +51,6 @@ def propose_field_mapping(
         target_source=target_source,
         scope=scope,
         mapping_overrides=mapping_overrides,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
 
 
@@ -62,7 +60,6 @@ def preview_twb_migration(
     target_source: str,
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
-    use_ai_for_warnings: bool = True,
 ) -> str:
     """Preview a workbook migration onto a target datasource."""
 
@@ -71,7 +68,6 @@ def preview_twb_migration(
         target_source=target_source,
         scope=scope,
         mapping_overrides=mapping_overrides,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
 
 
@@ -82,7 +78,6 @@ def apply_twb_migration(
     output_path: str,
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
-    use_ai_for_warnings: bool = True,
 ) -> str:
     """Apply a workbook migration and write a migrated TWB plus reports."""
 
@@ -92,7 +87,6 @@ def apply_twb_migration(
         scope=scope,
         mapping_overrides=mapping_overrides,
         output_path=output_path,
-        use_ai_for_warnings=use_ai_for_warnings,
     )
 
 
@@ -104,9 +98,8 @@ def migrate_twb_guided(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
     apply_if_no_blockers: bool = True,
-    use_ai_for_warnings: bool = True,
 ) -> str:
-    """Run the built-in migration workflow: profile, map, preview, and optionally apply."""
+    """Run the built-in migration workflow and pause for warning confirmation when needed."""
 
     return migrate_twb_guided_json(
         file_path=file_path,
@@ -115,5 +108,4 @@ def migrate_twb_guided(
         scope=scope,
         mapping_overrides=mapping_overrides,
         apply_if_no_blockers=apply_if_no_blockers,
-        use_ai_for_warnings=use_ai_for_warnings,
     )

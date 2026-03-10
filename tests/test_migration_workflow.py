@@ -43,6 +43,15 @@ EXPECTED_WORKSHEETS = [
 ]
 
 
+def _approve_warning_bundle(payload: dict[str, object]) -> dict[str, str]:
+    bundle = payload["warning_review_bundle"]
+    fields = bundle.get("fields_requiring_review", [])
+    return {
+        item["source_field"]: item["suggested_target_field"]
+        for item in fields
+    }
+
+
 def test_profile_twb_for_migration_reports_used_source() -> None:
     profile = profile_twb_for_migration(TEMPLATE_PATH, target_source=TARGET_SOURCE)
 
@@ -53,78 +62,19 @@ def test_profile_twb_for_migration_reports_used_source() -> None:
     assert "Sales" in profile.source_schema
 
 
-def test_propose_field_mapping_auto_scans_source_and_target() -> None:
+def test_propose_field_mapping_returns_warning_review_bundle() -> None:
     proposal = propose_field_mapping(TEMPLATE_PATH, TARGET_SOURCE)
 
     assert proposal["source_datasource"] == "Sample - Superstore (copy)"
     assert len(proposal["candidate_field_mapping"]) == 21
     assert proposal["blocking_issue_count"] == 0
+    assert proposal["warning_issue_count"] == 3
+    assert proposal["warning_review_bundle"]["status"] == "needs-review"
+
     mapped = {item["source_field"]: item["target_field"] for item in proposal["candidate_field_mapping"]}
-    assert mapped["Sales"] == "销售额"
-    assert mapped["Country/Region"] == "国家/地区"
-
-
-def test_propose_field_mapping_disables_ai_review_without_key(monkeypatch) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-
-    proposal = propose_field_mapping(
-        TEMPLATE_PATH,
-        TARGET_SOURCE,
-        use_ai_for_warnings=True,
-    )
-
-    assert proposal["ai_review"]["status"] == "disabled"
-    assert proposal["blocking_issue_count"] == 0
-
-
-def test_propose_field_mapping_can_apply_ai_review(monkeypatch) -> None:
-    def fake_ai_review(**_: object) -> dict[str, object]:
-        return {
-            "enabled": True,
-            "attempted": True,
-            "used": True,
-            "status": "completed",
-            "model": "gpt-5-mini",
-            "reviewed_fields": ["State/Province", "Country/Region", "Region"],
-            "applied_suggestions": [
-                {
-                    "source_field": "State/Province",
-                    "target_field": "省/自治区",
-                    "confidence": 0.91,
-                    "reason": "confirmed from distribution and workbook context",
-                },
-                {
-                    "source_field": "Country/Region",
-                    "target_field": "国家/地区",
-                    "confidence": 0.93,
-                    "reason": "single-country semantic match",
-                },
-                {
-                    "source_field": "Region",
-                    "target_field": "区域",
-                    "confidence": 0.88,
-                    "reason": "distribution and worksheet usage align",
-                },
-            ],
-        }
-
-    monkeypatch.setattr("cwtwb.migration._review_warning_candidates_with_ai", fake_ai_review)
-
-    proposal = propose_field_mapping(
-        TEMPLATE_PATH,
-        TARGET_SOURCE,
-        use_ai_for_warnings=True,
-    )
-
-    warning_fields = {
-        issue["field"]
-        for issue in proposal["issues"]
-        if issue["issue_type"] == "low-confidence"
-    }
-    assert proposal["ai_review"]["status"] == "completed"
-    assert "State/Province" not in warning_fields
-    assert "Country/Region" not in warning_fields
-    assert "Region" not in warning_fields
+    target_headers = proposal["target_schema"]
+    assert mapped["Sales"] == target_headers[16]
+    assert mapped["Country/Region"] == target_headers[10]
 
 
 def test_preview_twb_migration_reports_expected_scope() -> None:
@@ -136,6 +86,8 @@ def test_preview_twb_migration_reports_expected_scope() -> None:
     assert preview.dashboards_in_scope == ["KPI Board"]
     assert len(preview.candidate_field_mapping) == 21
     assert preview.blocking_issue_count == 0
+    assert preview.warning_issue_count == 3
+    assert preview.warning_review_bundle["status"] == "needs-review"
     assert preview.removable_datasources == ["Sample - Superstore (copy)"]
 
 
@@ -148,23 +100,27 @@ def test_mcp_tools_return_json_payloads() -> None:
 
     assert profile_payload["source_datasource"] == "Sample - Superstore (copy)"
     assert mapping_payload["blocking_issue_count"] == 0
+    assert mapping_payload["warning_issue_count"] == 3
     assert len(mapping_payload["candidate_field_mapping"]) == 21
     assert preview_payload["blocking_issue_count"] == 0
 
 
 def test_apply_twb_migration_writes_expected_files(tmp_path: Path) -> None:
-    output_path = tmp_path / "5 KPI Design Ideas (2) - migrated to 示例超市.twb"
+    output_path = tmp_path / "migrated.twb"
+    proposal = propose_field_mapping(TEMPLATE_PATH, TARGET_SOURCE)
+    overrides = _approve_warning_bundle(proposal)
 
     result = apply_twb_migration(
         TEMPLATE_PATH,
         TARGET_SOURCE,
         output_path=output_path,
+        mapping_overrides=overrides,
     )
 
     assert output_path.exists()
     assert (tmp_path / "migration_report.json").exists()
     assert (tmp_path / "field_mapping.json").exists()
-    assert result["output_summary"]["migrated_twb"].endswith("5 KPI Design Ideas (2) - migrated to 示例超市.twb")
+    assert result["output_summary"]["migrated_twb"].endswith("migrated.twb")
 
     root = ET.parse(output_path).getroot()
     dashboard = root.find(".//dashboards/dashboard[@name='KPI Board']")
@@ -200,12 +156,15 @@ def test_apply_twb_migration_writes_expected_files(tmp_path: Path) -> None:
 
 def test_apply_tool_returns_json_payload(tmp_path: Path) -> None:
     output_path = tmp_path / "tool-migrated.twb"
+    proposal = propose_field_mapping(TEMPLATE_PATH, TARGET_SOURCE)
+    overrides = _approve_warning_bundle(proposal)
 
     payload = json.loads(
         apply_twb_migration_tool(
             str(TEMPLATE_PATH),
             str(TARGET_SOURCE),
             str(output_path),
+            mapping_overrides=overrides,
         )
     )
 
@@ -215,11 +174,14 @@ def test_apply_tool_returns_json_payload(tmp_path: Path) -> None:
 
 def test_apply_twb_migration_retargets_excel_connection_path(tmp_path: Path) -> None:
     output_path = tmp_path / "retargeted.twb"
+    proposal = propose_field_mapping(TEMPLATE_PATH, TARGET_SOURCE)
+    overrides = _approve_warning_bundle(proposal)
 
     apply_twb_migration(
         TEMPLATE_PATH,
         TARGET_SOURCE,
         output_path=output_path,
+        mapping_overrides=overrides,
     )
 
     root = ET.parse(output_path).getroot()
@@ -232,13 +194,27 @@ def test_apply_twb_migration_retargets_excel_connection_path(tmp_path: Path) -> 
     assert any(str(TARGET_SOURCE.resolve()).replace("\\", "/") == filename for filename in filenames)
 
 
-def test_migrate_twb_guided_runs_end_to_end(tmp_path: Path) -> None:
+def test_migrate_twb_guided_pauses_for_warning_review() -> None:
+    payload = migrate_twb_guided(
+        TEMPLATE_PATH,
+        TARGET_SOURCE,
+    )
+
+    assert payload["workflow_status"] == "needs_review"
+    assert payload["next_action"] == "confirm_warning_mappings"
+    assert payload["warning_issue_count"] == 3
+
+
+def test_migrate_twb_guided_runs_end_to_end_after_confirmation(tmp_path: Path) -> None:
     output_path = tmp_path / "guided.twb"
+    proposal = propose_field_mapping(TEMPLATE_PATH, TARGET_SOURCE)
+    overrides = _approve_warning_bundle(proposal)
 
     payload = migrate_twb_guided(
         TEMPLATE_PATH,
         TARGET_SOURCE,
         output_path=output_path,
+        mapping_overrides=overrides,
     )
 
     assert payload["workflow_status"] == "applied"
@@ -248,12 +224,15 @@ def test_migrate_twb_guided_runs_end_to_end(tmp_path: Path) -> None:
 
 def test_migrate_twb_guided_tool_returns_json_payload(tmp_path: Path) -> None:
     output_path = tmp_path / "guided-tool.twb"
+    proposal = propose_field_mapping(TEMPLATE_PATH, TARGET_SOURCE)
+    overrides = _approve_warning_bundle(proposal)
 
     payload = json.loads(
         migrate_twb_guided_tool(
             str(TEMPLATE_PATH),
             str(TARGET_SOURCE),
             str(output_path),
+            mapping_overrides=overrides,
         )
     )
 
