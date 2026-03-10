@@ -42,9 +42,17 @@ pip install "cwtwb[examples]"
 
 ### As MCP Server
 
-To allow an MCP client to build Tableau workbooks automatically, add `cwtwb` to the client's MCP configuration.
+To allow an MCP client to build Tableau workbooks automatically, add `cwtwb`
+to that client's MCP configuration.
 
-The simplest way to run it is via `uvx`.
+The launch command is the same across clients:
+
+```bash
+uvx cwtwb
+```
+
+Each client stores this command in a different configuration format. Use the
+matching example below.
 
 #### Claude Desktop
 
@@ -77,7 +85,24 @@ claude mcp add cwtwb -- uvx cwtwb
 
 #### VSCode
 
-Add the same `uvx cwtwb` command to your MCP configuration.
+Open the workspace `.vscode/mcp.json` file or your user-profile `mcp.json`
+file and add:
+
+```json
+{
+  "servers": {
+    "cwtwb": {
+      "command": "uvx",
+      "args": ["cwtwb"]
+    }
+  }
+}
+```
+
+In VSCode, you can open these files from the Command Palette with
+**MCP: Open Workspace Folder Configuration** or
+**MCP: Open User Configuration**. You can also use **MCP: Add Server** and
+enter the same `uvx cwtwb` command through the guided flow.
 
 ### As Python Library
 
