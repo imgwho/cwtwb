@@ -34,7 +34,7 @@ def add_dashboard_action(
     if actions_el is None:
         actions_el = etree.Element("actions")
         insert_before = None
-        for tag in ("worksheets", "dashboards", "windows", "thumbnails"):
+        for tag in ("worksheets", "dashboards", "windows"):
             insert_before = editor.root.find(tag)
             if insert_before is not None:
                 break

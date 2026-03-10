@@ -13,7 +13,7 @@ def get_editor() -> TWBEditor:
     """Get the current editor instance, raising if none exists."""
 
     if _editor is None:
-        raise RuntimeError("No active workbook. Call create_workbook first.")
+        raise RuntimeError("No active workbook. Call create_workbook or open_workbook first.")
     return _editor
 
 

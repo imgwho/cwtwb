@@ -10,6 +10,29 @@ from .app import server
 from .state import get_editor, set_editor
 
 
+def _format_worksheets(editor: TWBEditor) -> str:
+    worksheets = editor.list_worksheets()
+    if not worksheets:
+        return "=== Worksheets ===\n  (none)"
+    lines = ["=== Worksheets ==="]
+    lines.extend(f"  {name}" for name in worksheets)
+    return "\n".join(lines)
+
+
+def _format_dashboards(editor: TWBEditor) -> str:
+    dashboards = editor.list_dashboards()
+    if not dashboards:
+        return "=== Dashboards ===\n  (none)"
+
+    lines = ["=== Dashboards ==="]
+    for dashboard in dashboards:
+        name = dashboard["name"]
+        worksheet_names = dashboard["worksheets"]
+        joined = ", ".join(worksheet_names) if worksheet_names else "(no worksheet zones)"
+        lines.append(f"  {name}: {joined}")
+    return "\n".join(lines)
+
+
 @server.tool()
 def create_workbook(template_path: str = "", workbook_name: str = "") -> str:
     """Create a new workbook from a TWB template file."""
@@ -28,11 +51,38 @@ def create_workbook(template_path: str = "", workbook_name: str = "") -> str:
 
 
 @server.tool()
+def open_workbook(file_path: str) -> str:
+    """Open an existing workbook for in-place worksheet editing."""
+
+    editor = TWBEditor.open_existing(file_path)
+    set_editor(editor)
+
+    lines = [f"Workbook opened: {file_path}", "", _format_worksheets(editor), "", _format_dashboards(editor)]
+    return "\n".join(lines)
+
+
+@server.tool()
 def list_fields() -> str:
     """List all available fields in the current workbook datasource."""
 
     editor = get_editor()
     return editor.list_fields()
+
+
+@server.tool()
+def list_worksheets() -> str:
+    """List worksheet names in the current workbook."""
+
+    editor = get_editor()
+    return _format_worksheets(editor)
+
+
+@server.tool()
+def list_dashboards() -> str:
+    """List dashboards and their worksheet zones in the current workbook."""
+
+    editor = get_editor()
+    return _format_dashboards(editor)
 
 
 @server.tool()

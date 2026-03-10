@@ -36,7 +36,7 @@ class DashboardsMixin:
         dashboards = self.root.find("dashboards")
         if dashboards is None:
             insert_before = None
-            for tag in ("windows", "thumbnails", "external"):
+            for tag in ("windows", "external"):
                 el = self.root.find(tag)
                 if el is not None:
                     insert_before = el

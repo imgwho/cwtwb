@@ -6,7 +6,7 @@ from mcp.server.fastmcp import FastMCP
 server = FastMCP(
     "cwtwb",
     instructions="Tableau Workbook (.twb) generation MCP Server. "
-    "Create visualizations by calling create_workbook first, "
+    "Create visualizations by calling create_workbook or open_workbook first, "
     "then add_worksheet + configure_chart, and finally save_workbook. "
     "Prefer core primitives first, and use list_capabilities or describe_capability "
     "when you need to check whether a chart or feature is core, advanced, or recipe-only. "

@@ -13,9 +13,8 @@ from __future__ import annotations
 import copy
 import logging
 import re
-import uuid
 from pathlib import Path
-from typing import Optional, Union, List, Dict
+from typing import Optional
 
 from lxml import etree
 
@@ -37,15 +36,8 @@ _AGGREGATE_FUNCTION_RE = re.compile(
 class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin):
     """lxml-based TWB XML editor."""
 
-    def __init__(self, template_path: str | Path):
-        if not template_path:
-            # Use internal default template
-            from .config import REFERENCES_DIR
-            template_path = REFERENCES_DIR / "empty_template.twb"
-            self._is_default_template = True
-        else:
-            template_path = Path(template_path)
-            self._is_default_template = False
+    def __init__(self, template_path: str | Path, clear_existing_content: bool = True):
+        template_path = self._resolve_template_path(template_path)
 
         if not template_path.exists():
             raise FileNotFoundError(f"Template file not found: {template_path}")
@@ -55,6 +47,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         self.tree = etree.parse(str(template_path), parser)
         self.root = self.tree.getroot()
         self.template_path = template_path
+        self._sanitize_workbook_tree()
 
         # Parse datasource
         self._datasource = self._get_datasource()
@@ -69,9 +62,13 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
 
         # Initialize field registry corresponding to metadata
         self._init_fields()
+        self._init_parameters()
+        self._init_zone_id_counter()
 
-        # Clear out default worksheets/dashboards to avoid ghost fields
-        self.clear_worksheets()
+        if clear_existing_content:
+            # Clear out default worksheets/dashboards to avoid ghost fields
+            self.clear_worksheets()
+            self._init_zone_id_counter()
 
         # If using the default template, dynamically fix the excel connection filename
         if getattr(self, "_is_default_template", False):
@@ -83,9 +80,50 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
                 # lxml paths should use forward slashes
                 excel_conn.set("filename", str(default_excel.absolute()).replace("\\", "/"))
 
+    @classmethod
+    def open_existing(cls, file_path: str | Path) -> TWBEditor:
+        """Open an existing workbook without clearing worksheets or dashboards."""
+
+        return cls(file_path, clear_existing_content=False)
+
     # ================================================================
     # Initialization
     # ================================================================
+
+    def _resolve_template_path(self, template_path: str | Path) -> Path:
+        if not template_path:
+            from .config import REFERENCES_DIR
+
+            self._is_default_template = True
+            return REFERENCES_DIR / "empty_template.twb"
+
+        self._is_default_template = False
+        return Path(template_path)
+
+    def _sanitize_workbook_tree(self) -> None:
+        """Remove noisy top-level nodes that should never be persisted."""
+
+        while True:
+            thumbnails = self.root.find("thumbnails")
+            if thumbnails is None:
+                break
+            self.root.remove(thumbnails)
+
+        for tag in ("actions", "worksheets", "dashboards", "windows", "mapsources"):
+            self._remove_empty_top_level_container(tag)
+
+    def _remove_empty_top_level_container(self, tag: str) -> None:
+        """Drop empty top-level containers that violate Tableau's schema."""
+
+        while True:
+            element = self.root.find(tag)
+            if element is None:
+                break
+            if len(element):
+                break
+            if (element.text or "").strip():
+                break
+            self.root.remove(element)
 
     def _get_datasource(self) -> etree._Element:
         """Get the primary data datasource element.
@@ -190,6 +228,44 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         ds_name = self._datasource.get("name", "")
         self.field_registry = FieldRegistry(ds_name)
         self._init_fields()
+
+    def _init_parameters(self) -> None:
+        """Restore tracked parameters from the Parameters datasource."""
+
+        self._parameters = {}
+
+        datasources = self.root.find("datasources")
+        if datasources is None:
+            return
+
+        params_ds = datasources.find("datasource[@name='Parameters']")
+        if params_ds is None:
+            return
+
+        for col in params_ds.findall("column"):
+            caption = col.get("caption")
+            internal_name = col.get("name")
+            if not caption or not internal_name:
+                continue
+            self._parameters[caption] = {
+                "internal_name": internal_name,
+                "datatype": col.get("datatype", "real"),
+                "domain_type": col.get("param-domain-type", "range"),
+            }
+
+    def _init_zone_id_counter(self) -> None:
+        """Resume dashboard zone ids after the highest existing zone id."""
+
+        max_zone_id = 2
+        for zone in self.root.findall(".//dashboard//zone[@id]"):
+            zone_id = zone.get("id")
+            if zone_id is None:
+                continue
+            try:
+                max_zone_id = max(max_zone_id, int(zone_id))
+            except ValueError:
+                continue
+        self._zone_id_counter = max_zone_id
 
     # ================================================================
     # Calculated Fields
@@ -353,7 +429,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         if worksheets is None:
             worksheets = etree.Element("worksheets")
             insert_before = None
-            for tag in ("dashboards", "windows", "thumbnails", "external"):
+            for tag in ("dashboards", "windows", "external"):
                 insert_before = self.root.find(tag)
                 if insert_before is not None:
                     break
@@ -472,6 +548,42 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
                 return ws
         raise ValueError(f"Worksheet '{name}' not found")
 
+    def list_worksheets(self) -> list[str]:
+        """List worksheet names in workbook order."""
+
+        worksheets = self.root.find("worksheets")
+        if worksheets is None:
+            return []
+        return [
+            ws.get("name", "")
+            for ws in worksheets.findall("worksheet")
+            if ws.get("name")
+        ]
+
+    def list_dashboards(self) -> list[dict[str, list[str] | str]]:
+        """List dashboards with the worksheet zones they reference."""
+
+        dashboards = self.root.find("dashboards")
+        if dashboards is None:
+            return []
+
+        dashboard_summaries: list[dict[str, list[str] | str]] = []
+        for dashboard in dashboards.findall("dashboard"):
+            worksheet_names: list[str] = []
+            zones = dashboard.find("zones")
+            if zones is not None:
+                for zone in zones.findall(".//zone"):
+                    name = zone.get("name")
+                    if name and name not in worksheet_names:
+                        worksheet_names.append(name)
+            dashboard_summaries.append(
+                {
+                    "name": dashboard.get("name", ""),
+                    "worksheets": worksheet_names,
+                }
+            )
+        return dashboard_summaries
+
     # ================================================================
     # Output
     # ================================================================
@@ -509,6 +621,8 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         Raises:
             TWBValidationError: If validate=True and the TWB structure is broken.
         """
+        self._sanitize_workbook_tree()
+
         if validate:
             from .validator import validate_twb
             validate_twb(self.root)

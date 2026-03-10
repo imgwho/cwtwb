@@ -106,6 +106,10 @@ enter the same `uvx cwtwb` command through the guided flow.
 
 ### As Python Library
 
+Use `TWBEditor(...)` to start from a template and rebuild workbook content.
+Use `TWBEditor.open_existing(...)` when you want to keep existing worksheets
+and dashboards and reconfigure a sheet in place.
+
 ```python
 from cwtwb.twb_editor import TWBEditor
 
@@ -142,8 +146,11 @@ editor.save("output/my_workbook.twb")
 
 | Tool | Description |
 |---|---|
-| `create_workbook` | Load a TWB template and initialize the workspace |
+| `create_workbook` | Load a TWB template and initialize a rebuild-from-template workspace |
+| `open_workbook` | Open an existing `.twb` and keep its worksheets and dashboards for editing |
 | `list_fields` | List all available dimensions and measures |
+| `list_worksheets` | List worksheet names in the active workbook |
+| `list_dashboards` | List dashboards and the worksheet zones they reference |
 | `add_parameter` | Add an interactive parameter for what-if analysis |
 | `add_calculated_field` | Add a calculated field with Tableau formula |
 | `remove_calculated_field` | Remove a previously added calculated field |
@@ -161,7 +168,7 @@ editor.save("output/my_workbook.twb")
 | `set_mysql_connection` | Configure the datasource to use a local MySQL connection |
 | `set_tableauserver_connection` | Configure connection to an online Tableau Server |
 | `set_hyper_connection` | Configure the datasource to use a local Hyper extract connection |
-| `save_workbook` | Save the final TWB file |
+| `save_workbook` | Save the final TWB file without persisting top-level thumbnail blobs |
 
 ## Capability Model
 

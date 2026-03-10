@@ -34,6 +34,9 @@ def test_add_calculated_field_infers_aggregated_nominal_measure(tmp_path: Path) 
     assert calc is not None
     assert calc.get("role") == "measure"
     assert calc.get("type") == "nominal"
+    assert root.find("worksheets") is None
+    assert root.find("windows") is None
+    assert root.find("thumbnails") is None
 
 
 def test_configure_dual_axis_exposes_recipe_controls(tmp_path: Path) -> None:

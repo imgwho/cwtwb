@@ -54,6 +54,8 @@ def validate_twb(root: etree._Element) -> list[str]:
 
     worksheets_el = root.find("worksheets")
     if worksheets_el is not None:
+        if len(worksheets_el.findall("worksheet")) == 0:
+            raise TWBValidationError("<worksheets> exists but contains no <worksheet> elements")
         for ws in worksheets_el.findall("worksheet"):
             ws_name = ws.get("name", "<unnamed>")
 
@@ -86,6 +88,8 @@ def validate_twb(root: etree._Element) -> list[str]:
 
     dashboards_el = root.find("dashboards")
     if dashboards_el is not None:
+        if len(dashboards_el.findall("dashboard")) == 0:
+            raise TWBValidationError("<dashboards> exists but contains no <dashboard> elements")
         for db in dashboards_el.findall("dashboard"):
             db_name = db.get("name", "<unnamed>")
 
@@ -94,6 +98,10 @@ def validate_twb(root: etree._Element) -> list[str]:
             if zones is None:
                 warnings.append(
                     f"Dashboard '{db_name}' has no <zone> elements")
+
+    windows_el = root.find("windows")
+    if windows_el is not None and len(windows_el.findall("window")) == 0:
+        raise TWBValidationError("<windows> exists but contains no <window> elements")
 
     # === Log warnings ===
 
