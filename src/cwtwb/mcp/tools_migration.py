@@ -5,6 +5,8 @@ from __future__ import annotations
 from ..migration import (
     apply_twb_migration_json,
     inspect_target_schema as inspect_target_schema_impl,
+    profile_twb_for_migration_json,
+    propose_field_mapping_json,
     preview_twb_migration_json,
 )
 from .app import server
@@ -17,6 +19,38 @@ def inspect_target_schema(target_source: str) -> str:
     import json
 
     return json.dumps(inspect_target_schema_impl(target_source), ensure_ascii=False, indent=2)
+
+
+@server.tool()
+def profile_twb_for_migration(
+    file_path: str,
+    scope: str = "workbook",
+    target_source: str = "",
+) -> str:
+    """Profile workbook datasources and worksheet scope before migration."""
+
+    return profile_twb_for_migration_json(
+        file_path=file_path,
+        scope=scope,
+        target_source=target_source or None,
+    )
+
+
+@server.tool()
+def propose_field_mapping(
+    file_path: str,
+    target_source: str,
+    scope: str = "workbook",
+    mapping_overrides: dict[str, str] | None = None,
+) -> str:
+    """Scan source and target schema and propose a field mapping."""
+
+    return propose_field_mapping_json(
+        file_path=file_path,
+        target_source=target_source,
+        scope=scope,
+        mapping_overrides=mapping_overrides,
+    )
 
 
 @server.tool()

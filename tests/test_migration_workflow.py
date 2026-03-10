@@ -7,13 +7,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from cwtwb.migration import apply_twb_migration, preview_twb_migration  # noqa: E402
-from cwtwb.server import apply_twb_migration as apply_twb_migration_tool  # noqa: E402
-from cwtwb.server import preview_twb_migration as preview_twb_migration_tool  # noqa: E402
+from cwtwb.migration import (  # noqa: E402
+    apply_twb_migration,
+    preview_twb_migration,
+    profile_twb_for_migration,
+    propose_field_mapping,
+)
+from cwtwb.server import (  # noqa: E402
+    apply_twb_migration as apply_twb_migration_tool,
+    preview_twb_migration as preview_twb_migration_tool,
+    profile_twb_for_migration as profile_twb_for_migration_tool,
+    propose_field_mapping as propose_field_mapping_tool,
+)
 
 
-TEMPLATE_PATH = Path("templates/migrate/5 KPI Design Ideas (2).twb")
-TARGET_SOURCE = Path("templates/migrate/示例 - 超市.xls")
+MIGRATE_DIR = Path("templates/migrate")
+TEMPLATE_PATH = MIGRATE_DIR / "5 KPI Design Ideas (2).twb"
+TARGET_SOURCE = next(path for path in MIGRATE_DIR.glob("*.xls") if "Superstore" not in path.name)
 EXPECTED_WORKSHEETS = [
     "1. KPI",
     "2.1 KPI",
@@ -31,6 +41,27 @@ EXPECTED_WORKSHEETS = [
 ]
 
 
+def test_profile_twb_for_migration_reports_used_source() -> None:
+    profile = profile_twb_for_migration(TEMPLATE_PATH, target_source=TARGET_SOURCE)
+
+    assert profile.source_datasource == "Sample - Superstore (copy)"
+    assert profile.worksheets_in_scope == EXPECTED_WORKSHEETS
+    assert profile.dashboards_in_scope == ["KPI Board"]
+    assert profile.used_datasources == ["Sample - Superstore (copy)"]
+    assert "Sales" in profile.source_schema
+
+
+def test_propose_field_mapping_auto_scans_source_and_target() -> None:
+    proposal = propose_field_mapping(TEMPLATE_PATH, TARGET_SOURCE)
+
+    assert proposal["source_datasource"] == "Sample - Superstore (copy)"
+    assert len(proposal["candidate_field_mapping"]) == 21
+    assert proposal["blocking_issue_count"] == 0
+    mapped = {item["source_field"]: item["target_field"] for item in proposal["candidate_field_mapping"]}
+    assert mapped["Sales"] == "销售额"
+    assert mapped["Country/Region"] == "国家/地区"
+
+
 def test_preview_twb_migration_reports_expected_scope() -> None:
     preview = preview_twb_migration(TEMPLATE_PATH, TARGET_SOURCE)
 
@@ -43,12 +74,17 @@ def test_preview_twb_migration_reports_expected_scope() -> None:
     assert preview.removable_datasources == ["Sample - Superstore (copy)"]
 
 
-def test_preview_tool_returns_json_payload() -> None:
-    payload = json.loads(preview_twb_migration_tool(str(TEMPLATE_PATH), str(TARGET_SOURCE)))
+def test_mcp_tools_return_json_payloads() -> None:
+    profile_payload = json.loads(
+        profile_twb_for_migration_tool(str(TEMPLATE_PATH), target_source=str(TARGET_SOURCE))
+    )
+    mapping_payload = json.loads(propose_field_mapping_tool(str(TEMPLATE_PATH), str(TARGET_SOURCE)))
+    preview_payload = json.loads(preview_twb_migration_tool(str(TEMPLATE_PATH), str(TARGET_SOURCE)))
 
-    assert payload["source_datasource"] == "Sample - Superstore (copy)"
-    assert payload["blocking_issue_count"] == 0
-    assert len(payload["candidate_field_mapping"]) == 21
+    assert profile_payload["source_datasource"] == "Sample - Superstore (copy)"
+    assert mapping_payload["blocking_issue_count"] == 0
+    assert len(mapping_payload["candidate_field_mapping"]) == 21
+    assert preview_payload["blocking_issue_count"] == 0
 
 
 def test_apply_twb_migration_writes_expected_files(tmp_path: Path) -> None:

@@ -17,9 +17,11 @@ from .capability_registry import (  # noqa: E402
 )
 from .field_registry import FieldRegistry  # noqa: E402
 from .migration import (  # noqa: E402
-    DEFAULT_BILINGUAL_FIELD_MAPPING,
+    FIELD_ALIAS_GROUPS,
     apply_twb_migration,
     inspect_target_schema,
+    profile_twb_for_migration,
+    propose_field_mapping,
     preview_twb_migration,
 )
 from .twb_analyzer import AnalysisReport, TWBAnalyzer, analyze_workbook  # noqa: E402
@@ -30,7 +32,7 @@ __all__ = [
     "AnalysisReport",
     "CAPABILITY_SPECS",
     "CapabilitySpec",
-    "DEFAULT_BILINGUAL_FIELD_MAPPING",
+    "FIELD_ALIAS_GROUPS",
     "FieldRegistry",
     "TWBAnalyzer",
     "TWBEditor",
@@ -43,6 +45,8 @@ __all__ = [
     "get_capability",
     "inspect_target_schema",
     "list_capabilities",
+    "profile_twb_for_migration",
+    "propose_field_mapping",
     "preview_twb_migration",
 ]
 

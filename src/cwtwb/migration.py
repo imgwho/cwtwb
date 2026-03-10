@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+import re
 from typing import Any
 
 from lxml import etree
@@ -13,29 +14,35 @@ import xlrd
 from .twb_analyzer import analyze_workbook
 
 
-DEFAULT_BILINGUAL_FIELD_MAPPING: dict[str, str] = {
-    "Row ID": "行 ID",
-    "Order ID": "订单 ID",
-    "Order Date": "订单日期",
-    "Ship Date": "发货日期",
-    "Ship Mode": "装运模式",
-    "Customer ID": "客户 ID",
-    "Customer Name": "客户名称",
-    "Segment": "细分",
-    "Country/Region": "国家/地区",
-    "City": "城市",
-    "State/Province": "省/自治区",
-    "Postal Code": "邮政编码",
-    "Region": "区域",
-    "Product ID": "产品 ID",
-    "Category": "类别",
-    "Sub-Category": "子类别",
-    "Product Name": "产品名称",
-    "Sales": "销售额",
-    "Quantity": "数量",
-    "Discount": "折扣",
-    "Profit": "利润",
-}
+# Known bilingual field aliases used as a hint layer on top of automatic schema scanning.
+FIELD_ALIAS_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("Row ID", "\u884c ID"),
+    ("Order ID", "\u8ba2\u5355 ID"),
+    ("Order Date", "\u8ba2\u5355\u65e5\u671f"),
+    ("Ship Date", "\u53d1\u8d27\u65e5\u671f"),
+    ("Ship Mode", "\u88c5\u8fd0\u6a21\u5f0f"),
+    ("Customer ID", "\u5ba2\u6237 ID"),
+    ("Customer Name", "\u5ba2\u6237\u540d\u79f0"),
+    ("Segment", "\u7ec6\u5206"),
+    ("Country/Region", "\u56fd\u5bb6/\u5730\u533a"),
+    ("City", "\u57ce\u5e02"),
+    ("State/Province", "\u7701/\u81ea\u6cbb\u533a"),
+    ("Postal Code", "\u90ae\u653f\u7f16\u7801"),
+    ("Region", "\u533a\u57df"),
+    ("Product ID", "\u4ea7\u54c1 ID"),
+    ("Category", "\u7c7b\u522b"),
+    ("Sub-Category", "\u5b50\u7c7b\u522b"),
+    ("Product Name", "\u4ea7\u54c1\u540d\u79f0"),
+    ("Sales", "\u9500\u552e\u989d"),
+    ("Quantity", "\u6570\u91cf"),
+    ("Discount", "\u6298\u6263"),
+    ("Profit", "\u5229\u6da6"),
+)
+
+_ALIAS_LOOKUP: dict[str, tuple[str, ...]] = {}
+for _group in FIELD_ALIAS_GROUPS:
+    for _name in _group:
+        _ALIAS_LOOKUP["".join(ch for ch in _name.casefold() if ch.isalnum())] = _group
 
 
 @dataclass
@@ -68,6 +75,8 @@ class MigrationPreview:
     worksheets_in_scope: list[str]
     dashboards_in_scope: list[str]
     used_datasources: list[str]
+    source_schema: list[str]
+    target_schema: list[str]
     candidate_field_mapping: list[MappingCandidate]
     calculation_rewrite_summary: dict[str, int]
     issues: list[MigrationIssue] = field(default_factory=list)
@@ -84,8 +93,28 @@ class MigrationPreview:
         return payload
 
 
+@dataclass
+class WorkbookMigrationProfile:
+    template_file: str
+    scope: str
+    datasources: list[dict[str, Any]]
+    worksheets_in_scope: list[str]
+    dashboards_in_scope: list[str]
+    used_datasources: list[str]
+    source_datasource: str
+    source_datasource_caption: str | None
+    source_schema: list[str]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def _normalize_path(path: str | Path) -> str:
     return str(Path(path).resolve()).replace("\\", "/")
+
+
+def _normalize_field_name(value: str) -> str:
+    return "".join(ch for ch in value.casefold() if ch.isalnum())
 
 
 def _read_excel_headers(path: str | Path) -> dict[str, Any]:
@@ -153,14 +182,18 @@ def _worksheet_datasource_names(worksheet: etree._Element) -> list[str]:
     return seen
 
 
-def _find_source_datasource_name(root: etree._Element, target_datasource_name: str, scope: str) -> str:
+def _find_source_datasource_name(root: etree._Element, target_datasource_name: str | None, scope: str) -> str:
     usage_count: dict[str, int] = {}
     for worksheet in _collect_scope_worksheets(root, scope):
         for datasource_name in _worksheet_datasource_names(worksheet):
             usage_count[datasource_name] = usage_count.get(datasource_name, 0) + 1
 
     ranked = sorted(
-        ((name, count) for name, count in usage_count.items() if name != target_datasource_name),
+        (
+            (name, count)
+            for name, count in usage_count.items()
+            if target_datasource_name is None or name != target_datasource_name
+        ),
         key=lambda item: (-item[1], item[0]),
     )
     if not ranked:
@@ -187,38 +220,165 @@ def inspect_target_schema(target_source: str | Path) -> dict[str, Any]:
     return info
 
 
-def _build_candidate_mapping(
-    source_fields: dict[str, str],
-    target_fields: dict[str, str],
+def profile_twb_for_migration(
+    file_path: str | Path,
+    scope: str = "workbook",
+    target_source: str | Path | None = None,
+) -> WorkbookMigrationProfile:
+    path = Path(file_path)
+    root = etree.parse(str(path)).getroot()
+    scope_worksheets = _collect_scope_worksheets(root, scope)
+    worksheet_names = [worksheet.get("name", "") for worksheet in scope_worksheets]
+    dashboards = _collect_dashboards_for_worksheets(root, set(worksheet_names))
+    used_datasources = sorted(
+        {
+            datasource_name
+            for worksheet in scope_worksheets
+            for datasource_name in _worksheet_datasource_names(worksheet)
+        }
+    )
+
+    target_datasource_name = None
+    if target_source is not None:
+        target_ds = _find_target_datasource(root, target_source)
+        if target_ds is not None:
+            target_datasource_name = target_ds.get("name")
+
+    source_datasource_name = _find_source_datasource_name(root, target_datasource_name, scope)
+    source_datasource = _get_datasource_by_name(root, source_datasource_name)
+    if source_datasource is None:
+        raise ValueError(f"Could not locate source datasource '{source_datasource_name}' in workbook.")
+
+    datasources = []
+    for datasource in _top_level_datasources(root):
+        datasources.append(
+            {
+                "name": datasource.get("name"),
+                "caption": datasource.get("caption"),
+                "hasconnection": datasource.get("hasconnection"),
+                "field_count": len(_get_datasource_fields(datasource)),
+                "used_in_scope": datasource.get("name") in used_datasources,
+            }
+        )
+
+    return WorkbookMigrationProfile(
+        template_file=_normalize_path(path),
+        scope=scope,
+        datasources=datasources,
+        worksheets_in_scope=worksheet_names,
+        dashboards_in_scope=dashboards,
+        used_datasources=used_datasources,
+        source_datasource=source_datasource_name,
+        source_datasource_caption=source_datasource.get("caption"),
+        source_schema=list(_get_datasource_fields(source_datasource).keys()),
+    )
+
+
+def _find_match_candidates(source_field: str, target_fields: list[str]) -> tuple[list[str], str, float]:
+    exact_matches = [target for target in target_fields if target == source_field]
+    if len(exact_matches) == 1:
+        return exact_matches, "exact field name match", 1.0
+
+    normalized_source = _normalize_field_name(source_field)
+    normalized_matches = [target for target in target_fields if _normalize_field_name(target) == normalized_source]
+    if len(normalized_matches) == 1:
+        return normalized_matches, "normalized field name match", 0.96
+
+    alias_group = _ALIAS_LOOKUP.get(normalized_source)
+    if alias_group is not None:
+        alias_targets = [
+            target
+            for target in target_fields
+            if _normalize_field_name(target) in {_normalize_field_name(alias) for alias in alias_group}
+        ]
+        if alias_targets:
+            return alias_targets, "alias dictionary match", 0.9
+
+    return [], "", 0.0
+
+
+def propose_field_mapping(
+    file_path: str | Path,
+    target_source: str | Path,
+    scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
-) -> tuple[list[MappingCandidate], list[MigrationIssue]]:
+) -> dict[str, Any]:
+    profile = profile_twb_for_migration(file_path, scope=scope, target_source=target_source)
+    target_schema = inspect_target_schema(target_source)
+    target_fields = target_schema["headers"]
     overrides = mapping_overrides or {}
-    issues: list[MigrationIssue] = []
+
     candidates: list[MappingCandidate] = []
-    for source_field, default_target in DEFAULT_BILINGUAL_FIELD_MAPPING.items():
-        if source_field not in source_fields:
+    issues: list[MigrationIssue] = []
+    for source_field in profile.source_schema:
+        if source_field in overrides:
+            target_field = overrides[source_field]
+            if target_field in target_fields:
+                candidates.append(
+                    MappingCandidate(
+                        source_field=source_field,
+                        target_field=target_field,
+                        confidence=1.0,
+                        reason="override mapping",
+                    )
+                )
+            else:
+                issues.append(
+                    MigrationIssue(
+                        issue_type="unmapped",
+                        severity="blocking",
+                        message=(
+                            f"Override target field '{target_field}' does not exist in target schema "
+                            f"for source field '{source_field}'."
+                        ),
+                        field=source_field,
+                    )
+                )
             continue
-        target_field = overrides.get(source_field, default_target)
-        if target_field not in target_fields:
+
+        matches, reason, confidence = _find_match_candidates(source_field, target_fields)
+        if len(matches) == 1:
+            candidates.append(
+                MappingCandidate(
+                    source_field=source_field,
+                    target_field=matches[0],
+                    confidence=confidence,
+                    reason=reason,
+                )
+            )
+        elif len(matches) > 1:
+            issues.append(
+                MigrationIssue(
+                    issue_type="ambiguous",
+                    severity="blocking",
+                    message=(
+                        f"Source field '{source_field}' matched multiple target fields: "
+                        f"{', '.join(matches)}."
+                    ),
+                    field=source_field,
+                )
+            )
+        else:
             issues.append(
                 MigrationIssue(
                     issue_type="unmapped",
                     severity="blocking",
-                    message=f"Target datasource is missing mapped field '{target_field}' for source field '{source_field}'.",
+                    message=f"Could not find a target field match for source field '{source_field}'.",
                     field=source_field,
                 )
             )
-            continue
-        reason = "override mapping" if source_field in overrides else "built-in bilingual alias"
-        candidates.append(
-            MappingCandidate(
-                source_field=source_field,
-                target_field=target_field,
-                confidence=1.0,
-                reason=reason,
-            )
-        )
-    return candidates, issues
+
+    return {
+        "template_file": profile.template_file,
+        "target_source": target_schema["target_source"],
+        "scope": scope,
+        "source_datasource": profile.source_datasource,
+        "source_schema": profile.source_schema,
+        "target_schema": target_fields,
+        "candidate_field_mapping": [asdict(candidate) for candidate in candidates],
+        "issues": [asdict(issue) for issue in issues],
+        "blocking_issue_count": sum(1 for issue in issues if issue.severity == "blocking"),
+    }
 
 
 def _calculation_summary(worksheets: list[etree._Element]) -> dict[str, int]:
@@ -249,21 +409,8 @@ def preview_twb_migration(
 ) -> MigrationPreview:
     path = Path(file_path)
     root = etree.parse(str(path)).getroot()
-
-    target_datasource = _find_target_datasource(root, target_source)
-    if target_datasource is None:
-        raise ValueError(f"Could not find a workbook datasource for target source: {target_source}")
-
-    target_fields = _get_datasource_fields(target_datasource)
     scope_worksheets = _collect_scope_worksheets(root, scope)
     worksheet_names = [worksheet.get("name", "") for worksheet in scope_worksheets]
-    source_datasource_name = _find_source_datasource_name(root, target_datasource.get("name", ""), scope)
-    source_datasource = _get_datasource_by_name(root, source_datasource_name)
-    if source_datasource is None:
-        raise ValueError(f"Could not locate source datasource '{source_datasource_name}' in workbook.")
-
-    source_fields = _get_datasource_fields(source_datasource)
-    candidates, issues = _build_candidate_mapping(source_fields, target_fields, mapping_overrides)
     dashboards = _collect_dashboards_for_worksheets(root, set(worksheet_names))
     used_datasources = sorted(
         {
@@ -273,19 +420,48 @@ def preview_twb_migration(
         }
     )
 
+    target_datasource = _find_target_datasource(root, target_source)
+    target_schema_info = inspect_target_schema(target_source)
+    target_datasource_name = target_datasource.get("name", "") if target_datasource is not None else ""
+    source_datasource_name = _find_source_datasource_name(root, target_datasource_name or None, scope)
+    source_datasource = _get_datasource_by_name(root, source_datasource_name)
+    if source_datasource is None:
+        raise ValueError(f"Could not locate source datasource '{source_datasource_name}' in workbook.")
+
+    mapping_payload = propose_field_mapping(
+        file_path=file_path,
+        target_source=target_source,
+        scope=scope,
+        mapping_overrides=mapping_overrides,
+    )
+    issues = [MigrationIssue(**issue) for issue in mapping_payload["issues"]]
+    if target_datasource is None:
+        issues.append(
+            MigrationIssue(
+                issue_type="target-datasource-missing",
+                severity="blocking",
+                message=(
+                    "The target Excel file was scanned successfully, but no matching workbook datasource "
+                    "points to it yet. Preview can continue, but apply requires an in-workbook target datasource."
+                ),
+            )
+        )
+
     capability_report = analyze_workbook(path)
-    preview = MigrationPreview(
+    return MigrationPreview(
         template_file=_normalize_path(path),
         target_source=_normalize_path(target_source),
         source_datasource=source_datasource_name,
         source_datasource_caption=source_datasource.get("caption"),
-        target_datasource=target_datasource.get("name", ""),
-        target_datasource_caption=target_datasource.get("caption"),
+        target_datasource=target_datasource_name,
+        target_datasource_caption=target_datasource.get("caption") if target_datasource is not None else None,
         scope=scope,
         worksheets_in_scope=worksheet_names,
         dashboards_in_scope=dashboards,
         used_datasources=used_datasources,
-        candidate_field_mapping=candidates,
+        source_schema=mapping_payload["source_schema"],
+        target_schema=target_schema_info["headers"],
+        candidate_field_mapping=[MappingCandidate(**candidate) for candidate in mapping_payload["candidate_field_mapping"]],
         calculation_rewrite_summary=_calculation_summary(scope_worksheets),
         issues=issues,
         removable_datasources=[source_datasource_name],
@@ -294,20 +470,19 @@ def preview_twb_migration(
             "summary": capability_report.summary,
         },
     )
-    return preview
 
 
-def _build_string_replacements(
-    preview: MigrationPreview,
-    target_field_locals: dict[str, str],
-) -> dict[str, str]:
+def _build_string_replacements(preview: MigrationPreview) -> dict[str, str]:
+    if not preview.target_datasource:
+        raise ValueError("Cannot build replacements without a target datasource already present in the workbook.")
+
     replacements = {
         preview.source_datasource: preview.target_datasource,
         f"[{preview.source_datasource}].": f"[{preview.target_datasource}].",
     }
     for candidate in preview.candidate_field_mapping:
         source_local = f"[{candidate.source_field}]"
-        target_local = target_field_locals[candidate.target_field]
+        target_local = f"[{candidate.target_field}]"
         replacements[source_local] = target_local
         replacements[f":{candidate.source_field}:"] = f":{candidate.target_field}:"
     return replacements
@@ -357,12 +532,7 @@ def apply_twb_migration(
     path = Path(file_path)
     tree = etree.parse(str(path))
     root = tree.getroot()
-    target_datasource = _get_datasource_by_name(root, preview.target_datasource)
-    if target_datasource is None:
-        raise ValueError(f"Target datasource '{preview.target_datasource}' not found during apply.")
-
-    target_field_locals = _get_datasource_fields(target_datasource)
-    replacements = _build_string_replacements(preview, target_field_locals)
+    replacements = _build_string_replacements(preview)
     _replace_in_sections(root, replacements)
 
     if output_path is None:
@@ -390,6 +560,30 @@ def apply_twb_migration(
     mapping_path.write_text(json.dumps(mapping_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return report_payload
+
+
+def profile_twb_for_migration_json(
+    file_path: str | Path,
+    scope: str = "workbook",
+    target_source: str | Path | None = None,
+) -> str:
+    profile = profile_twb_for_migration(file_path=file_path, scope=scope, target_source=target_source)
+    return json.dumps(profile.to_dict(), ensure_ascii=False, indent=2)
+
+
+def propose_field_mapping_json(
+    file_path: str | Path,
+    target_source: str | Path,
+    scope: str = "workbook",
+    mapping_overrides: dict[str, str] | None = None,
+) -> str:
+    payload = propose_field_mapping(
+        file_path=file_path,
+        target_source=target_source,
+        scope=scope,
+        mapping_overrides=mapping_overrides,
+    )
+    return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 def preview_twb_migration_json(
