@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-import re
 from typing import Any
 
 from lxml import etree
@@ -104,6 +103,21 @@ class WorkbookMigrationProfile:
     source_datasource: str
     source_datasource_caption: str | None
     source_schema: list[str]
+    source_excel_profile: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ColumnProfile:
+    field: str
+    index: int
+    kind: str
+    pattern: str
+    blank_ratio: float
+    distinct_ratio: float
+    sample_values: list[str]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -124,6 +138,130 @@ def _read_excel_headers(path: str | Path) -> dict[str, Any]:
     return {
         "sheet_name": sheet.name,
         "headers": headers,
+    }
+
+
+def _strip_table_brackets(table_name: str | None) -> str | None:
+    if not table_name:
+        return None
+    cleaned = table_name.strip()
+    cleaned = cleaned.replace("[", "").replace("]", "")
+    if "." in cleaned:
+        cleaned = cleaned.split(".")[-1]
+    if cleaned.endswith("$"):
+        cleaned = cleaned[:-1]
+    return cleaned or None
+
+
+def _find_excel_connection_filename(datasource: etree._Element) -> str | None:
+    connection = datasource.find(".//connection[@class='excel-direct']")
+    if connection is None:
+        return None
+    filename = connection.get("filename")
+    if not filename:
+        return None
+    return filename.replace("\\", "/")
+
+
+def _find_relation_sheet_name(datasource: etree._Element) -> str | None:
+    relation = datasource.find(".//relation")
+    if relation is None:
+        return None
+    return _strip_table_brackets(relation.get("table") or relation.get("name"))
+
+
+def _open_excel_sheet(path: str | Path, sheet_name: str | None = None):
+    workbook = xlrd.open_workbook(_normalize_path(path))
+    if sheet_name:
+        for worksheet in workbook.sheets():
+            if worksheet.name == sheet_name:
+                return workbook, worksheet
+    return workbook, workbook.sheet_by_index(0)
+
+
+def _infer_value_kind(values: list[Any]) -> str:
+    non_blank = [value for value in values if value not in ("", None)]
+    if not non_blank:
+        return "empty"
+    if all(isinstance(value, (int, float)) for value in non_blank):
+        numeric = [float(value) for value in non_blank]
+        if all(value.is_integer() for value in numeric):
+            if numeric and min(numeric) >= 30000 and max(numeric) <= 60000:
+                return "date_serial"
+            return "integer"
+        return "real"
+    return "text"
+
+
+def _infer_value_pattern(kind: str, values: list[Any], distinct_ratio: float, blank_ratio: float) -> str:
+    if blank_ratio >= 0.8:
+        return "blank-heavy"
+    non_blank = [value for value in values if value not in ("", None)]
+    if kind == "date_serial":
+        return "date"
+    if kind == "integer":
+        numeric = [float(value) for value in non_blank]
+        if numeric and distinct_ratio >= 0.95 and numeric == sorted(numeric):
+            return "integer-counter"
+        if numeric and min(numeric) >= 0 and max(numeric) <= 20:
+            return "small-integer"
+        return "integer"
+    if kind == "real":
+        numeric = [float(value) for value in non_blank]
+        if numeric and min(numeric) >= 0 and max(numeric) <= 1.0:
+            return "fraction"
+        if any(value < 0 for value in numeric):
+            return "signed-measure"
+        return "positive-measure"
+    if kind == "text":
+        text_values = [str(value).strip() for value in non_blank]
+        if text_values and all(any(ch.isdigit() for ch in value) for value in text_values[: min(10, len(text_values))]):
+            return "id-code"
+        if distinct_ratio <= 0.1:
+            return "text-low-cardinality"
+        if distinct_ratio >= 0.9:
+            return "text-high-cardinality"
+        return "text"
+    return kind
+
+
+def _build_column_profiles(headers: list[str], rows: list[list[Any]], max_samples: int = 50) -> dict[str, ColumnProfile]:
+    profiles: dict[str, ColumnProfile] = {}
+    if not headers:
+        return profiles
+    sample_rows = rows[:max_samples]
+    row_count = max(len(sample_rows), 1)
+    for index, field in enumerate(headers):
+        values = [row[index] if index < len(row) else "" for row in sample_rows]
+        non_blank = [value for value in values if value not in ("", None)]
+        distinct_ratio = len({str(value) for value in non_blank}) / max(len(non_blank), 1)
+        blank_ratio = 1 - (len(non_blank) / row_count)
+        kind = _infer_value_kind(values)
+        pattern = _infer_value_pattern(kind, values, distinct_ratio, blank_ratio)
+        sample_values = [str(value) for value in non_blank[:5]]
+        profiles[field] = ColumnProfile(
+            field=field,
+            index=index,
+            kind=kind,
+            pattern=pattern,
+            blank_ratio=round(blank_ratio, 4),
+            distinct_ratio=round(distinct_ratio, 4),
+            sample_values=sample_values,
+        )
+    return profiles
+
+
+def _read_excel_profiles(path: str | Path, sheet_name: str | None = None) -> dict[str, Any]:
+    workbook, sheet = _open_excel_sheet(path, sheet_name)
+    headers = [str(value).strip() for value in sheet.row_values(0) if str(value).strip()]
+    rows = [sheet.row_values(row_index) for row_index in range(1, min(sheet.nrows, 151))]
+    profiles = _build_column_profiles(headers, rows)
+    return {
+        "path": _normalize_path(path),
+        "sheet_name": sheet.name,
+        "headers": headers,
+        "row_count": max(sheet.nrows - 1, 0),
+        "profiles": {field: profile.to_dict() for field, profile in profiles.items()},
     }
 
 
@@ -215,7 +353,7 @@ def _collect_dashboards_for_worksheets(root: etree._Element, worksheet_names: se
 
 
 def inspect_target_schema(target_source: str | Path) -> dict[str, Any]:
-    info = _read_excel_headers(target_source)
+    info = _read_excel_profiles(target_source)
     info["target_source"] = _normalize_path(target_source)
     return info
 
@@ -249,6 +387,15 @@ def profile_twb_for_migration(
     if source_datasource is None:
         raise ValueError(f"Could not locate source datasource '{source_datasource_name}' in workbook.")
 
+    source_fields = list(_get_datasource_fields(source_datasource).keys())
+    source_excel_profile = None
+    source_excel_filename = _find_excel_connection_filename(source_datasource)
+    if source_excel_filename:
+        source_excel_profile = _read_excel_profiles(
+            source_excel_filename,
+            _find_relation_sheet_name(source_datasource),
+        )
+
     datasources = []
     for datasource in _top_level_datasources(root):
         datasources.append(
@@ -270,31 +417,70 @@ def profile_twb_for_migration(
         used_datasources=used_datasources,
         source_datasource=source_datasource_name,
         source_datasource_caption=source_datasource.get("caption"),
-        source_schema=list(_get_datasource_fields(source_datasource).keys()),
+        source_schema=source_fields,
+        source_excel_profile=source_excel_profile,
     )
 
 
-def _find_match_candidates(source_field: str, target_fields: list[str]) -> tuple[list[str], str, float]:
-    exact_matches = [target for target in target_fields if target == source_field]
-    if len(exact_matches) == 1:
-        return exact_matches, "exact field name match", 1.0
+def _profile_from_dict(field: str, payload: dict[str, Any]) -> ColumnProfile:
+    return ColumnProfile(
+        field=field,
+        index=int(payload["index"]),
+        kind=str(payload["kind"]),
+        pattern=str(payload["pattern"]),
+        blank_ratio=float(payload["blank_ratio"]),
+        distinct_ratio=float(payload["distinct_ratio"]),
+        sample_values=list(payload.get("sample_values", [])),
+    )
 
-    normalized_source = _normalize_field_name(source_field)
-    normalized_matches = [target for target in target_fields if _normalize_field_name(target) == normalized_source]
-    if len(normalized_matches) == 1:
-        return normalized_matches, "normalized field name match", 0.96
 
-    alias_group = _ALIAS_LOOKUP.get(normalized_source)
-    if alias_group is not None:
-        alias_targets = [
-            target
-            for target in target_fields
-            if _normalize_field_name(target) in {_normalize_field_name(alias) for alias in alias_group}
-        ]
-        if alias_targets:
-            return alias_targets, "alias dictionary match", 0.9
+def _score_field_match(source_field: str, target_field: str, source_profile: ColumnProfile, target_profile: ColumnProfile) -> tuple[float, list[str]]:
+    score = 0.0
+    reasons: list[str] = []
 
-    return [], "", 0.0
+    if source_field == target_field:
+        score += 1.0
+        reasons.append("exact field name match")
+    else:
+        normalized_source = _normalize_field_name(source_field)
+        normalized_target = _normalize_field_name(target_field)
+        if normalized_source == normalized_target:
+            score += 0.92
+            reasons.append("normalized field name match")
+        else:
+            alias_group = _ALIAS_LOOKUP.get(normalized_source)
+            if alias_group and normalized_target in {_normalize_field_name(alias) for alias in alias_group}:
+                score += 1.15
+                reasons.append("alias hint match")
+
+    if source_profile.kind == target_profile.kind:
+        score += 0.28
+        reasons.append(f"same kind: {source_profile.kind}")
+
+    if source_profile.pattern == target_profile.pattern:
+        score += 0.24
+        reasons.append(f"same pattern: {source_profile.pattern}")
+
+    distinct_gap = abs(source_profile.distinct_ratio - target_profile.distinct_ratio)
+    if distinct_gap <= 0.2:
+        score += 0.12 * (1 - (distinct_gap / 0.2))
+        reasons.append("similar distinct ratio")
+
+    blank_gap = abs(source_profile.blank_ratio - target_profile.blank_ratio)
+    if blank_gap <= 0.2:
+        score += 0.08 * (1 - (blank_gap / 0.2))
+        reasons.append("similar blank ratio")
+
+    position_gap = abs(source_profile.index - target_profile.index)
+    if position_gap == 0:
+        score += 0.14
+        reasons.append("same column position")
+    elif position_gap == 1:
+        score += 0.08
+        reasons.append("adjacent column position")
+
+    confidence = round(min(score / 1.78, 1.0), 3)
+    return confidence, reasons
 
 
 def propose_field_mapping(
@@ -307,6 +493,18 @@ def propose_field_mapping(
     target_schema = inspect_target_schema(target_source)
     target_fields = target_schema["headers"]
     overrides = mapping_overrides or {}
+    source_profiles_payload = (profile.source_excel_profile or {}).get("profiles", {})
+    target_profiles_payload = target_schema.get("profiles", {})
+
+    source_profiles = {
+        field: _profile_from_dict(field, payload)
+        for field, payload in source_profiles_payload.items()
+        if field in profile.source_schema
+    }
+    target_profiles = {
+        field: _profile_from_dict(field, payload)
+        for field, payload in target_profiles_payload.items()
+    }
 
     candidates: list[MappingCandidate] = []
     issues: list[MigrationIssue] = []
@@ -336,24 +534,40 @@ def propose_field_mapping(
                 )
             continue
 
-        matches, reason, confidence = _find_match_candidates(source_field, target_fields)
-        if len(matches) == 1:
+        source_profile = source_profiles.get(source_field)
+        ranked: list[tuple[float, str, list[str]]] = []
+        if source_profile is not None:
+            for target_field in target_fields:
+                target_profile = target_profiles.get(target_field)
+                if target_profile is None:
+                    continue
+                confidence, reasons = _score_field_match(
+                    source_field,
+                    target_field,
+                    source_profile,
+                    target_profile,
+                )
+                ranked.append((confidence, target_field, reasons))
+        ranked.sort(key=lambda item: (-item[0], item[1]))
+
+        if ranked and ranked[0][0] >= 0.6 and (len(ranked) == 1 or ranked[0][0] - ranked[1][0] >= 0.08):
+            best_confidence, best_target, best_reasons = ranked[0]
             candidates.append(
                 MappingCandidate(
                     source_field=source_field,
-                    target_field=matches[0],
-                    confidence=confidence,
-                    reason=reason,
+                    target_field=best_target,
+                    confidence=best_confidence,
+                    reason=", ".join(best_reasons[:3]) or "profile similarity match",
                 )
             )
-        elif len(matches) > 1:
+        elif ranked and ranked[0][0] >= 0.6:
             issues.append(
                 MigrationIssue(
                     issue_type="ambiguous",
                     severity="blocking",
                     message=(
-                        f"Source field '{source_field}' matched multiple target fields: "
-                        f"{', '.join(matches)}."
+                        f"Source field '{source_field}' has multiple close target matches: "
+                        f"{ranked[0][1]} ({ranked[0][0]}), {ranked[1][1]} ({ranked[1][0]})."
                     ),
                     field=source_field,
                 )
@@ -375,6 +589,12 @@ def propose_field_mapping(
         "source_datasource": profile.source_datasource,
         "source_schema": profile.source_schema,
         "target_schema": target_fields,
+        "source_excel_profile": profile.source_excel_profile,
+        "target_excel_profile": {
+            "path": target_schema["path"],
+            "sheet_name": target_schema["sheet_name"],
+            "row_count": target_schema["row_count"],
+        },
         "candidate_field_mapping": [asdict(candidate) for candidate in candidates],
         "issues": [asdict(issue) for issue in issues],
         "blocking_issue_count": sum(1 for issue in issues if issue.severity == "blocking"),
