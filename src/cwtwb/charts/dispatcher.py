@@ -46,12 +46,13 @@ def configure_chart(
     customized_label: Optional[str] = None,
     color_map: Optional[dict[str, str]] = None,
     text_format: Optional[dict[str, str]] = None,
+    label_extra: Optional[list[str]] = None,
 ) -> str:
     """Route chart configuration to the correct builder."""
 
     decision = decide_chart_builder(mark_type, measure_values=measure_values)
 
-    if decision.builder_name == "pie":
+    if decision.builder_name == "pie" and (color or wedge_size):
         builder = PieChartBuilder(
             editor, worksheet_name, color, wedge_size, label, detail, tooltip, filters
         )
@@ -107,6 +108,7 @@ def configure_chart(
         customized_label=customized_label,
         color_map=color_map,
         text_format=text_format,
+        label_extra=label_extra,
     )
     return builder.build()
 
@@ -140,6 +142,7 @@ def configure_dual_axis(
     size_value_2: Optional[str] = None,
     mark_color_2: Optional[str] = None,
     reverse_axis_1: bool = False,
+    extra_axes: Optional[list[dict]] = None,
 ) -> str:
     """Route dual-axis configuration to the dedicated builder."""
 
@@ -173,5 +176,6 @@ def configure_dual_axis(
         size_value_2,
         mark_color_2,
         reverse_axis_1,
+        extra_axes=extra_axes,
     )
     return builder.build()

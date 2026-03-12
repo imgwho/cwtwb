@@ -1,5 +1,6 @@
 """Basic (Single Pane) Chart Builder."""
 
+import re
 from typing import Optional, Union
 from lxml import etree
 
@@ -23,7 +24,8 @@ class BasicChartBuilder(BaseChartBuilder):
                  axis_fixed_range: Optional[dict] = None,
                  customized_label: Optional[str] = None,
                  color_map: Optional[dict[str, str]] = None,
-                 text_format: Optional[dict[str, str]] = None) -> None:
+                 text_format: Optional[dict[str, str]] = None,
+                 label_extra: Optional[list[str]] = None) -> None:
         super().__init__(editor)
         self.worksheet_name = worksheet_name
         self.mark_type = mark_type
@@ -41,6 +43,7 @@ class BasicChartBuilder(BaseChartBuilder):
         self.customized_label = customized_label
         self.color_map = color_map
         self.text_format = text_format
+        self.label_extra = label_extra or []
 
     def build(self) -> str:
         # Macro processing
@@ -62,15 +65,31 @@ class BasicChartBuilder(BaseChartBuilder):
             columns, rows, self.color, self.size, self.label, self.detail, None,
             self.sort_descending, self.tooltip, self.filters, None, None
         )
+        for extra_field in self.label_extra:
+            if extra_field not in all_exprs:
+                all_exprs.append(extra_field)
         instances = self._parse_and_prepare_instances(all_exprs, self.filters)
         self._setup_datasource_dependencies(view, ds_name, instances, all_exprs)
 
         pane = self._get_or_create_pane(table)
+        pane.set("selection-relaxation-option", "selection-relaxation-disallow")
         self._setup_pane(
             pane, mark_type, self.mark_type, instances,
             self.color, self.size, self.label, self.detail, None, self.tooltip,
             False, None, None, ds_name
         )
+
+        # Add extra text encodings for label_extra fields
+        if self.label_extra:
+            encodings_el = pane.find("encodings")
+            if encodings_el is None:
+                encodings_el = etree.SubElement(pane, "encodings")
+            for extra_field in self.label_extra:
+                ci_extra = instances.get(extra_field)
+                if ci_extra:
+                    extra_ref = self.field_registry.resolve_full_reference(ci_extra.instance_name)
+                    text_el = etree.SubElement(encodings_el, "text")
+                    text_el.set("column", extra_ref)
 
         # Mark sizing off
         if self.mark_sizing_off:
@@ -82,66 +101,53 @@ class BasicChartBuilder(BaseChartBuilder):
             else:
                 pane.append(ms_el)
 
-        # Customized label template
-        if self.customized_label and self.label:
-            ci = instances.get(self.label)
-            if ci:
-                full_ref = self.field_registry.resolve_full_reference(ci.instance_name)
-                old_cl = pane.find("customized-label")
-                if old_cl is not None:
-                    pane.remove(old_cl)
-                cl = etree.Element("customized-label")
-                
-                # Ensure <customized-label> is inserted BEFORE <style> to satisfy DTD
-                pane_style = pane.find("style")
-                if pane_style is not None:
-                    pane_style.addprevious(cl)
-                else:
-                    pane.append(cl)
+        # Customized label template (multi-field version)
+        if self.customized_label and (self.label or self.label_extra):
+            # Build field_map: field name -> full_ref
+            field_map = {}
+            all_label_fields = ([self.label] if self.label else []) + list(self.label_extra)
+            for lf in all_label_fields:
+                ci_lf = instances.get(lf)
+                if ci_lf:
+                    field_map[lf] = self.field_registry.resolve_full_reference(ci_lf.instance_name)
 
-                ft = etree.SubElement(cl, "formatted-text")
-                
-                # Parse template: user passes e.g. "<Sales Difference> vs PY"
-                template = self.customized_label
-                field_marker = f"<{self.label}>"
-                
-                if field_marker in template:
-                    before, after = template.split(field_marker, 1)
-                    if before:
-                        run_before = etree.SubElement(ft, "run")
-                        run_before.set("fontalignment", "2")
-                        run_before.set("fontname", "Tableau Medium")
-                        run_before.set("fontsize", "8")
-                        run_before.text = before
-                    
-                    # Tableau XML requires variables to be wrapped in < and > literally in separate runs
-                    run_lt = etree.SubElement(ft, "run")
-                    run_lt.set("fontalignment", "2")
-                    run_lt.set("fontname", "Tableau Medium")
-                    run_lt.set("fontsize", "8")
-                    run_lt.text = "<"
-                    
-                    run_field = etree.SubElement(ft, "run")
-                    run_field.set("fontalignment", "2")
-                    run_field.set("fontname", "Tableau Medium")
-                    run_field.set("fontsize", "8")
-                    run_field.text = full_ref
-                    
-                    run_gt = etree.SubElement(ft, "run")
-                    run_gt.set("fontalignment", "2")
-                    run_gt.set("fontname", "Tableau Medium")
-                    run_gt.set("fontsize", "8")
-                    run_gt.text = ">"
-                    
-                    if after:
-                        run_after = etree.SubElement(ft, "run")
-                        run_after.set("fontalignment", "2")
-                        run_after.set("fontname", "Tableau Medium")
-                        run_after.set("fontsize", "8")
-                        run_after.text = after
+            old_cl = pane.find("customized-label")
+            if old_cl is not None:
+                pane.remove(old_cl)
+            cl = etree.Element("customized-label")
+
+            # Ensure <customized-label> is inserted BEFORE <style> to satisfy DTD
+            pane_style = pane.find("style")
+            if pane_style is not None:
+                pane_style.addprevious(cl)
+            else:
+                pane.append(cl)
+
+            ft = etree.SubElement(cl, "formatted-text")
+
+            def _add_run(text_value: str) -> None:
+                r = etree.SubElement(ft, "run")
+                r.set("fontalignment", "2")
+                r.set("fontname", "Tableau Medium")
+                r.set("fontsize", "8")
+                r.text = text_value
+
+            template = self.customized_label
+            segments = re.split(r'(<[^>]+>)', template)
+            pending_prefix = ""
+            for segment in segments:
+                # Check if segment looks like <FieldName> and matches a known field
+                m = re.match(r'^<([^>]+)>$', segment)
+                if m and m.group(1) in field_map:
+                    field_name = m.group(1)
+                    # Combine pending prefix with "<"
+                    _add_run(pending_prefix + "<")
+                    _add_run(field_map[field_name])
+                    pending_prefix = ">"
                 else:
-                    run = etree.SubElement(ft, "run")
-                    run.text = template
+                    pending_prefix += segment
+            if pending_prefix:
+                _add_run(pending_prefix)
 
         rows_el = table.find("rows")
         if rows_el is not None:

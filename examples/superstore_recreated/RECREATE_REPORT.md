@@ -15,9 +15,13 @@
 | Hyper 数据连接 | `set_hyper_connection()` | **有 bug** (见下) |
 | 参数 (list domain) | `add_parameter()` | OK |
 | 计算字段 (含 LOD) | `add_calculated_field()` | OK |
-| 基础图表 (Bar/Text/Map/Area/Line) | `configure_chart()` | OK |
+| Table Calculation 字段 | `add_calculated_field(table_calc="Rows")` | OK |
+| 基础图表 (Bar/Text/Map/Area/Line/Pie) | `configure_chart()` | OK |
 | 双轴图 | `configure_dual_axis()` | OK |
+| 双轴 + 圆环图 (extra_axes) | `configure_dual_axis(extra_axes=[...])` | OK |
+| 多字段标签 | `configure_chart(label_extra=[...])` | OK |
 | 工作表样式 | `configure_worksheet_style()` | OK |
+| 行维度表头隐藏 | `configure_worksheet_style(hide_row_label=...)` | OK |
 | 仪表板布局 (嵌套容器) | `add_dashboard()` + layout dict | OK |
 | 仪表板交互 (highlight) | `add_dashboard_action()` | OK |
 
@@ -25,18 +29,44 @@
 
 | 功能 | 原因 |
 |------|------|
-| Table Calculation (RANK_DENSE) | SDK 不支持 |
 | Bin (分箱) | SDK 不支持 |
 | 位图 (logo / 社交图标) | SDK 不支持 image zone |
 | 仪表板导航按钮 | SDK 不支持 |
 | 圆环仪表盘 (gauge) | SDK 不支持 |
-| Donut recipe (`configure_chart_recipe`) | **仅 MCP 工具层**, 不在 TWBEditor 类上 |
-| GanttBar mark | SDK `configure_chart` 未暴露此 mark type |
 | Shape mark (条件指标绿点) | SDK 不支持 shape encoding |
 
 ---
 
 ## 2. Bug 跟踪
+
+### Bug #5: Top 5 Locations / Sub-Category 多处渲染差异 ✅ 已修复
+
+**现象**: 3 个工作表（Top 5 Locations、Top 5 Locations text、Sales by Sub-Category）与参考文件存在差异
+
+**根因 & 修复** (共 7 处 SDK + 脚本改动):
+
+1. **Top 5 Locations mark type 错误**: 应为 `Pie` mark 显示排名序号，脚本使用 `Text` mark + `customized_label`
+   - 修复: `build_exec_overview.py` 改为 `mark_type="Pie"`, `label="Rank CY"`, 去除 `customized_label`
+
+2. **缺少 Table Calculation 字段支持**: `Rank CY` 使用 `RANK_DENSE(...)`，需要在 `<calculation>` 内写入 `<table-calc ordering-type="Rows"/>` 且在 `<column-instance>` 写入 `<table-calc ordering-type="Columns"/>`
+   - 修复: `twb_editor.py add_calculated_field()` 新增 `table_calc` 参数; `builder_base._setup_datasource_dependencies` 自动将 table-calc 传播到 column-instance
+
+3. **Pie mark 路由到错误 builder**: `mark_type="Pie"` 原来固定路由到 `PieChartBuilder`，无法处理带 `rows` 维度的非传统饼图用法
+   - 修复: `dispatcher.py` 改为仅当 `color or wedge_size` 时走 `PieChartBuilder`，否则走 `BasicChartBuilder`
+
+4. **BasicChartBuilder pane 缺少 `selection-relaxation-disallow`**
+   - 修复: `builder_basic.py build()` 统一在 pane 上设置该属性
+
+5. **`configure_worksheet_style` 缺少行维度表头隐藏能力**: 参考文件有 `<style-rule element="label"><format attr="display" value="false"/></style-rule>` 来隐藏 State/Province 表头
+   - 修复: `helpers.py apply_worksheet_style()` 新增 `hide_row_label_ref` 参数; `charts/__init__.py configure_worksheet_style()` 新增 `hide_row_label` 参数（自动解析字段引用）
+
+6. **Sales by Sub-Category Pie pane 缺少 `<size Multiple Values>` encoding**: 圆环图需要 `Multiple Values` 作为 size encoding 才能正确绘制饼图扇形
+   - 修复: `builder_dual_axis.py` 在 `extra_axes` Pie pane 且有 `measure_values` 时自动添加 size encoding
+
+7. **Sales by Sub-Category filter 顺序错误**: Measure Names filter 应在 Top N filter 之前
+   - 修复: `builder_dual_axis.py` 将 Measure Names filter 生成逻辑移至 `_add_filters` 调用之前
+
+---
 
 ### Bug #4: Top N 过滤器不生效 ✅ 已修复
 
@@ -198,15 +228,19 @@
 
 ## 4. SDK 增强建议 (按优先级)
 
-| 优先级 | 功能 | 说明 |
-|--------|------|------|
-| P0 | Hyper schema 读取 | `set_hyper_connection()` 应能读取 hyper 文件获取表名和列名 |
-| P0 | 自定义轴范围 | `configure_chart()` 支持 `axis_fixed_range=(min, max)` |
-| P1 | 自定义标签模板 | 支持 `customized_label="<field> vs PY"` 模式 |
-| P1 | 颜色 palette 映射 | 支持 `color_map={"BAD": "#e15759", "GOOD": "#03a44e"}` |
-| P1 | Mark sizing off | 支持 `mark_sizing_off=True` |
-| P2 | 文本格式 | 支持 `text_format={"field": "p0.00%"}` |
-| P2 | MIN(1) dummy 度量 | 可内建为 KPI badge 的标准模式 |
+| 优先级 | 功能 | 说明 | 状态 |
+|--------|------|------|------|
+| P0 | Hyper schema 读取 | `set_hyper_connection()` 应能读取 hyper 文件获取表名和列名 | ✅ 已实现 |
+| P0 | 自定义轴范围 | `configure_chart()` 支持 `axis_fixed_range=(min, max)` | ✅ 已实现 |
+| P1 | 自定义标签模板 | 支持 `customized_label="<field> vs PY"` 模式 | ✅ 已实现 |
+| P1 | 颜色 palette 映射 | 支持 `color_map={"BAD": "#e15759", "GOOD": "#03a44e"}` | ✅ 已实现 |
+| P1 | Mark sizing off | 支持 `mark_sizing_off=True` | ✅ 已实现 |
+| P1 | Table Calculation | `add_calculated_field(table_calc="Rows")` | ✅ 已实现 |
+| P1 | 多字段标签 | `configure_chart(label_extra=[...])` | ✅ 已实现 |
+| P1 | 圆环图 (extra_axes) | `configure_dual_axis(extra_axes=[{Pie pane}, {blank pane}])` | ✅ 已实现 |
+| P1 | 行维度表头隐藏 | `configure_worksheet_style(hide_row_label="State/Province")` | ✅ 已实现 |
+| P2 | 文本格式 | 支持 `text_format={"field": "p0.00%"}` | ✅ 已实现 |
+| P2 | MIN(1) dummy 度量 | 可内建为 KPI badge 的标准模式 | ✅ 已实现 |
 
 ---
 
@@ -215,7 +249,10 @@
 - [x] 脚本能成功运行生成 TWB
 - [x] TWB 能在 Tableau 中打开 (修复 Circle Mark 枚举问题)
 - [x] Top N 过滤器生效 (Sales by Top Manufacturers / Top 5 Locations 均过滤到 Top 5)
-- [ ] KPI Difference 工作表样式正确 (仅 Sales 手动修复, 其他 3 个待修复)
-- [ ] 数据连接读取 Hyper schema (当前硬编码表名)
-- [ ] 仪表板整体布局与原版一致
-- [ ] 颜色/字体/间距与原版一致
+- [x] Top 5 Locations: Pie mark 显示 Rank CY 排名序号，table-calc 正确
+- [x] Top 5 Locations text: 多字段标签 (销售额 + 州名) 显示正确
+- [x] Sales by Sub-Category: 甘特条形图 + 圆环图正确渲染
+- [x] KPI Difference 工作表样式正确 (axis_fixed_range + color_map + customized_label + mark_sizing_off)
+- [x] 数据连接读取 Hyper schema (inspect_hyper_schema 自动读取真实表名)
+- [ ] 地图样式与原版一致 (下一阶段)
+- [ ] 仪表板整体颜色/字体/间距与原版一致 (下一阶段)

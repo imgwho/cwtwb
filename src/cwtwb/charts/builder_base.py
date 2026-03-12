@@ -117,6 +117,11 @@ class BaseChartBuilder:
                 ci_el.set("name", ci.instance_name)
                 ci_el.set("pivot", ci.pivot)
                 ci_el.set("type", ci.ci_type)
+                # If source column has a table-calc (e.g. RANK functions), add to instance
+                src_calc = self._datasource.find(f"column[@name='{ci.column_local_name}']/calculation")
+                if src_calc is not None and src_calc.find("table-calc") is not None:
+                    tc_el = etree.SubElement(ci_el, "table-calc")
+                    tc_el.set("ordering-type", "Columns")
                 instance_elements.append(ci_el)
 
         for el in sorted(column_elements, key=lambda e: e.get("name", "")):

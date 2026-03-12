@@ -35,6 +35,7 @@ class DualAxisChartBuilder(BaseChartBuilder):
                  size_value_2: Optional[str] = None,
                  mark_color_2: Optional[str] = None,
                  reverse_axis_1: bool = False,
+                 extra_axes: Optional[list[dict]] = None,
                  ) -> None:
         super().__init__(editor)
         self.worksheet_name = worksheet_name
@@ -64,6 +65,7 @@ class DualAxisChartBuilder(BaseChartBuilder):
         self.size_value_2 = size_value_2
         self.mark_color_2 = mark_color_2
         self.reverse_axis_1 = reverse_axis_1
+        self.extra_axes = extra_axes or []
 
     def build(self) -> str:
         if self.dual_axis_shelf == "rows":
@@ -71,13 +73,13 @@ class DualAxisChartBuilder(BaseChartBuilder):
                 raise ValueError("dual_axis_shelf 'rows' must have at least 2 expressions to fold.")
             measure_1 = self.rows[-2]
             measure_2 = self.rows[-1]
-        elif self.dual_axis_shelf == "columns":
+        elif self.dual_axis_shelf in ("columns", "cols"):
             if len(self.columns) < 2:
-                raise ValueError("dual_axis_shelf 'columns' must have at least 2 expressions to fold.")
+                raise ValueError("dual_axis_shelf 'cols' must have at least 2 expressions to fold.")
             measure_1 = self.columns[-2]
             measure_2 = self.columns[-1]
         else:
-            raise ValueError("dual_axis_shelf must be 'rows' or 'columns'")
+            raise ValueError("dual_axis_shelf must be 'rows', 'columns', or 'cols'")
 
         ws = self.editor._find_worksheet(self.worksheet_name)
         table = ws.find("table")
@@ -88,7 +90,9 @@ class DualAxisChartBuilder(BaseChartBuilder):
             raise ValueError("Malformed structure: missing <view>")
 
         ds_name = self._datasource.get("name", "")
-        
+
+        USER_NS = "{http://www.tableausoftware.com/xml/user}"
+
         # Gather all expressions
         all_exprs = self._gather_expressions(
             self.columns, self.rows, self.color_1, self.size_1, self.label_1, self.detail_1, self.wedge_size_1, self.sort_descending, None, self.filters, None, None
@@ -96,7 +100,25 @@ class DualAxisChartBuilder(BaseChartBuilder):
         for enc in (self.color_2, self.size_2, self.label_2, self.detail_2, self.wedge_size_2):
             if enc and enc not in all_exprs:
                 all_exprs.append(enc)
-                
+
+        # Gather extra_axes expressions
+        for ea in self.extra_axes:
+            ea_measure = ea.get("measure")
+            if ea_measure and ea_measure not in all_exprs:
+                all_exprs.append(ea_measure)
+            ea_label = ea.get("label")
+            if ea_label and ea_label not in (":Measure Names", "Multiple Values") and ea_label not in all_exprs:
+                all_exprs.append(ea_label)
+            ea_color = ea.get("color")
+            if ea_color and ea_color not in (":Measure Names", "Multiple Values") and ea_color not in all_exprs:
+                all_exprs.append(ea_color)
+            ea_size = ea.get("size")
+            if ea_size and ea_size not in (":Measure Names", "Multiple Values") and ea_size not in all_exprs:
+                all_exprs.append(ea_size)
+            for mv in ea.get("measure_values", []):
+                if mv not in all_exprs:
+                    all_exprs.append(mv)
+
         instances = self._parse_and_prepare_instances(all_exprs, self.filters)
         self._setup_datasource_dependencies(view, ds_name, instances, all_exprs)
 
@@ -192,6 +214,12 @@ class DualAxisChartBuilder(BaseChartBuilder):
             self._override_pane_style(pane_2, show_labels=self.show_labels, 
                                       size_value=self.size_value_2, mark_color=self.mark_color_2)
 
+        # Helper to build nested measures shelf expression
+        def _build_measures_shelf(refs):
+            if len(refs) == 1:
+                return refs[0]
+            return f"({refs[0]} + {_build_measures_shelf(refs[1:])})"
+
         # Build rows/cols shelf text
         rows_el = table.find("rows")
         if rows_el is not None:
@@ -206,58 +234,197 @@ class DualAxisChartBuilder(BaseChartBuilder):
                     rows_el.text = self.editor._build_dimension_shelf(instances, self.rows)
             else:
                 rows_el.text = None
-                
+
         cols_el = table.find("cols")
         if cols_el is not None:
             if self.columns:
-                if self.dual_axis_shelf == "columns":
-                    cols_el.text = self.editor._build_dimension_shelf(instances, self.columns[:-2])
-                    if cols_el.text:
-                        cols_el.text += f" ({ref_m1} + {ref_m2})"
+                if self.dual_axis_shelf in ("columns", "cols"):
+                    # Build extra measure refs
+                    extra_refs = []
+                    for ea in self.extra_axes:
+                        ea_measure = ea.get("measure")
+                        if ea_measure:
+                            ea_ci = instances.get(ea_measure)
+                            if ea_ci:
+                                extra_refs.append(self.field_registry.resolve_full_reference(ea_ci.instance_name))
+                    if self.extra_axes:
+                        all_measure_refs = [ref_m1, ref_m2] + extra_refs
+                        cols_el.text = _build_measures_shelf(all_measure_refs)
                     else:
-                        cols_el.text = f"({ref_m1} + {ref_m2})"
+                        cols_el.text = self.editor._build_dimension_shelf(instances, self.columns[:-2])
+                        if cols_el.text:
+                            cols_el.text += f" ({ref_m1} + {ref_m2})"
+                        else:
+                            cols_el.text = f"({ref_m1} + {ref_m2})"
+                    # Rows become dimension-only when dual_axis_shelf is cols
+                    if rows_el is not None:
+                        rows_el.text = self.editor._build_dimension_shelf(instances, self.rows)
                 else:
                     cols_el.text = self.editor._build_dimension_shelf(instances, self.columns)
             else:
                 cols_el.text = None
+
+        # Build extra panes
+        if self.extra_axes:
+            seen_measures = [measure_1, measure_2]
+            pane_id = 4
+            for ea in self.extra_axes:
+                ea_measure = ea.get("measure", "")
+                ea_mark_type = ea.get("mark_type", "Automatic")
+                ea_color = ea.get("color")
+                ea_size = ea.get("size")
+                ea_label = ea.get("label")
+                ea_mark_color = ea.get("mark_color")
+                ea_mark_sizing_off = ea.get("mark_sizing_off", False)
+                ea_size_value = ea.get("size_value")
+
+                ea_ci = instances.get(ea_measure)
+                ea_ref = self.field_registry.resolve_full_reference(ea_ci.instance_name) if ea_ci else ""
+
+                # Determine if we need x-index
+                # Count occurrences of this measure in seen_measures
+                x_index_val = None
+                count_prev = seen_measures.count(ea_measure)
+                if count_prev >= 1:
+                    x_index_val = str(count_prev)  # "1" for second occurrence, "2" for third, etc.
+
+                seen_measures.append(ea_measure)
+
+                pane_ea = etree.SubElement(panes_el, "pane")
+                pane_ea.set("id", str(pane_id))
+                pane_ea.set("selection-relaxation-option", "selection-relaxation-allow")
+                if self.dual_axis_shelf in ("columns", "cols"):
+                    pane_ea.set("x-axis-name", ea_ref)
+                    if x_index_val is not None:
+                        pane_ea.set("x-index", x_index_val)
+                else:
+                    pane_ea.set("y-axis-name", ea_ref)
+                    if x_index_val is not None:
+                        pane_ea.set("y-index", x_index_val)
+
+                ea_view = etree.SubElement(pane_ea, "view")
+                etree.SubElement(ea_view, "breakdown", value="auto")
+
+                etree.SubElement(pane_ea, "mark", {"class": ea_mark_type})
+
+                if ea_mark_sizing_off:
+                    ms_el = etree.SubElement(pane_ea, "mark-sizing")
+                    ms_el.set("mark-sizing-setting", "marks-scaling-off")
+
+                # Build encodings
+                enc_items = []
+                if ea_color:
+                    if ea_color == ":Measure Names":
+                        enc_items.append(("color", f"[{ds_name}].[:Measure Names]"))
+                    else:
+                        ea_color_ci = instances.get(ea_color)
+                        if ea_color_ci:
+                            enc_items.append(("color", self.field_registry.resolve_full_reference(ea_color_ci.instance_name)))
+                # Pie charts with measure_values automatically use Multiple Values as size (donut chart)
+                if ea_mark_type == "Pie" and ea.get("measure_values"):
+                    enc_items.append(("size", f"[{ds_name}].[Multiple Values]"))
+                if ea_size:
+                    if ea_size == "Multiple Values":
+                        enc_items.append(("size", f"[{ds_name}].[Multiple Values]"))
+                    else:
+                        ea_size_ci = instances.get(ea_size)
+                        if ea_size_ci:
+                            enc_items.append(("size", self.field_registry.resolve_full_reference(ea_size_ci.instance_name)))
+                if ea_label:
+                    ea_label_ci = instances.get(ea_label)
+                    if ea_label_ci:
+                        enc_items.append(("text", self.field_registry.resolve_full_reference(ea_label_ci.instance_name)))
+
+                if enc_items:
+                    enc_el = etree.SubElement(pane_ea, "encodings")
+                    for enc_tag, enc_col in enc_items:
+                        e = etree.SubElement(enc_el, enc_tag)
+                        e.set("column", enc_col)
+
+                # Build pane style
+                ea_style = etree.SubElement(pane_ea, "style")
+                ea_sr = etree.SubElement(ea_style, "style-rule", {"element": "mark"})
+                if ea_mark_type == "Pie":
+                    etree.SubElement(ea_sr, "format", {"attr": "mark-labels-mode", "value": "range"})
+                    etree.SubElement(ea_sr, "format", {"attr": "mark-labels-cull", "value": "false"})
+                    etree.SubElement(ea_sr, "format", {"attr": "mark-labels-range-min", "value": "false"})
+                    etree.SubElement(ea_sr, "format", {"attr": "mark-labels-range-max", "value": "true"})
+                    etree.SubElement(ea_sr, "format", {"attr": "mark-labels-show", "value": "false"})
+                else:
+                    if ea_mark_color:
+                        etree.SubElement(ea_sr, "format", {"attr": "mark-color", "value": ea_mark_color})
+                    if ea_size_value:
+                        etree.SubElement(ea_sr, "format", {"attr": "size", "value": ea_size_value})
+                    etree.SubElement(ea_sr, "format", {"attr": "mark-labels-cull", "value": "false"})
+                    etree.SubElement(ea_sr, "format", {"attr": "mark-labels-show", "value": "true" if ea_label else "false"})
+
+                pane_id += 1
 
         # Build style with dual encoding
         old_style = table.find("style")
         if old_style is not None:
             table.remove(old_style)
         style_el = etree.Element("style")
-        scope = "cols" if self.dual_axis_shelf == "columns" else "rows"
-        
+        scope = "cols" if self.dual_axis_shelf in ("columns", "cols") else "rows"
+
         rule_el = etree.SubElement(style_el, "style-rule", {"element": "axis"})
-        
-        # Encoding for primary axis (class="1")
-        enc_1 = etree.SubElement(rule_el, "encoding")
-        enc_1.set("attr", "space")
-        enc_1.set("class", "1")
-        enc_1.set("field", ref_m1)
-        enc_1.set("field-type", "quantitative")
-        enc_1.set("fold", "true")
-        enc_1.set("scope", scope)
-        if self.synchronized:
-            enc_1.set("synchronized", "true")
-        enc_1.set("type", "space")
-        
-        # Encoding for secondary axis (class="0") — needed for proper dual axis
-        if measure_1 != measure_2:
+
+        if self.extra_axes and measure_1 != measure_2:
+            # Extra axes case: class "0" = ref_m2 (synchronized), class "1" = first extra axis measure
             enc_0 = etree.SubElement(rule_el, "encoding")
             enc_0.set("attr", "space")
             enc_0.set("class", "0")
-            enc_0.set("field", ref_m1 if self.reverse_axis_1 else ref_m2)
+            enc_0.set("field", ref_m2)
             enc_0.set("field-type", "quantitative")
-            if not self.reverse_axis_1:
-                enc_0.set("fold", "true")
-            if self.reverse_axis_1:
-                enc_0.set("reverse", "true")
+            enc_0.set("fold", "true")
             enc_0.set("scope", scope)
-            if self.synchronized and not self.reverse_axis_1:
-                enc_0.set("synchronized", "true")
+            enc_0.set("synchronized", "true")
             enc_0.set("type", "space")
-        
+
+            # class "1" = first extra axis measure ref, not synchronized
+            first_ea = self.extra_axes[0]
+            first_ea_measure = first_ea.get("measure", "")
+            first_ea_ci = instances.get(first_ea_measure)
+            if first_ea_ci:
+                first_ea_ref = self.field_registry.resolve_full_reference(first_ea_ci.instance_name)
+                enc_1 = etree.SubElement(rule_el, "encoding")
+                enc_1.set("attr", "space")
+                enc_1.set("class", "1")
+                enc_1.set("field", first_ea_ref)
+                enc_1.set("field-type", "quantitative")
+                enc_1.set("fold", "true")
+                enc_1.set("scope", scope)
+                enc_1.set("type", "space")
+        else:
+            # Normal dual axis encoding
+            # Encoding for primary axis (class="1")
+            enc_1 = etree.SubElement(rule_el, "encoding")
+            enc_1.set("attr", "space")
+            enc_1.set("class", "1")
+            enc_1.set("field", ref_m1)
+            enc_1.set("field-type", "quantitative")
+            enc_1.set("fold", "true")
+            enc_1.set("scope", scope)
+            if self.synchronized:
+                enc_1.set("synchronized", "true")
+            enc_1.set("type", "space")
+
+            # Encoding for secondary axis (class="0") — needed for proper dual axis
+            if measure_1 != measure_2:
+                enc_0 = etree.SubElement(rule_el, "encoding")
+                enc_0.set("attr", "space")
+                enc_0.set("class", "0")
+                enc_0.set("field", ref_m1 if self.reverse_axis_1 else ref_m2)
+                enc_0.set("field-type", "quantitative")
+                if not self.reverse_axis_1:
+                    enc_0.set("fold", "true")
+                if self.reverse_axis_1:
+                    enc_0.set("reverse", "true")
+                enc_0.set("scope", scope)
+                if self.synchronized and not self.reverse_axis_1:
+                    enc_0.set("synchronized", "true")
+                enc_0.set("type", "space")
+
         # Hide axes display if requested
         if self.hide_axes:
             for cls_val in ("0", "1"):
@@ -267,13 +434,13 @@ class DualAxisChartBuilder(BaseChartBuilder):
                 fmt.set("field", ref_m1 if measure_1 == measure_2 else (ref_m1 if cls_val == "1" else ref_m2))
                 fmt.set("scope", scope)
                 fmt.set("value", "false")
-        
+
         # Hide zeroline if requested (Donut/Butterfly)
         if self.hide_zeroline:
             zr = etree.SubElement(style_el, "style-rule", {"element": "zeroline"})
             etree.SubElement(zr, "format", {"attr": "stroke-size", "value": "0"})
             etree.SubElement(zr, "format", {"attr": "line-visibility", "value": "off"})
-        
+
         insert_before = None
         for tag in ("panes", "rows", "cols"):
             insert_before = table.find(tag)
@@ -286,6 +453,52 @@ class DualAxisChartBuilder(BaseChartBuilder):
 
         if self.sort_descending:
              self._add_shelf_sort(view, ds_name, instances, self.rows, self.sort_descending)
+
+        # Build Measure Names filter BEFORE other filters so it appears first in view XML
+        measure_values_list = []
+        for ea in self.extra_axes:
+            for mv in ea.get("measure_values", []):
+                mv_ci = instances.get(mv)
+                if mv_ci:
+                    mv_ref = self.field_registry.resolve_full_reference(mv_ci.instance_name)
+                    if mv_ref not in measure_values_list:
+                        measure_values_list.append(mv_ref)
+
+        if measure_values_list:
+            mn_filter = etree.Element("filter")
+            mn_filter.set("class", "categorical")
+            mn_filter.set("column", f"[{ds_name}].[:Measure Names]")
+
+            gf_union = etree.SubElement(mn_filter, "groupfilter")
+            gf_union.set("function", "union")
+            gf_union.set(f"{USER_NS}op", "manual")
+            for mv_ref in measure_values_list:
+                gf_member = etree.SubElement(gf_union, "groupfilter")
+                gf_member.set("function", "member")
+                gf_member.set("level", "[:Measure Names]")
+                gf_member.set("member", f'"{mv_ref}"')
+
+            insert_before = None
+            for tag in ("sort", "perspectives", "shelf-sorts", "slices", "aggregation"):
+                insert_before = view.find(tag)
+                if insert_before is not None:
+                    break
+            if insert_before is not None:
+                insert_before.addprevious(mn_filter)
+            else:
+                view.append(mn_filter)
+
+            # Add [:Measure Names] to slices
+            slices_el = view.find("slices")
+            if slices_el is None:
+                slices_el = etree.Element("slices")
+                agg_el = view.find("aggregation")
+                if agg_el is not None:
+                    agg_el.addprevious(slices_el)
+                else:
+                    view.append(slices_el)
+            mn_slice = etree.SubElement(slices_el, "column")
+            mn_slice.text = f"[{ds_name}].[:Measure Names]"
 
         if self.filters:
             self._add_filters(view, instances, self.filters)

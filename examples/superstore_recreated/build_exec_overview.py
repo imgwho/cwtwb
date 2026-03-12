@@ -115,7 +115,9 @@ CALC_FIELDS: list[dict] = [
     {"name": "Pct of Total Sales CY",   "formula": "SUM([CY Total Sales Subcat]) / SUM([CY Sales Total])",    "datatype": "real"},
 
     # --- 辅助 ---
+    {"name": "Other % of total", "formula": "1-[Pct of Total Sales CY]", "datatype": "real"},
     {"name": "dummy", "formula": "'dummy'", "datatype": "string", "role": "dimension"},
+    {"name": "Rank CY", "formula": "RANK_DENSE(sum([Current Year Sales]),'desc')", "datatype": "integer", "field_type": "ordinal", "table_calc": "Rows"},
 
     # --- KPI Difference 用 MIN(1) dummy 度量 ---
     {"name": "KPI Bar Sales",    "formula": "MIN(1)", "datatype": "integer"},
@@ -130,6 +132,7 @@ def add_calculated_fields(editor: TWBEditor) -> None:
         editor.add_calculated_field(
             f["name"], f["formula"], f["datatype"],
             role=f.get("role"), field_type=f.get("field_type"),
+            table_calc=f.get("table_calc"),
         )
         print(f"  + {f['name']}")
 
@@ -226,30 +229,58 @@ def create_worksheets(editor: TWBEditor) -> None:
         filters=yf,
     )
 
-    # ----- Top 5 Locations (Text) -----
+    # ----- Top 5 Locations (Pie with Rank CY label) -----
     editor.add_worksheet("Top 5 Locations")
     editor.configure_chart(
-        "Top 5 Locations", mark_type="Text",
+        "Top 5 Locations", mark_type="Pie",
         rows=["State/Province"],
-        label="SUM(Current Year Sales)",
-        customized_label=" <SUM(Current Year Sales)>",
+        label="Rank CY",
         sort_descending="SUM(Current Year Sales)",
         filters=yf + [{"column": "State/Province", "top": 5, "by": "SUM(Current Year Sales)"}],
     )
 
-    # ----- Top 5 Sub-Categories (Horizontal Bar) -----
+    # ----- Top 5 Locations text (Text with multi-field label) -----
+    editor.add_worksheet("Top 5 Locations text")
+    editor.configure_chart(
+        "Top 5 Locations text", mark_type="Text",
+        rows=["State/Province"],
+        label="SUM(Current Year Sales)",
+        label_extra=["State/Province"],
+        customized_label="<SUM(Current Year Sales)>\n<State/Province>",
+        sort_descending="SUM(Current Year Sales)",
+        filters=yf + [{"column": "State/Province", "top": 5, "by": "SUM(Current Year Sales)"}],
+    )
+
+    # ----- Top 5 Sub-Categories (Horizontal Bar + Gantt + Pie KPI) -----
     editor.add_worksheet("Sales by Sub-Category")
     editor.configure_dual_axis(
         "Sales by Sub-Category",
-        mark_type_1="Bar", mark_type_2="Bar",
-        rows=["SUM(Current Year Sales)", "SUM(Sales Target)"],
-        columns=["Sub-Category"],
+        mark_type_1="Bar", mark_type_2="GanttBar",
+        rows=["Sub-Category", "Difference from Target"],
+        columns=["SUM(Current Year Sales)", "SUM(Sales Target)"],
+        dual_axis_shelf="cols",
         color_1="Target Reached",
-        label_1="SUM(Difference from Target)",
+        label_1="Difference from Target",
         sort_descending="SUM(Current Year Sales)",
-        show_labels=True,
         synchronized=True,
-        filters=yf,
+        show_labels=False,
+        filters=yf + [{"column": "Sub-Category", "top": 5, "by": "SUM(Current Year Sales)"}],
+        extra_axes=[
+            {
+                "measure": "KPI Bar Sales",
+                "mark_type": "Pie",
+                "color": ":Measure Names",
+                "measure_values": ["Pct of Total Sales CY", "Other % of total"],
+            },
+            {
+                "measure": "KPI Bar Sales",
+                "mark_type": "Automatic",
+                "mark_sizing_off": True,
+                "label": "Pct of Total Sales CY",
+                "mark_color": "#ffffff",
+                "size_value": "0.60370165109634399",
+            },
+        ],
     )
 
 
@@ -266,7 +297,7 @@ KPI_WORKSHEETS = [
 
 ALL_WORKSHEETS = KPI_WORKSHEETS + [
     "CY Sales", "Sales by Top Manufacturers",
-    "Sales by Location", "Top 5 Locations",
+    "Sales by Location", "Top 5 Locations", "Top 5 Locations text",
     "Sales by Sub-Category",
 ]
 
@@ -296,7 +327,16 @@ def apply_styles(editor: TWBEditor) -> None:
         print(f"  styled (chart): {ws}")
 
     # 地图和文本: 全透明
-    for ws in ["Sales by Location", "Top 5 Locations"]:
+    editor.configure_worksheet_style(
+        "Sales by Location",
+        background_color="#00000000",
+        hide_axes=True,
+        hide_gridlines=True,
+        hide_zeroline=True,
+        hide_borders=True,
+        hide_band_color=True,
+    )
+    for ws in ["Top 5 Locations", "Top 5 Locations text"]:
         editor.configure_worksheet_style(
             ws,
             background_color="#00000000",
@@ -305,6 +345,7 @@ def apply_styles(editor: TWBEditor) -> None:
             hide_zeroline=True,
             hide_borders=True,
             hide_band_color=True,
+            hide_row_label="State/Province",
         )
         print(f"  styled (clean): {ws}")
 
@@ -453,8 +494,12 @@ DASHBOARD_LAYOUT: dict = {
                       {"type": "container", "direction": "horizontal", "children": [
                           {"type": "worksheet", "name": "Sales by Location", "weight": 3,
                            "style": {"background-color": CARD_BG}},
-                          {"type": "worksheet", "name": "Top 5 Locations", "weight": 1,
-                           "style": {"background-color": CARD_BG}},
+                          {"type": "container", "direction": "vertical", "weight": 1, "children": [
+                              {"type": "worksheet", "name": "Top 5 Locations",
+                               "style": {"background-color": CARD_BG}},
+                              {"type": "worksheet", "name": "Top 5 Locations text",
+                               "style": {"background-color": CARD_BG}},
+                          ]},
                       ]},
                   ]},
                   {"type": "container", "direction": "vertical", "weight": 45,
