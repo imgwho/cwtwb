@@ -106,8 +106,8 @@ CALC_FIELDS: list[dict] = [
 
     # --- 目标相关 ---
     {"name": "Sales Target",          "formula": "[Previous Year Sales]*[Parameters].[Sales Target (PY + X%)]", "datatype": "real"},
-    {"name": "Difference from Target", "formula": "(SUM([Current Year Sales]) - SUM([Sales Target]))",           "datatype": "real"},
-    {"name": "Target Reached",        "formula": "IF SUM([Current Year Sales]) >= SUM([Sales Target]) THEN 'Met' ELSE 'Not Met' END", "datatype": "string", "role": "measure"},
+    {"name": "Difference from Target", "formula": "(SUM([Current Year Sales]) - SUM([Sales Target]))",           "datatype": "real", "role": "measure", "field_type": "ordinal"},
+    {"name": "Target Reached",        "formula": "IF SUM([Current Year Sales]) >= SUM([Sales Target]) THEN '⬤' ELSE ' ' END", "datatype": "string", "role": "measure"},
 
     # --- LOD: 占比计算 (用于 Sub-Categories) ---
     {"name": "CY Sales Total",          "formula": "{FIXED: SUM([Current Year Sales])}",                       "datatype": "real"},
@@ -186,11 +186,11 @@ def create_worksheets(editor: TWBEditor) -> None:
             hide_axes=True, hide_zeroline=True, show_labels=False,
         )
 
-    # ----- 月度 Sales vs Targets (Bar) -----
+    # ----- 月度 Sales vs Targets (Bar + Gantt) -----
     editor.add_worksheet("CY Sales")
     editor.configure_dual_axis(
         "CY Sales",
-        mark_type_1="Bar", mark_type_2="Circle",
+        mark_type_1="Bar", mark_type_2="GanttBar",
         columns=["MONTH(Order Date)"],
         rows=["SUM(Current Year Sales)", "SUM(Sales Target)"],
         color_1="Target Reached",
@@ -200,19 +200,18 @@ def create_worksheets(editor: TWBEditor) -> None:
     )
 
     # ----- Top 5 Manufacturers (Horizontal Bar) -----
-    # 注意: 原版使用 "Manufacturer" (Product Name 的 group), 此处用 Product Name 近似
     editor.add_worksheet("Sales by Top Manufacturers")
     editor.configure_dual_axis(
         "Sales by Top Manufacturers",
-        mark_type_1="Bar", mark_type_2="Bar",
-        rows=["SUM(Current Year Sales)", "SUM(Sales Target)"],
-        columns=["Product Name"],
+        mark_type_1="Bar", mark_type_2="GanttBar",
+        columns=["SUM(Current Year Sales)", "SUM(Sales Target)"],
+        rows=["Product Name", "Difference from Target", "Target Reached"],
+        dual_axis_shelf="columns",
         color_1="Target Reached",
-        label_1="SUM(Difference from Target)",
         sort_descending="SUM(Current Year Sales)",
-        show_labels=True,
+        show_labels=False,
         synchronized=True,
-        filters=yf,
+        filters=yf + [{"column": "Product Name", "top": 5, "by": "SUM(Current Year Sales)"}],
     )
 
     # ----- Sales by Location (Map) -----
@@ -233,8 +232,9 @@ def create_worksheets(editor: TWBEditor) -> None:
         "Top 5 Locations", mark_type="Text",
         rows=["State/Province"],
         label="SUM(Current Year Sales)",
+        customized_label="<State/Province>  <SUM(Current Year Sales)>",
         sort_descending="SUM(Current Year Sales)",
-        filters=yf,
+        filters=yf + [{"column": "State/Province", "top": 5, "by": "SUM(Current Year Sales)"}],
     )
 
     # ----- Top 5 Sub-Categories (Horizontal Bar) -----

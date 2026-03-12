@@ -328,6 +328,39 @@ class BaseChartBuilder:
                 if "max" in f:
                     max_el = etree.SubElement(filter_el, "max")
                     max_el.text = f["max"]
+            elif "top" in f:
+                # Top N filter
+                filter_el.set("class", "categorical")
+                filter_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
+                
+                gf_top = etree.SubElement(filter_el, "groupfilter")
+                gf_top.set("count", str(f["top"]))
+                gf_top.set("end", "top")
+                gf_top.set("function", "end")
+                gf_top.set("units", "records")
+                gf_top.set(f"{USER_NS}ui-marker", "end")
+                gf_top.set(f"{USER_NS}ui-top-by-field", "true")
+                
+                gf_order = etree.SubElement(gf_top, "groupfilter")
+                gf_order.set("direction", f.get("direction", "DESC"))
+                
+                # Resolve the 'by' measure
+                by_measure = f.get("by")
+                if by_measure:
+                    try:
+                        by_ci = self.field_registry.parse_expression(by_measure)
+                        by_ref = self.field_registry.resolve_full_reference(by_ci.instance_name)
+                        gf_order.set("expression", by_ref)
+                    except (KeyError, ValueError):
+                        gf_order.set("expression", by_measure)
+                
+                gf_order.set("function", "order")
+                gf_order.set(f"{USER_NS}ui-marker", "order")
+                
+                gf_level = etree.SubElement(gf_order, "groupfilter")
+                gf_level.set("function", "level-members")
+                gf_level.set("level", ci.instance_name)
+                gf_level.set(f"{USER_NS}ui-marker", "enumerate")
             else:
                 filter_el.set("class", "categorical")
                 filter_el.set("column", self.field_registry.resolve_full_reference(ci.instance_name))
@@ -359,7 +392,7 @@ class BaseChartBuilder:
                     gf.set(f"{USER_NS}ui-marker", "enumerate")
             
             insert_before = None
-            for tag in ("sort", "perspectives", "slices", "aggregation"):
+            for tag in ("sort", "perspectives", "shelf-sorts", "slices", "aggregation"):
                 insert_before = view.find(tag)
                 if insert_before is not None:
                     break
