@@ -278,6 +278,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         datatype: str = "real",
         role: Optional[str] = None,
         field_type: Optional[str] = None,
+        table_calc: Optional[str] = None,
     ) -> str:
         """Add a calculated field to the datasource.
 
@@ -339,6 +340,9 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         calc = etree.SubElement(col, "calculation")
         calc.set("class", "tableau")
         calc.set("formula", resolved_formula)
+        if table_calc:
+            tc = etree.SubElement(calc, "table-calc")
+            tc.set("ordering-type", table_calc)
 
         # Insert before <layout> if present
         layout_el = self._datasource.find("layout")

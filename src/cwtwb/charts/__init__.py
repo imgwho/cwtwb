@@ -43,6 +43,7 @@ class ChartsMixin:
         customized_label: Optional[str] = None,
         color_map: Optional[dict[str, str]] = None,
         text_format: Optional[dict[str, str]] = None,
+        label_extra: Optional[list[str]] = None,
     ) -> str:
         """Route chart configuration to the correct builder."""
 
@@ -68,6 +69,7 @@ class ChartsMixin:
             customized_label=customized_label,
             color_map=color_map,
             text_format=text_format,
+            label_extra=label_extra,
         )
 
     def configure_dual_axis(
@@ -99,6 +101,7 @@ class ChartsMixin:
         size_value_2: Optional[str] = None,
         mark_color_2: Optional[str] = None,
         reverse_axis_1: bool = False,
+        extra_axes: Optional[list[dict]] = None,
     ) -> str:
         """Route dual axis configuration to the specific builder."""
 
@@ -131,6 +134,7 @@ class ChartsMixin:
             size_value_2=size_value_2,
             mark_color_2=mark_color_2,
             reverse_axis_1=reverse_axis_1,
+            extra_axes=extra_axes,
         )
 
     def configure_worksheet_style(
@@ -142,12 +146,17 @@ class ChartsMixin:
         hide_zeroline: bool = False,
         hide_borders: bool = False,
         hide_band_color: bool = False,
+        hide_row_label: Optional[str] = None,
     ) -> str:
         """Apply worksheet-level styling after chart configuration."""
         ws = self._find_worksheet(worksheet_name)
         table = ws.find("table")
         if table is None:
             raise ValueError(f"Worksheet '{worksheet_name}' is malformed: missing <table>")
+        hide_row_label_ref = None
+        if hide_row_label:
+            ci = self.field_registry.parse_expression(hide_row_label)
+            hide_row_label_ref = self.field_registry.resolve_full_reference(ci.instance_name)
         apply_worksheet_style(
             table,
             background_color=background_color,
@@ -156,6 +165,7 @@ class ChartsMixin:
             hide_zeroline=hide_zeroline,
             hide_borders=hide_borders,
             hide_band_color=hide_band_color,
+            hide_row_label_ref=hide_row_label_ref,
         )
         parts = []
         if background_color:

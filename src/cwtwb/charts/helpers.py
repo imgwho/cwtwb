@@ -136,6 +136,7 @@ def apply_worksheet_style(
     hide_zeroline: bool = False,
     hide_borders: bool = False,
     hide_band_color: bool = False,
+    hide_row_label_ref: str | None = None,
 ) -> None:
     """Apply worksheet-level styling: background, axis/grid/border visibility."""
     table_style = _get_or_create_table_style(table)
@@ -188,6 +189,14 @@ def apply_worksheet_style(
         fmt = etree.SubElement(rule, "format")
         fmt.set("attr", "band-color")
         fmt.set("value", "#00000000")
+
+    if hide_row_label_ref:
+        rule = etree.SubElement(table_style, "style-rule")
+        rule.set("element", "label")
+        fmt = etree.SubElement(rule, "format")
+        fmt.set("attr", "display")
+        fmt.set("field", hide_row_label_ref)
+        fmt.set("value", "false")
 
 
 def apply_measure_values(
