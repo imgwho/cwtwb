@@ -95,10 +95,10 @@ CALC_FIELDS: list[dict] = [
     {"name": "Returns Difference",  "formula": "(SUM([Current Year Returns]) - SUM([Previous Year Returns])) / SUM([Previous Year Returns])", "datatype": "real"},
 
     # --- 颜色分类 ---
-    {"name": "Sales Color Filter",    "formula": "IF [Sales Difference] > 0 THEN 'GOOD' ELSE 'BAD' END",     "datatype": "string"},
-    {"name": "Profit Color Filter",   "formula": "IF [Profit Difference] > 0 THEN 'GOOD' ELSE 'BAD' END",    "datatype": "string"},
-    {"name": "Quantity Color Filter",  "formula": "IF [Quantity Difference] > 0 THEN 'GOOD' ELSE 'BAD' END", "datatype": "string"},
-    {"name": "Returns Color Filter",  "formula": "IF [Returns Difference] < 0 THEN 'GOOD' ELSE 'BAD' END",   "datatype": "string"},
+    {"name": "Sales Color Filter",    "formula": "IF [Sales Difference] > 0 THEN 'GOOD' ELSE 'BAD' END",     "datatype": "string", "role": "measure"},
+    {"name": "Profit Color Filter",   "formula": "IF [Profit Difference] > 0 THEN 'GOOD' ELSE 'BAD' END",    "datatype": "string", "role": "measure"},
+    {"name": "Quantity Color Filter",  "formula": "IF [Quantity Difference] > 0 THEN 'GOOD' ELSE 'BAD' END", "datatype": "string", "role": "measure"},
+    {"name": "Returns Color Filter",  "formula": "IF [Returns Difference] < 0 THEN 'GOOD' ELSE 'BAD' END",   "datatype": "string", "role": "measure"},
 
     # --- 年份辅助 ---
     {"name": "Year Filter",        "formula": "YEAR([Order Date]) = [Parameters].[Current Year]", "datatype": "boolean", "role": "dimension"},
@@ -107,7 +107,7 @@ CALC_FIELDS: list[dict] = [
     # --- 目标相关 ---
     {"name": "Sales Target",          "formula": "[Previous Year Sales]*[Parameters].[Sales Target (PY + X%)]", "datatype": "real"},
     {"name": "Difference from Target", "formula": "(SUM([Current Year Sales]) - SUM([Sales Target]))",           "datatype": "real"},
-    {"name": "Target Reached",        "formula": "IF SUM([Current Year Sales]) >= SUM([Sales Target]) THEN 'Met' ELSE 'Not Met' END", "datatype": "string"},
+    {"name": "Target Reached",        "formula": "IF SUM([Current Year Sales]) >= SUM([Sales Target]) THEN 'Met' ELSE 'Not Met' END", "datatype": "string", "role": "measure"},
 
     # --- LOD: 占比计算 (用于 Sub-Categories) ---
     {"name": "CY Sales Total",          "formula": "{FIXED: SUM([Current Year Sales])}",                       "datatype": "real"},
