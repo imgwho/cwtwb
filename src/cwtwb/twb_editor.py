@@ -492,6 +492,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         name: str,
         window_class: str = "worksheet",
         worksheet_names: Optional[list[str]] = None,
+        worksheet_options: Optional[dict[str, dict]] = None,
     ) -> None:
         """Add a window entry in <windows>.
 
@@ -538,6 +539,9 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
                 for vp_name in worksheet_names:
                     viewpoint = etree.SubElement(viewpoints, "viewpoint")
                     viewpoint.set("name", vp_name)
+                    if worksheet_options and worksheet_options.get(vp_name, {}).get("fit") in ("entire", "entire-view"):
+                        zoom = etree.SubElement(viewpoint, "zoom")
+                        zoom.set("type", "entire-view")
                 active = etree.SubElement(win, "active")
                 active.set("id", "-1")
 

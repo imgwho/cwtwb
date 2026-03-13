@@ -22,6 +22,7 @@ class FlexNode:
         self.font_color = d.get("font_color", "#111e29")
         self.bold = d.get("bold", False)
         self.layout_strategy = d.get("layout_strategy")
+        self.fit = d.get("fit")
 
         self.worksheet = d.get("worksheet")
         self.field = d.get("field")

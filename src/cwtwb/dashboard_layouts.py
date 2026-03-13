@@ -81,6 +81,21 @@ def extract_layout_worksheets(node: dict[str, Any]) -> list[str]:
         sheets.extend(extract_layout_worksheets(child))
     return sheets
 
+def extract_layout_options(node: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Collect worksheet names and their options referenced in a layout tree."""
+    sheets: dict[str, dict[str, Any]] = {}
+    if node.get("type") == "worksheet":
+        name = node.get("name")
+        if name:
+            options = {}
+            if "fit" in node:
+                options["fit"] = node["fit"]
+            sheets[name] = options
+            
+    for child in node.get("children", []):
+        sheets.update(extract_layout_options(child))
+    return sheets
+
 
 def validate_layout_worksheets(layout_dict: dict[str, Any]) -> list[str]:
     """Ensure every worksheet appears at most once in a dashboard layout."""
