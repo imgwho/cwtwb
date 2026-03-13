@@ -37,6 +37,22 @@ def render_flex_node(
         if node.name:
             zone.set("name", node.name)
         zone.set("show-title", "false")
+        
+        fit = getattr(node, "fit", None)
+        if fit:
+            cache = etree.SubElement(zone, "layout-cache")
+            if fit == "entire":
+                cache.set("type-h", "scalable")
+                cache.set("type-w", "scalable")
+            elif fit == "width":
+                cache.set("type-h", "cell")
+                cache.set("type-w", "scalable")
+            elif fit == "height":
+                cache.set("type-h", "scalable")
+                cache.set("type-w", "cell")
+            elif fit == "standard":
+                cache.set("type-h", "cell")
+                cache.set("type-w", "cell")
     elif node.type == "text":
         _render_text(node, zone)
     elif node.type == "filter":

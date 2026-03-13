@@ -436,47 +436,47 @@ DASHBOARD_LAYOUT: dict = {
               "children": [
                   # Sales KPI
                   {"type": "container", "direction": "horizontal", "children": [
-                      {"type": "container", "direction": "vertical", "children": [
+                      {"type": "container", "direction": "vertical", "fixed_size": 100, "children": [
                           {"type": "worksheet", "name": "Sales KPI", "fixed_size": 55,
-                           "style": {"background-color": KPI_BG}},
+                           "style": {"background-color": KPI_BG}, "fit": "entire"},
                           {"type": "worksheet", "name": "Sales KPI Difference",
-                           "style": {"background-color": KPI_BG}},
+                           "style": {"background-color": KPI_BG}, "fit": "entire"},
                       ]},
                       {"type": "worksheet", "name": "Sales KPI Graph",
-                       "style": {"background-color": KPI_BG}},
+                       "style": {"background-color": KPI_BG}, "fit": "entire"},
                   ]},
                   # Profit KPI
                   {"type": "container", "direction": "horizontal", "children": [
-                      {"type": "container", "direction": "vertical", "children": [
+                      {"type": "container", "direction": "vertical", "fixed_size": 100, "children": [
                           {"type": "worksheet", "name": "Profit KPI", "fixed_size": 55,
-                           "style": {"background-color": KPI_BG}},
+                           "style": {"background-color": KPI_BG}, "fit": "entire"},
                           {"type": "worksheet", "name": "Profit KPI Difference",
-                           "style": {"background-color": KPI_BG}},
+                           "style": {"background-color": KPI_BG}, "fit": "entire"},
                       ]},
                       {"type": "worksheet", "name": "Profit KPI Graph",
-                       "style": {"background-color": KPI_BG}},
+                       "style": {"background-color": KPI_BG}, "fit": "entire"},
                   ]},
                   # Returns KPI
                   {"type": "container", "direction": "horizontal", "children": [
-                      {"type": "container", "direction": "vertical", "children": [
+                      {"type": "container", "direction": "vertical", "fixed_size": 100, "children": [
                           {"type": "worksheet", "name": "Returns KPI", "fixed_size": 55,
-                           "style": {"background-color": KPI_BG}},
+                           "style": {"background-color": KPI_BG}, "fit": "entire"},
                           {"type": "worksheet", "name": "Returns KPI Difference",
-                           "style": {"background-color": KPI_BG}},
+                           "style": {"background-color": KPI_BG}, "fit": "entire"},
                       ]},
                       {"type": "worksheet", "name": "Returns KPI Graph",
-                       "style": {"background-color": KPI_BG}},
+                       "style": {"background-color": KPI_BG}, "fit": "entire"},
                   ]},
                   # Quantity KPI
                   {"type": "container", "direction": "horizontal", "children": [
-                      {"type": "container", "direction": "vertical", "children": [
+                      {"type": "container", "direction": "vertical", "fixed_size": 100, "children": [
                           {"type": "worksheet", "name": "Quantity KPI", "fixed_size": 55,
-                           "style": {"background-color": KPI_BG}},
+                           "style": {"background-color": KPI_BG}, "fit": "entire"},
                           {"type": "worksheet", "name": "Quantity KPI Difference",
-                           "style": {"background-color": KPI_BG}},
+                           "style": {"background-color": KPI_BG}, "fit": "entire"},
                       ]},
                       {"type": "worksheet", "name": "Quantity KPI Graph",
-                       "style": {"background-color": KPI_BG}},
+                       "style": {"background-color": KPI_BG}, "fit": "entire"},
                   ]},
               ]},
 
@@ -489,7 +489,7 @@ DASHBOARD_LAYOUT: dict = {
                        "fixed_size": 30,
                        "style": {"background-color": CARD_BG}},
                       {"type": "worksheet", "name": "CY Sales",
-                       "style": {"background-color": CARD_BG}},
+                       "style": {"background-color": CARD_BG}, "fit": "entire"},
                   ],
                   "style": {"border-color": BORDER, "border-style": "solid",
                             "border-width": "1", "margin": "4"}},
@@ -501,32 +501,33 @@ DASHBOARD_LAYOUT: dict = {
                       {"type": "text", "text": "Top 5 Manufacturers | Sales vs Targets",
                        "font_size": "12", "bold": True, "font_color": "#2c2f4a",
                        "fixed_size": 30},
-                      {"type": "worksheet", "name": "Sales by Top Manufacturers"},
+                      {"type": "worksheet", "name": "Sales by Top Manufacturers", "fit": "entire"},
                   ]},
               ]},
 
              # --- 底部行: Map + Top 5 Sub-Categories ---
              {"type": "container", "direction": "horizontal",
               "children": [
-                  {"type": "container", "direction": "vertical", "weight": 55, "children": [
+                  # 左侧容器: Sales by Location (含文字说明)
+                  {"type": "container", "direction": "vertical", "weight": 33, "children": [
                       {"type": "text", "text": "Sales by Location | Top 5 States",
                        "font_size": "12", "bold": True, "font_color": "#2c2f4a",
                        "fixed_size": 30,
                        "style": {"background-color": CARD_BG}},
                       {"type": "container", "direction": "horizontal", "children": [
-                          {"type": "worksheet", "name": "Sales by Location", "weight": 3,
-                           "style": {"background-color": CARD_BG}},
-                          {"type": "container", "direction": "vertical", "weight": 1, "children": [
-                              {"type": "worksheet", "name": "Top 5 Locations",
-                               "style": {"background-color": CARD_BG}},
-                              {"type": "worksheet", "name": "Top 5 Locations text",
-                               "style": {"background-color": CARD_BG}},
-                          ]},
+                          {"type": "worksheet", "name": "Sales by Location",
+                           "style": {"background-color": CARD_BG}, "fit": "entire"},
+                           {"type": "container", "direction": "horizontal", "fixed_size": 150, "children": [
+                               {"type": "worksheet", "name": "Top 5 Locations",
+                                "style": {"background-color": CARD_BG}, "fit": "entire"},
+                               {"type": "worksheet", "name": "Top 5 Locations text",
+                                "style": {"background-color": CARD_BG}, "fit": "entire"},
+                           ]},
                       ]},
                   ],
                   "style": {"border-color": BORDER, "border-style": "solid",
                             "border-width": "1", "margin": "4"}},
-                  {"type": "container", "direction": "vertical", "weight": 45,
+                  {"type": "container", "direction": "vertical", "weight": 55,
                    "style": {"border-color": BORDER,
                              "border-style": "solid", "border-width": "1",
                              "margin": "4"},
@@ -534,7 +535,7 @@ DASHBOARD_LAYOUT: dict = {
                       {"type": "text", "text": "Top 5 Sub-Categories | Sales vs Targets",
                        "font_size": "12", "bold": True, "font_color": "#2c2f4a",
                        "fixed_size": 30},
-                      {"type": "worksheet", "name": "Sales by Sub-Category"},
+                      {"type": "worksheet", "name": "Sales by Sub-Category", "fit": "entire"},
                   ]},
               ]},
          ]},

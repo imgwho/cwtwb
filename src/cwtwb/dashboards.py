@@ -13,6 +13,7 @@ from .dashboard_layouts import (
     render_dashboard_layout,
     resolve_dashboard_layout,
     validate_layout_worksheets,
+    extract_layout_options,
 )
 
 
@@ -67,9 +68,11 @@ class DashboardsMixin:
 
         zones = etree.SubElement(db, "zones")
 
+        worksheet_options = {}
         if worksheet_names or isinstance(layout, dict) or isinstance(layout, str):
             layout_dict = resolve_dashboard_layout(layout, worksheet_names)
             validate_layout_worksheets(layout_dict)
+            worksheet_options = extract_layout_options(layout_dict)
             render_dashboard_layout(
                 zones,
                 layout_dict,
@@ -89,6 +92,7 @@ class DashboardsMixin:
             dashboard_name,
             window_class="dashboard",
             worksheet_names=(worksheet_names or []),
+            worksheet_options=worksheet_options,
         )
         return f"Created dashboard '{dashboard_name}'"
 
