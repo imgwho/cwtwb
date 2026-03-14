@@ -300,16 +300,21 @@ def create_worksheets(editor: TWBEditor) -> None:
         filters=yf + [{"column": "State/Province", "top": 5, "by": "SUM(Current Year Sales)"}],
     )
 
-    # ----- Top 5 Locations text (Text with multi-field label) -----
+    # ----- Top 5 Locations text (Text with rich-text label: state + CY sales) -----
     editor.add_worksheet("Top 5 Locations text")
     editor.configure_chart(
         "Top 5 Locations text", mark_type="Text",
         rows=["State/Province"],
         label="SUM(Current Year Sales)",
         label_extra=["State/Province"],
-        customized_label="<SUM(Current Year Sales)>\n<State/Province>",
         sort_descending="SUM(Current Year Sales)",
         filters=yf + [{"column": "State/Province", "top": 5, "by": "SUM(Current Year Sales)"}],
+        label_runs=[
+            {"field": "State/Province", "fontname": "Tableau Regular", "fontcolor": "#333333"},
+            {"text": "\n"},
+            {"field": "SUM(Current Year Sales)", "fontname": "Tableau Bold", "fontsize": 12, "fontcolor": "#666666"},
+            {"text": "\n"},
+        ],
     )
 
     # ----- Top 5 Sub-Categories (Horizontal Bar + Gantt + Pie KPI) -----
@@ -366,78 +371,272 @@ ALL_WORKSHEETS = KPI_WORKSHEETS + [
 
 
 def apply_styles(editor: TWBEditor) -> None:
-    # KPI Cards: Hide all, transparent background
-    for ws in KPI_WORKSHEETS:
+    # ------------------------------------------------------------------
+    # Disable tooltip on ALL worksheets (tooltip-mode='none')
+    # ------------------------------------------------------------------
+    for ws in ALL_WORKSHEETS:
+        editor.configure_worksheet_style(ws, disable_tooltip=True)
+
+    # ------------------------------------------------------------------
+    # KPI Text Cards (Sales KPI, Profit KPI, Returns KPI, Quantity KPI)
+    # ------------------------------------------------------------------
+    for ws in ["Sales KPI", "Profit KPI", "Returns KPI", "Quantity KPI"]:
         editor.configure_worksheet_style(
             ws,
             background_color="#00000000",
-            hide_axes=True,
-            hide_gridlines=True,
-            hide_zeroline=True,
-            hide_borders=True,
-            hide_band_color=True,
+            hide_axes=True, hide_gridlines=True, hide_zeroline=True,
+            hide_borders=True, hide_band_color=True,
+            pane_cell_style={"text-align": "center", "vertical-align": "center"},
         )
-        print(f"  styled (KPI): {ws}")
+        print(f"  styled (KPI card): {ws}")
 
-    # Main Charts: Hide gridlines/borders, keep axes
-    for ws in ["CY Sales", "Sales by Top Manufacturers", "Sales by Sub-Category"]:
+    # ------------------------------------------------------------------
+    # KPI Sparklines
+    # ------------------------------------------------------------------
+    for ws in ["Sales KPI Graph", "Profit KPI Graph", "Returns KPI Graph", "Quantity KPI Graph"]:
         editor.configure_worksheet_style(
             ws,
-            hide_gridlines=True,
-            hide_borders=True,
-            hide_band_color=True,
+            background_color="#00000000",
+            hide_axes=True, hide_gridlines=True, hide_zeroline=True,
+            hide_borders=True, hide_band_color=True,
+            hide_col_field_labels=True,
+            hide_droplines=True, hide_reflines=True, hide_table_dividers=True,
+            axis_style={"tick-color": "#00000000"},
+            cell_formats=[{"field": "MONTH(Order Date)", "text-format": "iLLLL"}],
+            label_formats=[
+                {"field": "MONTH(Order Date)", "display": "true",
+                 "text-format": "iLLLLL", "font-weight": "bold",
+                 "font-family": "Tableau Medium", "font-size": "8",
+                 "color": "#bec4f4"},
+            ],
         )
-        print(f"  styled (chart): {ws}")
+        print(f"  styled (sparkline): {ws}")
 
-    # CY Sales Labels: transparent, hide all chrome, hide col field labels
+    # ------------------------------------------------------------------
+    # KPI Difference Badges
+    # ------------------------------------------------------------------
+    for ws, kpi_bar in [
+        ("Sales KPI Difference",    "KPI Bar Sales"),
+        ("Profit KPI Difference",   "KPI Bar Profit"),
+        ("Returns KPI Difference",  "KPI Bar Returns"),
+        ("Quantity KPI Difference", "KPI Bar Quantity"),
+    ]:
+        editor.configure_worksheet_style(
+            ws,
+            background_color="#00000000",
+            hide_axes=True, hide_gridlines=True, hide_zeroline=True,
+            hide_borders=True, hide_band_color=True,
+            hide_droplines=True, hide_reflines=True,
+            pane_datalabel_style={
+                "color-mode": "match", "font-size": "18",
+                "font-weight": "normal", "font-family": "Tableau Medium",
+            },
+            pane_cell_style={"vertical-align": "center", "text-align": "right"},
+            axis_style={
+                "tick-color": "#00000000",
+                "stroke-size": "0", "line-visibility": "off",
+                "per_field": [
+                    {"field": f"MIN({kpi_bar})", "attr": "display",
+                     "value": "false", "scope": "cols", "class": "0"},
+                ],
+            },
+        )
+        print(f"  styled (KPI diff): {ws}")
+
+    # ------------------------------------------------------------------
+    # CY Sales: axis date format, label number format, hide axis, reflines
+    # ------------------------------------------------------------------
+    editor.configure_worksheet_style(
+        "CY Sales",
+        background_color="#00000000",
+        hide_borders=True, hide_band_color=True,
+        hide_droplines=True, hide_reflines=True,
+        hide_zeroline=True, hide_gridlines=True,
+        hide_table_dividers=True, hide_col_field_labels=True,
+        label_formats=[
+            # Date axis labels — hide display but keep format for overlay
+            {"field": "MONTH(Order Date)", "display": "false"},
+            {"field": "MONTH(Order Date)", "text-format": "iLLL",
+             "font-size": "10", "font-family": "Tableau Medium",
+             "font-weight": "normal", "color": "#333333"},
+            # CY Sales measure label
+            {"field": "SUM(Current Year Sales)",
+             "text-format": 'c"$"#,##0,K;-"$"#,##0,K',
+             "font-weight": "bold", "color": "#333333"},
+        ],
+        axis_style={
+            "tick-color": "#00000000",
+            "per_field": [
+                # Hide CY Sales axis display
+                {"field": "SUM(Current Year Sales)", "attr": "display",
+                 "value": "false", "scope": "rows", "class": "0"},
+                # Height of date axis
+                {"field": "MONTH(Order Date)", "attr": "height", "value": "35"},
+                # Hide Sales Target axis title
+                {"field": "SUM(Sales Target)", "attr": "title",
+                 "value": "", "scope": "rows", "class": "0"},
+            ],
+        },
+    )
+    print("  styled (chart): CY Sales")
+
+    # ------------------------------------------------------------------
+    # CY Sales Labels: transparent, label rotation, per-field formats
+    # ------------------------------------------------------------------
     editor.configure_worksheet_style(
         "CY Sales Labels",
         background_color="#00000000",
-        hide_axes=True,
-        hide_gridlines=True,
-        hide_zeroline=True,
-        hide_borders=True,
-        hide_band_color=True,
-        hide_col_field_labels=True,
-        hide_droplines=True,
+        hide_axes=True, hide_gridlines=True, hide_zeroline=True,
+        hide_borders=True, hide_band_color=True,
+        hide_col_field_labels=True, hide_droplines=True, hide_reflines=True,
         hide_table_dividers=True,
+        # Per-field table-level cell format (date header font)
+        cell_formats=[
+            {"field": "MONTH(Order Date)", "font-family": "Tableau Semibold",
+             "color": "#666666", "text-format": "iLLLLL"},
+        ],
+        # Per-field label formats
+        label_formats=[
+            {"field": "MONTH(Order Date)", "display": "false"},
+            {"field": "MONTH(Order Date)", "text-format": "iLLLLL"},
+            # Target Reached column: centered, mint green
+            {"field": "Target Reached", "text-align": "center",
+             "color": "#b2e1c1", "font-weight": "normal", "font-size": "10"},
+            # Difference from Target: rotated -90 degrees
+            {"field": "Difference from Target", "text-orientation": "-90",
+             "font-size": "8", "color": "#adb1c5",
+             "font-family": "Tableau Semibold", "font-weight": "bold"},
+        ],
+        # Pane cell: centered + rotated (applies to the data cells)
+        pane_cell_style={"text-align": "center", "text-orientation": "-90"},
+        pane_trendline_hidden=True,
+        # Per-field header heights (column width in cross-tab)
+        header_formats=[
+            {"field": "Target Reached", "height": "28"},
+            {"field": "Difference from Target", "height": "80"},
+        ],
     )
     print("  styled (labels): CY Sales Labels")
 
-    # Title (Exec Summary): transparent background
+    # ------------------------------------------------------------------
+    # Title (Exec Summary): transparent, left-aligned cell
+    # ------------------------------------------------------------------
     editor.configure_worksheet_style(
         "Title (Exec Summary)",
         background_color="#00000000",
-        hide_axes=True,
-        hide_gridlines=True,
-        hide_zeroline=True,
-        hide_borders=True,
-        hide_band_color=True,
+        hide_axes=True, hide_gridlines=True, hide_zeroline=True,
+        hide_borders=True, hide_band_color=True,
+        pane_cell_style={"vertical-align": "bottom", "text-align": "left"},
     )
     print("  styled (title): Title (Exec Summary)")
 
-    # Maps and Text: Fully transparent
+    # ------------------------------------------------------------------
+    # Sales by Sub-Category: hide gridlines/borders
+    # ------------------------------------------------------------------
+    editor.configure_worksheet_style(
+        "Sales by Sub-Category",
+        hide_gridlines=True, hide_borders=True, hide_band_color=True,
+        hide_droplines=True, hide_reflines=True, hide_zeroline=True,
+        hide_table_dividers=True,
+    )
+    print("  styled (chart): Sales by Sub-Category")
+
+    # ------------------------------------------------------------------
+    # Sales by Top Manufacturers: label formats, axis style
+    # ------------------------------------------------------------------
+    editor.configure_worksheet_style(
+        "Sales by Top Manufacturers",
+        background_color="#00000000",
+        hide_borders=True, hide_band_color=True,
+        hide_droplines=True, hide_reflines=True,
+        hide_zeroline=True, hide_gridlines=True, hide_table_dividers=True,
+        hide_col_field_labels=True,
+        label_formats=[
+            # CY Sales number format
+            {"field": "SUM(Current Year Sales)",
+             "text-format": 'c"$"#,##0,K;-"$"#,##0,K',
+             "font-family": "Tableau Medium", "color": "#555555",
+             "font-size": "10", "font-weight": "normal"},
+            # Target Reached: centered, mint green
+            {"field": "Target Reached", "text-align": "center",
+             "color": "#b2e1c1", "font-size": "10"},
+            # Difference from Target: rotated
+            {"field": "Difference from Target", "font-size": "8",
+             "color": "#adb1c5", "font-family": "Tableau Semibold",
+             "font-weight": "bold"},
+            # Product Name color
+            {"field": "Product Name", "font-size": "10", "color": "#333333",
+             "font-family": "Tableau Medium", "font-weight": "normal"},
+        ],
+        axis_style={
+            "tick-color": "#00000000",
+            "per_field": [
+                {"field": "SUM(Current Year Sales)", "attr": "display",
+                 "value": "false", "scope": "cols", "class": "0"},
+                {"field": "SUM(Sales Target)", "attr": "title",
+                 "value": "", "scope": "cols", "class": "0"},
+            ],
+        },
+    )
+    print("  styled (chart): Sales by Top Manufacturers")
+
+    # ------------------------------------------------------------------
+    # Sales by Location: transparent
+    # ------------------------------------------------------------------
     editor.configure_worksheet_style(
         "Sales by Location",
         background_color="#00000000",
-        hide_axes=True,
-        hide_gridlines=True,
-        hide_zeroline=True,
-        hide_borders=True,
-        hide_band_color=True,
+        hide_axes=True, hide_gridlines=True, hide_zeroline=True,
+        hide_borders=True, hide_band_color=True,
+        hide_droplines=True, hide_reflines=True, hide_table_dividers=True,
+        axis_style={"tick-color": "#00000000"},
     )
-    for ws in ["Top 5 Locations", "Top 5 Locations text"]:
-        editor.configure_worksheet_style(
-            ws,
-            background_color="#00000000",
-            hide_axes=True,
-            hide_gridlines=True,
-            hide_zeroline=True,
-            hide_borders=True,
-            hide_band_color=True,
-            hide_row_label="State/Province",
-        )
-        print(f"  styled (clean): {ws}")
+    print("  styled (map): Sales by Location")
+
+    # ------------------------------------------------------------------
+    # Top 5 Locations (Pie): mark color + datalabel style
+    # ------------------------------------------------------------------
+    editor.configure_worksheet_style(
+        "Top 5 Locations",
+        background_color="#00000000",
+        hide_axes=True, hide_gridlines=True, hide_zeroline=True,
+        hide_borders=True, hide_band_color=True,
+        hide_droplines=True, hide_reflines=True, hide_table_dividers=True,
+        hide_col_field_labels=True,
+        hide_row_label="State/Province",
+        # Axis tick transparent
+        axis_style={"tick-color": "#00000000"},
+        # Hide State/Province label in table label style
+        label_formats=[
+            {"field": "State/Province", "display": "false"},
+        ],
+        pane_mark_style={
+            "mark-color": "#5a6dff",
+            "has-stroke": "true",
+            "stroke-color": "#757fc5",
+            "mark-transparency": "29",
+        },
+        pane_datalabel_style={
+            "color-mode": "user", "font-family": "Tableau Bold",
+            "color": "#757fc5", "font-size": "12",
+        },
+        pane_trendline_hidden=True,
+    )
+    print("  styled (pie): Top 5 Locations")
+
+    # ------------------------------------------------------------------
+    # Top 5 Locations text
+    # ------------------------------------------------------------------
+    editor.configure_worksheet_style(
+        "Top 5 Locations text",
+        background_color="#00000000",
+        hide_axes=True, hide_gridlines=True, hide_zeroline=True,
+        hide_borders=True, hide_band_color=True,
+        hide_droplines=True, hide_reflines=True, hide_table_dividers=True,
+        axis_style={"tick-color": "#00000000"},
+        hide_row_label="State/Province",
+    )
+    print("  styled (text): Top 5 Locations text")
 
 
 # ============================================================

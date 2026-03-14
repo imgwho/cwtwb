@@ -278,8 +278,19 @@ def configure_worksheet_style(
     hide_borders: bool = False,
     hide_band_color: bool = False,
     hide_col_field_labels: bool = False,
+    hide_row_field_labels: bool = False,
     hide_droplines: bool = False,
+    hide_reflines: bool = False,
     hide_table_dividers: bool = False,
+    disable_tooltip: bool = False,
+    pane_cell_style: dict | None = None,
+    pane_datalabel_style: dict | None = None,
+    pane_mark_style: dict | None = None,
+    pane_trendline_hidden: bool = False,
+    label_formats: list[dict] | None = None,
+    cell_formats: list[dict] | None = None,
+    header_formats: list[dict] | None = None,
+    axis_style: dict | None = None,
 ) -> str:
     """Apply worksheet-level styling: background color, axis/grid/border visibility."""
 
@@ -293,8 +304,19 @@ def configure_worksheet_style(
         hide_borders=hide_borders,
         hide_band_color=hide_band_color,
         hide_col_field_labels=hide_col_field_labels,
+        hide_row_field_labels=hide_row_field_labels,
         hide_droplines=hide_droplines,
+        hide_reflines=hide_reflines,
         hide_table_dividers=hide_table_dividers,
+        disable_tooltip=disable_tooltip,
+        pane_cell_style=pane_cell_style,
+        pane_datalabel_style=pane_datalabel_style,
+        pane_mark_style=pane_mark_style,
+        pane_trendline_hidden=pane_trendline_hidden,
+        label_formats=label_formats,
+        cell_formats=cell_formats,
+        header_formats=header_formats,
+        axis_style=axis_style,
     )
 
 

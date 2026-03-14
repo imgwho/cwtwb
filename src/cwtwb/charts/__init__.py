@@ -152,8 +152,19 @@ class ChartsMixin:
         hide_band_color: bool = False,
         hide_row_label: Optional[str] = None,
         hide_col_field_labels: bool = False,
+        hide_row_field_labels: bool = False,
         hide_droplines: bool = False,
+        hide_reflines: bool = False,
         hide_table_dividers: bool = False,
+        disable_tooltip: bool = False,
+        pane_cell_style: Optional[dict] = None,
+        pane_datalabel_style: Optional[dict] = None,
+        pane_mark_style: Optional[dict] = None,
+        pane_trendline_hidden: bool = False,
+        label_formats: Optional[list] = None,
+        cell_formats: Optional[list] = None,
+        header_formats: Optional[list] = None,
+        axis_style: Optional[dict] = None,
     ) -> str:
         """Apply worksheet-level styling after chart configuration."""
         ws = self._find_worksheet(worksheet_name)
@@ -164,6 +175,63 @@ class ChartsMixin:
         if hide_row_label:
             ci = self.field_registry.parse_expression(hide_row_label)
             hide_row_label_ref = self.field_registry.resolve_full_reference(ci.instance_name)
+
+        # Resolve label_formats field references
+        resolved_label_formats = None
+        if label_formats:
+            resolved_label_formats = []
+            for lf in label_formats:
+                resolved_lf = {}
+                if "field" in lf:
+                    ci = self.field_registry.parse_expression(lf["field"])
+                    resolved_lf["_field_ref"] = self.field_registry.resolve_full_reference(ci.instance_name)
+                for k, v in lf.items():
+                    if k != "field":
+                        resolved_lf[k] = v
+                resolved_label_formats.append(resolved_lf)
+
+        # Resolve cell_formats field references
+        resolved_cell_formats = None
+        if cell_formats:
+            resolved_cell_formats = []
+            for cf in cell_formats:
+                resolved_cf = {}
+                if "field" in cf:
+                    ci = self.field_registry.parse_expression(cf["field"])
+                    resolved_cf["_field_ref"] = self.field_registry.resolve_full_reference(ci.instance_name)
+                for k, v in cf.items():
+                    if k != "field":
+                        resolved_cf[k] = v
+                resolved_cell_formats.append(resolved_cf)
+
+        # Resolve header_formats field references
+        resolved_header_formats = None
+        if header_formats:
+            resolved_header_formats = []
+            for hf in header_formats:
+                resolved_hf = {}
+                if "field" in hf:
+                    ci = self.field_registry.parse_expression(hf["field"])
+                    resolved_hf["_field_ref"] = self.field_registry.resolve_full_reference(ci.instance_name)
+                for k, v in hf.items():
+                    if k != "field":
+                        resolved_hf[k] = v
+                resolved_header_formats.append(resolved_hf)
+
+        # Resolve axis_style per_field references
+        resolved_axis_style = None
+        if axis_style:
+            resolved_axis_style = {k: v for k, v in axis_style.items() if k != "per_field"}
+            if "per_field" in axis_style:
+                resolved_per_field = []
+                for pf in axis_style["per_field"]:
+                    resolved_pf = {k: v for k, v in pf.items() if k != "field"}
+                    if "field" in pf:
+                        ci = self.field_registry.parse_expression(pf["field"])
+                        resolved_pf["_field_ref"] = self.field_registry.resolve_full_reference(ci.instance_name)
+                    resolved_per_field.append(resolved_pf)
+                resolved_axis_style["per_field"] = resolved_per_field
+
         apply_worksheet_style(
             table,
             background_color=background_color,
@@ -174,18 +242,49 @@ class ChartsMixin:
             hide_band_color=hide_band_color,
             hide_row_label_ref=hide_row_label_ref,
             hide_col_field_labels=hide_col_field_labels,
+            hide_row_field_labels=hide_row_field_labels,
             hide_droplines=hide_droplines,
+            hide_reflines=hide_reflines,
             hide_table_dividers=hide_table_dividers,
+            disable_tooltip=disable_tooltip,
+            pane_cell_style=pane_cell_style,
+            pane_datalabel_style=pane_datalabel_style,
+            pane_mark_style=pane_mark_style,
+            pane_trendline_hidden=pane_trendline_hidden,
+            resolved_label_formats=resolved_label_formats,
+            resolved_cell_formats=resolved_cell_formats,
+            resolved_header_formats=resolved_header_formats,
+            resolved_axis_style=resolved_axis_style,
         )
         parts = []
         if background_color:
             parts.append(f"background={background_color}")
-        for flag_name, flag_val in [("hide_axes", hide_axes), ("hide_gridlines", hide_gridlines),
-                                     ("hide_zeroline", hide_zeroline), ("hide_borders", hide_borders),
-                                     ("hide_band_color", hide_band_color), ("hide_col_field_labels", hide_col_field_labels),
-                                     ("hide_droplines", hide_droplines), ("hide_table_dividers", hide_table_dividers)]:
+        for flag_name, flag_val in [
+            ("hide_axes", hide_axes), ("hide_gridlines", hide_gridlines),
+            ("hide_zeroline", hide_zeroline), ("hide_borders", hide_borders),
+            ("hide_band_color", hide_band_color), ("hide_col_field_labels", hide_col_field_labels),
+            ("hide_row_field_labels", hide_row_field_labels),
+            ("hide_droplines", hide_droplines), ("hide_table_dividers", hide_table_dividers),
+            ("disable_tooltip", disable_tooltip),
+        ]:
             if flag_val:
                 parts.append(flag_name)
+        if pane_cell_style:
+            parts.append("pane_cell_style")
+        if pane_datalabel_style:
+            parts.append("pane_datalabel_style")
+        if pane_mark_style:
+            parts.append("pane_mark_style")
+        if label_formats:
+            parts.append(f"label_formats({len(label_formats)})")
+        if cell_formats:
+            parts.append(f"cell_formats({len(cell_formats)})")
+        if header_formats:
+            parts.append(f"header_formats({len(header_formats)})")
+        if axis_style:
+            parts.append("axis_style")
+        if pane_trendline_hidden:
+            parts.append("pane_trendline_hidden")
         return f"Styled worksheet '{worksheet_name}': {', '.join(parts)}"
 
     def _apply_chart_macros(
