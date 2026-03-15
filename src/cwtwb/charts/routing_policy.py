@@ -32,7 +32,7 @@ def _resolve_support_level(mark_type: str) -> CapabilityLevel | None:
 def profile_chart_request(mark_type: str, *, measure_values_mode: bool = False) -> ChartRouteProfile:
     """Classify a chart request without changing compatibility behavior."""
 
-    if mark_type == "Text" and measure_values_mode:
+    if mark_type == "Text":
         return ChartRouteProfile(
             requested_mark_type=mark_type,
             actual_mark_type="Text",

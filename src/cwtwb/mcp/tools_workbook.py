@@ -176,6 +176,7 @@ def configure_chart(
     text_format: dict[str, str] | None = None,
     map_layers: list[dict] | None = None,
     label_runs: list[dict] | None = None,
+    label_param: str | None = None,
 ) -> str:
     """Configure chart type and field mappings for a worksheet."""
 
@@ -203,6 +204,7 @@ def configure_chart(
         text_format=text_format,
         map_layers=map_layers,
         label_runs=label_runs,
+        label_param=label_param,
     )
 
 

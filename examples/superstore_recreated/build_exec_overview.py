@@ -115,7 +115,7 @@ CALC_FIELDS: list[dict] = [
     # --- LOD: Ratio Calculation (for Sub-Categories) ---
     {"name": "CY Sales Total",          "formula": "{FIXED: SUM([Current Year Sales])}",                       "datatype": "real"},
     {"name": "CY Total Sales Subcat",   "formula": "{ FIXED [Sub-Category]: SUM([Current Year Sales]) }",     "datatype": "real"},
-    {"name": "Pct of Total Sales CY",   "formula": "SUM([CY Total Sales Subcat]) / SUM([CY Sales Total])",    "datatype": "real"},
+    {"name": "Pct of Total Sales CY",   "formula": "SUM([CY Total Sales Subcat]) / SUM([CY Sales Total])",    "datatype": "real", "default_format": "p0%"},
 
     # --- Helpers ---
     {"name": "Other % of total", "formula": "1-[Pct of Total Sales CY]", "datatype": "real"},
@@ -235,13 +235,13 @@ def create_worksheets(editor: TWBEditor) -> None:
     editor.configure_chart(
         "Title (Exec Summary)",
         mark_type="Text",
-        label="SUM(Current Year Value)",
+        label_param="Current Year",
         label_runs=[
             {"text": "EXECUTIVE SALES OVERVIEW ", "fontname": "Tableau Medium", "fontsize": 22,
              "fontalignment": None},
             {"text": "|", "fontname": "Tableau Medium", "fontsize": 22,
              "bold": True, "fontcolor": "#5a6dff", "fontalignment": None},
-            {"field": "SUM(Current Year Value)", "fontname": "Tableau Medium", "fontsize": 22,
+            {"param": "Current Year", "fontname": "Tableau Medium", "fontsize": 22,
              "prefix": " ", "fontalignment": None},
         ],
     )
@@ -575,6 +575,8 @@ def apply_styles(editor: TWBEditor) -> None:
                  "value": "false", "scope": "cols", "class": "0"},
                 {"field": "KPI Bar Sales", "attr": "display",
                  "value": "false", "scope": "cols", "class": "1"},
+                {"field": "KPI Bar Sales", "attr": "display",
+                 "value": "false", "scope": "cols", "class": "0"},
             ],
         },
     )
@@ -795,7 +797,7 @@ DASHBOARD_LAYOUT: dict = {
              # --- Middle Section: Sales vs Targets + Top 5 Manufacturers ---
              {"type": "container", "direction": "horizontal",
               "children": [
-              {"type": "container", "direction": "vertical", "weight": 55, "children": [
+              {"type": "container", "direction": "vertical", "children": [
                       {"type": "text", "text": "2023 | Sales vs Targets",
                        "font_size": "12", "bold": True, "font_color": "#2c2f4a",
                        "fixed_size": 30,
@@ -805,7 +807,7 @@ DASHBOARD_LAYOUT: dict = {
                           {"type": "worksheet", "name": "CY Sales",
                            "style": {"background-color": CARD_BG}, "fit": "entire"},
                           # Empty spacer (52px) offsets y-axis area so labels align with bars
-                          {"type": "container", "direction": "horizontal", "fixed_size": 60, "children": [
+                          {"type": "container", "direction": "horizontal", "fixed_size": 134, "children": [
                               {"type": "empty", "fixed_size": 52},
                               {"type": "worksheet", "name": "CY Sales Labels",
                                "style": {"background-color": CARD_BG}, "fit": "entire"},
@@ -814,7 +816,7 @@ DASHBOARD_LAYOUT: dict = {
                   ],
                   "style": {"border-color": BORDER, "border-style": "solid",
                             "border-width": "1", "margin": "4"}},
-                  {"type": "container", "direction": "vertical", "weight": 45,
+                  {"type": "container", "direction": "vertical",
                    "style": {"border-color": BORDER,
                              "border-style": "solid", "border-width": "1",
                              "margin": "4"},
@@ -830,7 +832,7 @@ DASHBOARD_LAYOUT: dict = {
              {"type": "container", "direction": "horizontal",
               "children": [
                   # Left container: Sales by Location (including text descriptions)
-                  {"type": "container", "direction": "vertical", "weight": 33, "children": [
+                  {"type": "container", "direction": "vertical", "children": [
                       {"type": "text", "text": "Sales by Location | Top 5 States",
                        "font_size": "12", "bold": True, "font_color": "#2c2f4a",
                        "fixed_size": 30,
@@ -848,7 +850,7 @@ DASHBOARD_LAYOUT: dict = {
                   ],
                   "style": {"border-color": BORDER, "border-style": "solid",
                             "border-width": "1", "margin": "4"}},
-                  {"type": "container", "direction": "vertical", "weight": 55,
+                  {"type": "container", "direction": "vertical",
                    "style": {"border-color": BORDER,
                              "border-style": "solid", "border-width": "1",
                              "margin": "4"},

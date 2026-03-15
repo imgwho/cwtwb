@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
+from lxml import etree
+
 from .builder_base import BaseChartBuilder
 
 
@@ -30,6 +32,7 @@ class TextChartBuilder(BaseChartBuilder):
         filters: Optional[list[dict]] = None,
         measure_values: Optional[list[str]] = None,
         label_runs: Optional[list[dict]] = None,
+        label_param: Optional[str] = None,
     ) -> None:
         super().__init__(editor)
         self.worksheet_name = worksheet_name
@@ -45,6 +48,7 @@ class TextChartBuilder(BaseChartBuilder):
         self.filters = filters
         self.measure_values = measure_values or []
         self.label_runs = label_runs or []
+        self.label_param = label_param
 
     def build(self) -> str:
         ws = self.editor._find_worksheet(self.worksheet_name)
@@ -56,12 +60,14 @@ class TextChartBuilder(BaseChartBuilder):
             raise ValueError("Malformed structure: missing <view>")
 
         ds_name = self._datasource.get("name", "")
+        # When label_param is set, the label field is not used as a datasource encoding
+        label_for_exprs = None if self.label_param else self.label
         all_exprs = self._gather_expressions(
             self.columns,
             self.rows,
             self.color,
             self.size,
-            self.label,
+            label_for_exprs,
             self.detail,
             None,
             self.sort_descending,
@@ -81,7 +87,7 @@ class TextChartBuilder(BaseChartBuilder):
             instances,
             self.color,
             self.size,
-            self.label,
+            label_for_exprs,
             self.detail,
             None,
             self.tooltip,
@@ -90,6 +96,37 @@ class TextChartBuilder(BaseChartBuilder):
             None,
             ds_name,
         )
+
+        # If label_param is set, add the parameter as the text encoding directly
+        if self.label_param:
+            param_info = self._parameters.get(self.label_param)
+            if param_info:
+                internal = param_info["internal_name"]  # e.g. "[Parameter 1]"
+                # Add Parameters datasource to view's <datasources>
+                datasources_el = view.find("datasources")
+                if datasources_el is not None:
+                    if not any(d.get("name") == "Parameters" for d in datasources_el.findall("datasource")):
+                        # Get caption from the actual Parameters datasource
+                        params_ds = self.editor.root.find(".//datasource[@name='Parameters']")
+                        caption = params_ds.get("caption", "Parameters") if params_ds is not None else "Parameters"
+                        param_ds_el = etree.SubElement(datasources_el, "datasource")
+                        param_ds_el.set("caption", caption)
+                        param_ds_el.set("name", "Parameters")
+                # Add parameter datasource-dependencies to view
+                self.editor._add_parameter_deps(view)
+                # Add text encoding pointing to the parameter
+                encodings_el = pane.find("encodings")
+                if encodings_el is None:
+                    encodings_el = etree.Element("encodings")
+                    cl = pane.find("customized-label")
+                    style_el = pane.find("style")
+                    insert_before = cl or style_el
+                    if insert_before is not None:
+                        insert_before.addprevious(encodings_el)
+                    else:
+                        pane.append(encodings_el)
+                text_enc = etree.SubElement(encodings_el, "text")
+                text_enc.set("column", f"[Parameters].{internal}")
 
         # Rich-text label runs
         if self.label_runs:

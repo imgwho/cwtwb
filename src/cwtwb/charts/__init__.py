@@ -46,6 +46,7 @@ class ChartsMixin:
         map_layers: Optional[list[dict]] = None,
         label_extra: Optional[list[str]] = None,
         label_runs: Optional[list[dict]] = None,
+        label_param: Optional[str] = None,
     ) -> str:
         """Route chart configuration to the correct builder."""
 
@@ -74,6 +75,7 @@ class ChartsMixin:
             map_layers=map_layers,
             label_extra=label_extra,
             label_runs=label_runs,
+            label_param=label_param,
         )
 
     def configure_dual_axis(

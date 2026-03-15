@@ -259,7 +259,15 @@ class BaseChartBuilder:
                 r.set("fontsize", str(run_spec["fontsize"]))
 
             # Text content
-            if "field" in run_spec:
+            if "param" in run_spec:
+                param_name = run_spec["param"]
+                param_info = self._parameters.get(param_name)
+                if param_info:
+                    internal = param_info["internal_name"]  # e.g. "[Parameter 1]"
+                    param_ref = f"[Parameters].{internal}"  # [Parameters].[Parameter 1]
+                    prefix = run_spec.get("prefix", "")
+                    r.text = etree.CDATA(f"{prefix}<{param_ref}>")
+            elif "field" in run_spec:
                 field_expr = run_spec["field"]
                 ci = instances.get(field_expr)
                 if ci:

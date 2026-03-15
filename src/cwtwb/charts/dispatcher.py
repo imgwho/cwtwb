@@ -49,6 +49,7 @@ def configure_chart(
     map_layers: Optional[list[dict]] = None,
     label_extra: Optional[list[str]] = None,
     label_runs: Optional[list[dict]] = None,
+    label_param: Optional[str] = None,
 ) -> str:
     """Route chart configuration to the correct builder."""
 
@@ -91,6 +92,7 @@ def configure_chart(
             filters,
             measure_values,
             label_runs=label_runs,
+            label_param=label_param,
         )
         return builder.build()
 
