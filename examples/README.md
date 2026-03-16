@@ -1,68 +1,71 @@
-# cwtwb SDK Examples
+# cwtwb SDK — Examples
 
-All scripts in `examples/scripts/` and prompts in `examples/prompts/` work
-out of the box after a standard `pip install`. No cloned repository or external
-data files are needed — the built-in Superstore dataset is bundled with the package.
+Run the hello-world example in under a minute:
 
 ```bash
 pip install cwtwb
-
-# Run your first example
-python examples/scripts/demo_connections.py
+python examples/scripts/demo_e2e_mcp_workflow.py
 ```
 
-> **Note for `hyper_and_new_charts.py`**: also requires the optional Hyper
-> dependency — install with `pip install "cwtwb[examples]"`.
+All scripts use the **built-in Superstore dataset** — no external files needed.
 
 ---
 
-## Scripts — Step by Step
+## Scripts — Simple to Complex
 
-Run these directly to explore the SDK from simple to complex.
+Seven runnable Python scripts, ordered from beginner to advanced.
 
 | Step | Script | Level | What it demonstrates |
 |------|--------|-------|----------------------|
 | 1 | `scripts/demo_connections.py` | ⭐ Beginner | Switch a workbook's datasource to MySQL or Tableau Server. No charts required. |
-| 2 | `scripts/demo_e2e_mcp_workflow.py` | ⭐ Beginner | Full MCP sequence: create workbook → calculated field → Bar + Pie charts → dashboard → save. The canonical "hello world". |
-| 3 | `scripts/demo_auto_layout4.py` | ⭐⭐ Intermediate | KPI text cards + bar charts + 3-row declarative layout (header / KPI band / charts) with `fixed_size`. |
-| 4 | `scripts/demo_declarative_layout.py` | ⭐⭐ Intermediate | 8 worksheets (KPI text + bar charts) assembled into 3 dashboards from external JSON layout files. |
-| 5 | `scripts/demo_all_supported_charts_mcp.py` | ⭐⭐⭐ Advanced | All 15 chart types via MCP tools: 11 core charts + 4 recipe charts (Lollipop, Donut, Butterfly, Calendar). |
+| 2 | `scripts/demo_e2e_mcp_workflow.py` | ⭐ Beginner | Full end-to-end sequence: create workbook → calculated field → Bar + Pie charts → dashboard → save. The canonical hello world. |
+| 3 | `scripts/demo_auto_layout4.py` | ⭐⭐ Intermediate | KPI text cards + bar charts assembled into a 3-row layout (header / KPI band / charts) with `fixed_size`. |
+| 4 | `scripts/demo_declarative_layout.py` | ⭐⭐⭐ Advanced | 8 worksheets assembled into 3 dashboards driven by external JSON layout files in `layouts/`. |
+| 5 | `scripts/demo_all_supported_charts_mcp.py` | ⭐⭐⭐ Advanced | All 15 chart types via **MCP tool functions** — the same path an LLM follows at runtime. |
+| 6 | `scripts/demo_all_supported_charts.py` | ⭐⭐⭐ Advanced | Same 15-chart showcase using the **direct `TWBEditor` Python API**. Good for SDK regression testing. |
+| 7 | `scripts/demo_hyper_and_new_charts.py` | ⭐⭐⭐ Advanced | Scatterplot · Heatmap · Tree Map · Bubble Chart in a 2×2 grid, optionally against a Hyper extract. Needs `pip install "cwtwb[examples]"`. |
+
+Run any script from the project root:
+
+```bash
+python examples/scripts/demo_e2e_mcp_workflow.py
+python examples/scripts/demo_all_supported_charts.py
+```
 
 ---
 
-## Prompts — Step by Step
+## Prompts — for MCP / LLM Clients
 
-Copy these into any LLM client with the `cwtwb` MCP server configured.
+Copy these into any LLM client (Claude, etc.) with the `cwtwb` MCP server configured.
 
 | Step | Prompt file | Level | What it demonstrates |
 |------|-------------|-------|----------------------|
-| 1 | `prompts/demo_simple.md` | ⭐ Beginner | 2 KPI cards + 2 bar charts, with `generate_layout_json` + vertical dashboard layout. |
-| 2 | `prompts/demo_auto_layout_prompt.md` | ⭐ Beginner | 3 bar charts described in plain language → horizontal split dashboard inferred by the LLM. |
-| 3 | `prompts/test_parameter_prefix_bug.md` | ⭐ Beginner | Parameter creation + calculated fields with and without `[Parameters].` prefix. Good for verifying parameter syntax. |
+| 1 | `prompts/demo_simple.md` | ⭐ Beginner | 2 KPI cards + 2 bar charts with `generate_layout_json` + vertical dashboard. |
+| 2 | `prompts/demo_auto_layout_prompt.md` | ⭐ Beginner | 3 bar charts in plain language → horizontal-split dashboard inferred by the LLM. |
+| 3 | `prompts/test_parameter_prefix_bug.md` | ⭐ Beginner | Parameter creation + calculated fields with/without `[Parameters].` prefix. Good for verifying parameter syntax. |
 | 4 | `prompts/demo_auto_layout4_prompt.md` | ⭐⭐ Intermediate | KPI cards + bar charts + 3-row layout with fixed header and KPI band. |
-| 5 | `prompts/demo_c2_layout_prompt.md` | ⭐⭐ Intermediate | 8 worksheets (4 bar + 4 KPI text) assembled with a C.2 JSON layout file. Requires `examples/layouts/layout_c2.json`. |
-| 6 | `prompts/demo_declarative_layout_prompt.md` | ⭐⭐ Intermediate | 8 worksheets assembled into 2 dashboards from two JSON layout files. Requires `examples/layouts/`. |
-| 7 | `prompts/all_supported_charts_showcase_en.md` | ⭐⭐⭐ Advanced | Full chart catalog: 15 chart types including all core primitives and recipe-level charts. |
+| 5 | `prompts/demo_c2_layout_prompt.md` | ⭐⭐ Intermediate | 8 worksheets assembled with a C.2 JSON layout. Requires `layouts/layout_c2.json`. |
+| 6 | `prompts/demo_declarative_layout_prompt.md` | ⭐⭐ Intermediate | 8 worksheets into 2 dashboards from two JSON layout files. Requires `layouts/`. |
+| 7 | `prompts/all_supported_charts_showcase_en.md` | ⭐⭐⭐ Advanced | Full chart catalog — all 15 chart types including core primitives and recipe charts. |
 | 8 | `prompts/overview_business_demo.md` | ⭐⭐⭐ Advanced | Parameters + LOD fields + Map + Area charts + filter sidebar + dashboard actions. Business executive demo (English). |
-| 9 | `prompts/overview_natural_en.md` | ⭐⭐⭐ Advanced | Structured replication of the full Overview dashboard. Parameters, 6 calculated fields, 4 charts, filter sidebar, 3 actions. |
-| 10 | `prompts/overview_natural zh_cn.md` | ⭐⭐⭐ Advanced | Same as step 9 in Chinese — pure natural language description. |
+| 9 | `prompts/overview_natural_en.md` | ⭐⭐⭐ Advanced | Full Overview dashboard: parameters, 6 calculated fields, 4 charts, filter sidebar, 3 actions. (English) |
+| 10 | `prompts/overview_natural zh_cn.md` | ⭐⭐⭐ Advanced | Same as step 9 in Chinese — pure natural-language description. |
 
 ---
 
-## Other Examples (Separate Subfolders)
+## Showcase Projects
 
-These live in their own subfolders and may have additional dependencies.
+End-to-end examples with their own subfolders and all required assets.
 
-| Example | What it shows | Notes |
-|---------|---------------|-------|
-| `hyper_and_new_charts.py` | Scatterplot, Heatmap, Tree Map, Bubble Chart against the bundled EU Superstore Hyper extract | Needs `pip install "cwtwb[examples]"` for `tableauhyperapi` |
-| `all_supported_charts.py` | Same 15-chart showcase as step 5, using the direct `TWBEditor` API instead of MCP tools | Works after plain `pip install cwtwb` |
-| `superstore_recreated/build_exec_overview.py` | Full recreation of the Tableau Superstore "Exec Overview" — table calculations, KPI badges, donut via `extra_axes`, Top N filters | Works after plain `pip install cwtwb` |
-| `migrate_workflow/` | Migrate an existing `.twb` workbook to a new datasource with field mapping | Requires the `.twb` and `.xls` files bundled in that folder |
+| Project | What it shows | How to run |
+|---------|---------------|------------|
+| `superstore_recreated/` | Full recreation of Tableau's "Exec Overview" dashboard — table calculations, KPI badges, donut via `extra_axes`, Top N filters, rich-text labels | `python examples/superstore_recreated/build_exec_overview.py` |
+| `migrate_workflow/` | Migrate an existing `.twb` workbook to a new datasource with automatic field mapping and a migration report | `python examples/migrate_workflow/test_migration_workflow.py` |
+| `screenshot2layout/` | Dashboard screenshots paired with their JSON layout descriptors — useful as reference input for layout-generation workflows | Open the PNGs and JSON files directly |
 
 ---
 
 ## Output
 
-All examples write generated `.twb` files to the project-level `output/` directory,
-which is created automatically if it does not exist.
+All scripts write generated `.twb` files to `output/` in the project root,
+which is created automatically on first run.

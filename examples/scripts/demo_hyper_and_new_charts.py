@@ -1,14 +1,21 @@
-"""Advanced chart example with optional Hyper connection switching.
+"""Demo: Advanced Charts with Hyper Extract Connection
 
-This example stays in the advanced support tier. It demonstrates chart patterns
-such as Scatterplot, Heatmap, Tree Map, and Bubble Chart without implying that
-recipe-level charts are part of the default SDK promise.
+Step 7 / 7  |  Level: ⭐⭐⭐ Advanced
+Demonstrates: Scatterplot, Heatmap, Tree Map, and Bubble Chart assembled into
+a 2×2 grid dashboard. Optionally switches the datasource to the bundled EU
+Superstore Hyper extract when tableauhyperapi is installed.
+
+Requirements:
+    pip install "cwtwb[examples]"   # adds tableauhyperapi
+
+Usage:
+    python examples/scripts/demo_hyper_and_new_charts.py
 """
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from tableauhyperapi import Connection, HyperException, HyperProcess, Telemetry
 
@@ -38,7 +45,9 @@ def _resolve_orders_table_name(hyper_path: Path) -> str:
 
 
 def main():
-    output_path = Path(__file__).parent.parent / "output" / "hyper_and_new_charts.twb"
+    project_root = Path(__file__).resolve().parents[2]
+    output_path = project_root / "output" / "demo_hyper_and_new_charts.twb"
+    output_path.parent.mkdir(exist_ok=True)
 
     print("Initializing Editor...")
     editor = TWBEditor("")  # uses built-in default template from references/
@@ -104,10 +113,9 @@ def main():
         layout="grid-2x2",
     )
 
-    output_path.parent.mkdir(exist_ok=True)
     editor.save(str(output_path))
-    print(f"Successfully generated visualization to: {output_path}")
-    print("You can open this .twb file with Tableau Desktop to verify the results.")
+    print(f"Saved to {output_path}")
+    print("Open in Tableau Desktop to explore.")
 
 
 if __name__ == "__main__":

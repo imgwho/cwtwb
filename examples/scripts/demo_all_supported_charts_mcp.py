@@ -1,6 +1,6 @@
 """Demo: Full Chart Catalog via MCP Tools
 
-Step 5 / 5  |  Level: ⭐⭐⭐ Advanced
+Step 5 / 7  |  Level: ⭐⭐⭐ Advanced
 Demonstrates: All 15 supported chart types using only the exported MCP tool
 functions. Core charts (Bar, Line, Pie, Map, Scatterplot, Heatmap, Tree Map,
 Bubble, Area, Text, Dual Combo) via configure_chart/configure_dual_axis;

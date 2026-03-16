@@ -1,6 +1,6 @@
 """Demo: Nested Declarative Dashboard Layout
 
-Step 3 / 5  |  Level: ⭐⭐ Intermediate
+Step 3 / 7  |  Level: ⭐⭐ Intermediate
 Demonstrates: Building a 3-row dashboard with a fixed header, KPI band, and
 chart row using an inline Python layout dict. Covers Text KPIs + Bar charts
 + fixed_size / distribute-evenly layout containers.
