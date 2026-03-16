@@ -1,6 +1,6 @@
 """Demo: Multi-Dashboard Assembly from JSON Layout Files
 
-Step 4 / 5  |  Level: ⭐⭐⭐ Advanced
+Step 4 / 7  |  Level: ⭐⭐⭐ Advanced
 Demonstrates: Creating 8 worksheets (KPI text cards + bar charts) and
 assembling 3 dashboards using external JSON layout files loaded from
 examples/layouts/. Shows how to reuse a layout schema across dashboards.

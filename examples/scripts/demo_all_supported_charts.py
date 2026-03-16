@@ -1,26 +1,28 @@
-"""Generate a mixed workbook covering core, advanced, and recipe-heavy chart examples.
+"""Demo: Full Chart Catalog via Direct TWBEditor API
 
-This script is intentionally broader than the SDK's stable support promise. It is
-useful as a showcase and regression script, but it should not be read as a claim
-that every chart in this workbook is a first-class cwtwb primitive.
+Step 6 / 7  |  Level: ⭐⭐⭐ Advanced
+Demonstrates: All 15 chart types using the TWBEditor Python API directly
+(as opposed to the MCP tool wrappers in demo_all_supported_charts_mcp.py).
+Covers 11 core chart primitives + 4 recipe charts (Lollipop, Donut,
+Butterfly, Calendar). Useful as a regression script and SDK showcase.
+
+Usage:
+    python examples/scripts/demo_all_supported_charts.py
 """
 
 import sys
 from pathlib import Path
 
 # Add src to sys.path to easily import the local cwtwb package
-project_root = Path(__file__).resolve().parent.parent
+project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root / "src"))
 
 from cwtwb.charts.showcase_recipes import configure_chart_recipe
 from cwtwb.twb_editor import TWBEditor
 
 
-def generate_all_charts():
-    # Setup Paths
-    output_path = project_root / "output" / "all_supported_charts.twb"
-
-    # Ensure output dir exists
+def main():
+    output_path = project_root / "output" / "demo_all_supported_charts.twb"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     print("Initializing Editor...")
@@ -95,49 +97,32 @@ def generate_all_charts():
     # 12. Lollipop Chart
     print("Configuring: Lollipop Chart")
     editor.add_worksheet("Lollipop Chart")
-    configure_chart_recipe(
-        editor,
-        "Lollipop Chart",
-        "lollipop",
-        {"dimension": "State/Province", "measure": "SUM(Sales)"},
-    )
+    configure_chart_recipe(editor, "Lollipop Chart", "lollipop", {"dimension": "State/Province", "measure": "SUM(Sales)"})
 
     # 13. Donut Chart
     print("Configuring: Donut Chart")
     editor.add_worksheet("Donut Chart")
-    configure_chart_recipe(
-        editor,
-        "Donut Chart",
-        "donut",
-        {"category": "Category", "measure": "SUM(Sales)"},
-    )
+    configure_chart_recipe(editor, "Donut Chart", "donut", {"category": "Category", "measure": "SUM(Sales)"})
 
-    # 14. Butterfly Chart (reversed first axis)
+    # 14. Butterfly Chart
     print("Configuring: Butterfly Chart")
     editor.add_worksheet("Butterfly Chart")
     configure_chart_recipe(
         editor,
         "Butterfly Chart",
         "butterfly",
-        {
-            "dimension": "Region",
-            "left_measure": "SUM(Sales)",
-            "right_measure": "SUM(Quantity)",
-        },
+        {"dimension": "Region", "left_measure": "SUM(Sales)", "right_measure": "SUM(Quantity)"},
     )
 
     # 15. Calendar Chart
     print("Configuring: Calendar Chart")
     editor.add_worksheet("Calendar Chart")
-    configure_chart_recipe(
-        editor,
-        "Calendar Chart",
-        "calendar",
-    )
+    configure_chart_recipe(editor, "Calendar Chart", "calendar")
 
     print(f"Saving to {output_path}...")
     editor.save(str(output_path))
-    print("Success!")
+    print("Done! Open the .twb in Tableau Desktop to explore all 15 chart types.")
+
 
 if __name__ == "__main__":
-    generate_all_charts()
+    main()

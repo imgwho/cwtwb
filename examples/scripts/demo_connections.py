@@ -1,6 +1,6 @@
 """Demo: Configure Database Connections
 
-Step 1 / 5  |  Level: ⭐ Beginner
+Step 1 / 7  |  Level: ⭐ Beginner
 Demonstrates: Switching a workbook's datasource to MySQL or Tableau Server.
 No chart knowledge required — just connection configuration.
 

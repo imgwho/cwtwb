@@ -1,6 +1,6 @@
 """Demo: End-to-End MCP Server Workflow
 
-Step 2 / 5  |  Level: ⭐ Beginner
+Step 2 / 7  |  Level: ⭐ Beginner
 Demonstrates: Full MCP tool call sequence — create workbook, add a calculated
 field, configure 2 charts (Bar + Pie), assemble into a dashboard, and save.
 This is the canonical "hello world" for the cwtwb SDK.
