@@ -195,14 +195,17 @@ These are supported, but they are higher-level compositions or interaction featu
 - **Heatmap**
 - **Tree Map**
 - **Bubble Chart**
-- **Dual Axis**
+- **Dual Axis** — `mark_color_1/2`, `color_map_1`, `reverse_axis_1`, `hide_zeroline`, `synchronized`
 - **Table Calculations** — `RANK_DENSE`, `RUNNING_SUM`, `WINDOW_SUM` via `add_calculated_field(table_calc="Rows")`
 - **KPI Difference badges** — `MIN(1)` dummy axis + `axis_fixed_range` + `color_map` + `customized_label`
-- **Donut (via extra_axes)** — multi-pane Pie + white circle using `configure_dual_axis(extra_axes=[...])`
+- **Donut (via extra_axes)** — multi-pane Pie + white circle using `configure_dual_axis(extra_axes=[...])`; supports `color_map` for `:Measure Names` palette
+- **Rich-text labels** — `configure_chart(label_runs=[...])` for multi-style KPI cards and dynamic titles with inline field values
+- **Advanced worksheet styling** — `configure_worksheet_style` supports pane-level cell/datalabel/mark styles, per-field label/cell/header formats, axis tick control, tooltip disabling, and all Tableau visual noise suppressions
 - **Row dimension header suppression** — `configure_worksheet_style(hide_row_label="FieldName")`
 - Filter zones, parameter controls, color legends
 - Dashboard filter and highlight actions
 - Declarative JSON layout workflows
+- Dashboard zone title control via `show_title: false` in layout dicts
 
 ### Recipes and showcase patterns
 
@@ -310,10 +313,10 @@ pip install -e .
 pytest --basetemp=output/pytest_tmp
 
 # Run the mixed showcase example
-python examples/all_supported_charts.py
+python examples/scripts/demo_all_supported_charts.py
 
 # Run the advanced Hyper-backed example
-python examples/hyper_and_new_charts.py
+python examples/scripts/demo_hyper_and_new_charts.py
 
 # Run the guided migration example
 python examples/migrate_workflow/test_migration_workflow.py
