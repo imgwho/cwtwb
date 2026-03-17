@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-03-17
+
+### Added
+
+- **`.twbx` (Packaged Workbook) support**: `TWBEditor` now reads and writes Tableau Packaged Workbook files transparently.
+  - **Open**: `TWBEditor("file.twbx")` and `TWBEditor.open_existing("file.twbx")` unzip the archive, locate the embedded `.twb`, and parse it in-memory. The source ZIP path and inner filename are recorded for later re-packing.
+  - **Save as `.twbx`**: `editor.save("output.twbx")` serializes the updated XML and re-packs it into a new ZIP, carrying over all bundled assets (`.hyper` data extracts, images, etc.) from the source `.twbx` automatically.
+  - **Save as `.twb` from a `.twbx` source**: `editor.save("output.twb")` extracts just the workbook XML, discarding the packaging.
+  - **Plain `.twb` → `.twbx`**: any `.twb`-sourced workbook can be packaged by saving with a `.twbx` extension; the result is a single-entry ZIP containing the workbook XML.
+  - MCP tools `create_workbook`, `open_workbook`, and `save_workbook` all support `.twbx` paths with no changes to call signatures.
+- **`tests/test_twbx_support.py`**: 25 pytest cases covering open, round-trip save, extract/image preservation, plain-TWB-to-TWBX conversion, modify-and-resave, and MCP tool integration.
+
 ## [0.13.0] - 2026-03-17
 
 ### Added

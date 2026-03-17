@@ -11,8 +11,10 @@ Core capabilities:
 from __future__ import annotations
 
 import copy
+import io
 import logging
 import re
+import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -44,7 +46,23 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
 
         # Parse with XMLParser to preserve original formatting
         parser = etree.XMLParser(remove_blank_text=False)
-        self.tree = etree.parse(str(template_path), parser)
+
+        # Track .twbx source so we can re-pack on save
+        self._twbx_source: Path | None = None
+        self._twbx_twb_name: str | None = None
+
+        if template_path.suffix.lower() == ".twbx":
+            self._twbx_source = template_path
+            with zipfile.ZipFile(template_path) as zf:
+                twb_names = [n for n in zf.namelist() if n.lower().endswith(".twb")]
+                if not twb_names:
+                    raise ValueError(f"No .twb file found inside {template_path}")
+                self._twbx_twb_name = twb_names[0]
+                twb_bytes = zf.read(self._twbx_twb_name)
+            self.tree = etree.parse(io.BytesIO(twb_bytes), parser)
+        else:
+            self.tree = etree.parse(str(template_path), parser)
+
         self.root = self.tree.getroot()
         self.template_path = template_path
         self._sanitize_workbook_tree()
@@ -620,10 +638,13 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         return "\n".join(lines)
 
     def save(self, output_path: str | Path, validate: bool = True) -> str:
-        """Save the TWB file.
+        """Save the workbook as a .twb or .twbx file.
 
         Args:
-            output_path: File path to save the .twb file.
+            output_path: Destination path. Use .twbx extension to produce a
+                packaged workbook (ZIP containing the .twb XML plus any data
+                extracts / images bundled from the source .twbx, if one was
+                opened). Use .twb for a plain XML workbook.
             validate: If True (default), run structural validation before saving.
                       Raises TWBValidationError if the structure is broken.
 
@@ -641,11 +662,32 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
 
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        self.tree.write(
-            str(output_path),
-            xml_declaration=True,
-            encoding="utf-8",
-            pretty_print=False,
-        )
+
+        if output_path.suffix.lower() == ".twbx":
+            # Serialize the XML into memory
+            buf = io.BytesIO()
+            self.tree.write(buf, xml_declaration=True, encoding="utf-8", pretty_print=False)
+            twb_bytes = buf.getvalue()
+
+            # Name for the .twb entry inside the ZIP
+            inner_twb_name = self._twbx_twb_name or output_path.with_suffix(".twb").name
+
+            with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zout:
+                # Write the updated workbook XML
+                zout.writestr(inner_twb_name, twb_bytes)
+                # Copy bundled extracts / images from the source .twbx if available
+                if self._twbx_source and self._twbx_source.exists():
+                    with zipfile.ZipFile(self._twbx_source) as zsrc:
+                        for info in zsrc.infolist():
+                            if info.filename != self._twbx_twb_name:
+                                zout.writestr(info, zsrc.read(info.filename))
+        else:
+            self.tree.write(
+                str(output_path),
+                xml_declaration=True,
+                encoding="utf-8",
+                pretty_print=False,
+            )
+
         return f"Saved workbook to {output_path}"
 

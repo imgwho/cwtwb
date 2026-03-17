@@ -36,7 +36,7 @@ def _format_dashboards(editor: TWBEditor) -> str:
 
 @server.tool()
 def create_workbook(template_path: str = "", workbook_name: str = "") -> str:
-    """Create a new workbook from a TWB template file."""
+    """Create a new workbook from a TWB or TWBX template file."""
 
     editor = TWBEditor(template_path)
     set_editor(editor)
@@ -53,7 +53,7 @@ def create_workbook(template_path: str = "", workbook_name: str = "") -> str:
 
 @server.tool()
 def open_workbook(file_path: str) -> str:
-    """Open an existing workbook for in-place worksheet editing."""
+    """Open an existing workbook (.twb or .twbx) for in-place worksheet editing."""
 
     editor = TWBEditor.open_existing(file_path)
     set_editor(editor)
@@ -467,7 +467,9 @@ def add_dashboard_action(
 
 @server.tool()
 def save_workbook(output_path: str) -> str:
-    """Save the workbook as a TWB file."""
+    """Save the workbook as a TWB file. Use a .twbx extension to produce a
+    packaged workbook (ZIP) that bundles the XML with any data extracts and
+    images carried over from the source .twbx."""
 
     editor = get_editor()
     return editor.save(output_path)

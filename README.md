@@ -1,21 +1,21 @@
 # cwtwb
 
-> **Tableau Workbook (.twb) generation toolkit for reproducible dashboards and workbook engineering**
+> **Tableau Workbook (.twb/.twbx) generation toolkit for reproducible dashboards and workbook engineering**
 > Programmatically create Tableau workbooks with stable analytical primitives, dashboard composition, and built-in structural validation.
 
 ## Overview
 
-**cwtwb** is a Model Context Protocol (MCP) server and Python toolkit for generating Tableau Desktop workbook files (`.twb`) from code or AI-driven tool calls.
+**cwtwb** is a Model Context Protocol (MCP) server and Python toolkit for generating Tableau Desktop workbook files (`.twb` / `.twbx`) from code or AI-driven tool calls.
 
 It is designed as a **workbook engineering layer**, not as a conversational data exploration agent. The goal is to make workbook generation reproducible, inspectable, and safe to automate in local workflows, scripts, and CI.
 
 The default workflow is:
 
-1. Start from a known template or the built-in zero-config template
+1. Start from a known template (`.twb` or `.twbx`) or the built-in zero-config template
 2. Add calculated fields and parameters
 3. Build worksheets from stable chart primitives
 4. Assemble dashboards and interactions
-5. Save and validate a `.twb` that opens in Tableau Desktop
+5. Save and validate a `.twb` or `.twbx` that opens in Tableau Desktop
 
 ```
                             Interfaces
@@ -51,10 +51,10 @@ The default workflow is:
                                ▼
   ┌───────────────────────────────────────────────────────────────┐
   │                     XML Engine  (lxml)                        │
-  │          template.twb  →  patch  →  validate  →  save        │
+  │    template.twb/.twbx  →  patch  →  validate  →  save        │
   └───────────────────────────────┬───────────────────────────────┘
                                   ▼
-                             output.twb
+                      output.twb  /  output.twbx
 ```
 
 ## Installation
@@ -182,12 +182,40 @@ editor.add_dashboard(
 editor.save("output/my_workbook.twb")
 ```
 
+### Working with Packaged Workbooks (.twbx)
+
+`.twbx` files are ZIP archives that bundle the workbook XML together with data extracts (`.hyper`) and image assets. cwtwb reads and writes them transparently:
+
+```python
+from cwtwb.twb_editor import TWBEditor
+
+# Open a packaged workbook — extracts and images are preserved automatically
+editor = TWBEditor.open_existing("templates/dashboard/MyDashboard.twbx")
+
+# Make changes as usual
+editor.add_calculated_field("Profit Ratio", "SUM([Profit])/SUM([Sales])")
+
+# Save as .twbx — re-bundles the updated .twb with the original extracts/images
+editor.save("output/MyDashboard_v2.twbx")
+
+# Or extract just the XML when the packaged format isn't needed
+editor.save("output/MyDashboard_v2.twb")
+```
+
+A plain `.twb` can also be packaged:
+
+```python
+editor = TWBEditor("templates/twb/superstore.twb")
+# ...
+editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .twb inside
+```
+
 ## MCP Tools
 
 | Tool | Description |
 |---|---|
-| `create_workbook` | Load a TWB template and initialize a rebuild-from-template workspace |
-| `open_workbook` | Open an existing `.twb` and keep its worksheets and dashboards for editing |
+| `create_workbook` | Load a `.twb` or `.twbx` template and initialize a rebuild-from-template workspace |
+| `open_workbook` | Open an existing `.twb` or `.twbx` and keep its worksheets and dashboards for editing |
 | `list_fields` | List all available dimensions and measures |
 | `list_worksheets` | List worksheet names in the active workbook |
 | `list_dashboards` | List dashboards and the worksheet zones they reference |
@@ -210,7 +238,7 @@ editor.save("output/my_workbook.twb")
 | `set_mysql_connection` | Configure the datasource to use a local MySQL connection |
 | `set_tableauserver_connection` | Configure connection to an online Tableau Server |
 | `set_hyper_connection` | Configure the datasource to use a local Hyper extract connection |
-| `save_workbook` | Save the final TWB file without persisting top-level thumbnail blobs |
+| `save_workbook` | Save the workbook as `.twb` (plain XML) or `.twbx` (ZIP with bundled extracts and images) |
 
 ## Capability Model
 
@@ -280,7 +308,7 @@ This keeps new feature work aligned with the project's real product boundary ins
 
 - **Fatal errors** such as missing `<workbook>` or `<datasources>` raise `TWBValidationError`
 - **Warnings** such as missing `<view>` or `<panes>` are logged but do not block saving
-- Validation can be disabled with `editor.save("output.twb", validate=False)`
+- Validation can be disabled with `editor.save("output.twb", validate=False)` or `editor.save("output.twbx", validate=False)`
 
 ## Dashboard Layouts
 
