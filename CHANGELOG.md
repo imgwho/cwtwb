@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-03-17
+
+### Added
+
+- **Rich-text `label_runs` in `configure_chart`**: Multi-style labels built from a list of run dicts. Each run supports `text` (literal string), `field` (field expression → `<field_ref>` CDATA), `prefix`, and per-run font attributes (`fontname`, `fontsize`, `fontcolor`, `bold`, `fontalignment`). Use `"\n"` as text to insert a paragraph separator. Pass `"fontalignment": None` to suppress the default alignment attribute. Enables KPI cards with two-line labels, dynamic titles with inline field values, and branded separators.
+- **14 new `configure_worksheet_style` options**:
+  - `hide_col_field_labels` / `hide_row_field_labels` — hide column and row field label headers in table/cross-tab views
+  - `hide_droplines` — remove drop lines from mark tooltips
+  - `hide_table_dividers` — remove row/column divider lines in cross-tab views
+  - `hide_reflines` — hide reference lines
+  - `disable_tooltip` — disable tooltip entirely (`tooltip-mode='none'`)
+  - `pane_cell_style: dict` — pane-level cell text alignment, e.g. `{"text-align": "center", "vertical-align": "center"}`
+  - `pane_datalabel_style: dict` — pane-level data label font family, size, and color
+  - `pane_mark_style: dict` — pane-level mark color, stroke, transparency, and size (0.0–1.0 scale via `"size"` key)
+  - `pane_trendline_hidden: bool` — hide trendline in pane style
+  - `label_formats: list[dict]` — per-field label style (font, color, orientation, display toggle)
+  - `cell_formats: list[dict]` — per-field table cell style
+  - `header_formats: list[dict]` — per-field header height/width
+  - `axis_style: dict` — global tick color plus per-field axis display and height control
+- **`mark_color_1` in `configure_dual_axis`**: Explicit hex color for primary-axis marks, symmetric with the existing `mark_color_2`. Useful for pairing a gray bar (`mark_color_1`) against a blue target GanttBar (`mark_color_2`).
+- **`color_map_1` in `configure_dual_axis`**: Datasource-level palette mapping for the primary-axis `color_1` field, using the same mechanism as `configure_chart(color_map=...)`.
+- **`default_format` in `add_calculated_field`**: Optional Tableau number format string written as `default-format` on the column XML, e.g. `'c"$"#,##0,.0K'`.
+- **`color_map` in `configure_dual_axis(extra_axes=[...])`**: Custom palette for `:Measure Names` when used as `"color"` on an extra axis. Each bucket is mapped to a hex color via a datasource-level `<encoding>` element.
+- **`show_title` in dashboard layout nodes**: Pass `show_title: false` in a layout zone dict to suppress the worksheet title bar inside a dashboard zone.
+- **Expanded test suite — 7 new test modules**:
+  - `test_worksheet_style.py` — all 18 `configure_worksheet_style` options (hide flags, background, pane styles, per-field formats, axis style)
+  - `test_label_runs.py` — text runs, field-ref runs, newline separator, font styling, prefix, fontalignment suppression, KPI card and dynamic title patterns
+  - `test_dual_axis_basic.py` — horizontal/vertical dual-axis combos, shared axis, color encoding, filters
+  - `test_dual_axis_advanced.py` — `mark_color_1/2`, `color_map_1`, `reverse_axis_1`, `hide_zeroline`, synchronized axis, `show_labels`, `size_value_1/2`
+  - `test_dashboard_action_types.py` — highlight action (`tsc:brush`), field-captions param, multiple coexisting actions, error handling (unsupported type, unknown dashboard)
+  - `test_mcp_tools.py` — `remove_calculated_field` (add/remove/re-add cycle), connection MCP wrappers, `inspect_target_schema`, `list_capabilities`, `analyze_twb`
+  - `test_template_datasource_structure.py` — Superstore template structural sanity: column count, connection class, datasource-dependencies
+- **`tests/README.md`**: Full test suite documentation — run instructions, file index grouped by coverage area, function-to-test mapping table, known gaps.
+
+### Changed
+
+- **Examples reorganized**: Scripts moved from `examples/` root into `examples/scripts/` with consistent `demo_` prefix naming. `examples/README.md` updated with a new 7-script progression table and expanded Showcase Projects section.
+- **Exec Overview example refined**: Dashboard header updated to 2023, KPI cards use `pane_cell_style` for center alignment, `show_title: false` on Sales by Sub-Category worksheet, spacer zone added for axis alignment.
+
 ## [0.12.0] - 2026-03-13
 
 ### Added
