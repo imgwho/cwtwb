@@ -357,17 +357,96 @@ extract bundled directly in the package (`src/cwtwb/references/`) and resolves t
 physical `Orders_*` table via Tableau Hyper API before switching the workbook connection.
 No repository clone is needed — install with `pip install "cwtwb[examples]"` and run directly.
 
-## Guided Migration Example
+## Workbook Migration
 
-The self-contained migration case under `examples/migrate_workflow/` includes a
-template `.twb`, the original Superstore Excel, the target Chinese Superstore
-Excel, and a runnable script that writes the migrated workbook plus JSON reports
-back into that same example folder.
+cwtwb includes a migration subsystem for switching an existing `.twb` to a new
+datasource — for example, repointing a workbook built on one Excel file to a
+different Excel with a different schema, or migrating between language variants
+of the same dataset.
 
-The guided migration workflow now pauses when only low-confidence warnings
-remain and returns a compact `warning_review_bundle`. You can confirm those
-suggested mappings by passing them back through `mapping_overrides`, which keeps
-the core migration flow deterministic and avoids any server-side model keys.
+### How it works
+
+Migration is a multi-step workflow. Each step is available as both an MCP tool
+and a Python function:
+
+```
+1. inspect_target_schema   →  Scan the target Excel and list its columns
+2. profile_twb_for_migration  →  Inventory which fields the workbook uses
+3. propose_field_mapping   →  Match source fields to target columns (fuzzy)
+4. preview_twb_migration   →  Dry-run: show what would change, blockers/warnings
+5. apply_twb_migration     →  Write the migrated .twb + JSON reports
+```
+
+`migrate_twb_guided` is a convenience wrapper that runs steps 2–5 in sequence
+and pauses automatically when only low-confidence field matches remain, returning
+a `warning_review_bundle` for human review before proceeding.
+
+### Python example
+
+```python
+from cwtwb.migration import migrate_twb_guided_json
+import json
+
+# One-call guided migration
+result = migrate_twb_guided_json(
+    file_path="templates/SalesDashboard.twb",
+    target_source="data/new_data_source.xlsx",
+    output_path="output/SalesDashboard_migrated.twb",
+)
+bundle = json.loads(result)
+
+if bundle["status"] == "warning_review_required":
+    # Inspect low-confidence matches and confirm or override them
+    print(bundle["warning_review_bundle"])
+    # Re-run with confirmed mappings
+    result = migrate_twb_guided_json(
+        file_path="templates/SalesDashboard.twb",
+        target_source="data/new_data_source.xlsx",
+        output_path="output/SalesDashboard_migrated.twb",
+        mapping_overrides={"Old Field Name": "New Column Name"},
+    )
+```
+
+### MCP tool example
+
+When using cwtwb as an MCP server, an AI agent can run the full workflow:
+
+```
+inspect_target_schema(target_source="data/new_data_source.xlsx")
+→ returns column list and data types
+
+migrate_twb_guided(
+    file_path="templates/SalesDashboard.twb",
+    target_source="data/new_data_source.xlsx",
+    output_path="output/SalesDashboard_migrated.twb"
+)
+→ returns status: "applied" or "warning_review_required"
+```
+
+### Output files
+
+A completed migration writes three files:
+
+| File | Contents |
+|---|---|
+| `<output>.twb` | Migrated workbook with rewritten field references |
+| `migration_report.json` | Per-field status: mapped / warning / blocked |
+| `field_mapping.json` | Final source→target field mapping for audit |
+
+### Scope parameter
+
+`scope="workbook"` migrates all worksheets. Pass a worksheet name to limit
+migration to a single sheet.
+
+### Self-contained example
+
+`examples/migrate_workflow/` contains a template `.twb`, the original
+Superstore Excel, a target Chinese-locale Superstore Excel, and a runnable
+script:
+
+```bash
+python examples/migrate_workflow/test_migration_workflow.py
+```
 
 ## Project Structure
 
