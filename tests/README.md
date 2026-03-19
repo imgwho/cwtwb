@@ -70,7 +70,7 @@ most fundamental to most complex.
 | File | Coverage |
 |------|----------|
 | `test_connections.py` | SDK: `set_mysql_connection`, `set_tableauserver_connection`, `set_hyper_connection` (with XML verification) |
-| `test_mcp_tools.py` | MCP wrappers: same three tools via `server.py`; XML verification |
+| `test_mcp_tools.py` | MCP wrappers: MySQL/Tableau Server/Hyper connection tools via `server.py`; XML verification |
 | `test_template_datasource_structure.py` | Superstore template's column count, connection class, datasource-dependencies |
 
 ### SDK Core — Dashboards
@@ -87,7 +87,7 @@ most fundamental to most complex.
 | File | Coverage |
 |------|----------|
 | `test_dashboard_actions.py` | `filter` action: XML structure, link expression, command params |
-| `test_dashboard_action_types.py` | `highlight` action: `tsc:brush` command, field-captions param, special-fields=all, multiple coexisting actions; error handling (unsupported type, unknown dashboard, custom caption/event_type) |
+| `test_dashboard_action_types.py` | `highlight`, `url`, and `go-to-sheet` actions; field-captions param, special-fields=all, multiple coexisting actions; error handling (unsupported type, unknown dashboard, custom caption/event_type) |
 
 ### SDK Core — Map Charts
 
@@ -116,6 +116,12 @@ most fundamental to most complex.
 | `test_mcp_tools.py` | `remove_calculated_field` (add/remove/re-add cycle, XML verification); connection MCP wrappers; `inspect_target_schema` (non-hyper path); `list_capabilities`; `analyze_twb` |
 | `test_mcp_showcase_workbook.py` | All supported chart types via MCP tools end-to-end |
 | `test_existing_workbook_editing.py` | `open_workbook`, reconfigure worksheets, parameter restore, dashboard zone ID continuity, thumbnail stripping |
+
+### MCP Tool Layer — Guided Authoring Runs
+
+| File | Coverage |
+|------|----------|
+| `test_agentic_authoring_v1.py` | Run lifecycle (`start/list/status/resume`), prompt registration, Excel/Hyper schema intake, contract review/finalize/confirmation gates, rewrite-after-rejection flow, execution plan generation, end-to-end workbook generation, and `workbook_generation_failed` failure state |
 
 ### Analysis, Capability Registry & Migration
 
@@ -172,11 +178,16 @@ The table below maps each SDK/MCP public function to its primary test file.
 | `add_parameter` | `test_level1_features.py`, `test_twb_structure.py` |
 | `add_dashboard` | `test_declarative_dashboards.py`, `test_twb_structure.py`, `test_c2_replica.py` |
 | `add_dashboard_action` (filter) | `test_dashboard_actions.py` |
-| `add_dashboard_action` (highlight) | `test_dashboard_action_types.py` |
+| `add_dashboard_action` (highlight/url/go-to-sheet) | `test_dashboard_action_types.py` |
+| `set_worksheet_caption` | `test_agentic_authoring_v1.py` |
 | `generate_layout_json` | `test_layout_ascii.py` |
 | `set_mysql_connection` | `test_connections.py`, `test_mcp_tools.py` |
 | `set_tableauserver_connection` | `test_connections.py`, `test_mcp_tools.py` |
 | `set_hyper_connection` | `test_connections.py`, `test_mcp_tools.py` |
+| `start_authoring_run` / `list_authoring_runs` / `get_run_status` / `resume_authoring_run` | `test_agentic_authoring_v1.py` |
+| `intake_datasource_schema` | `test_agentic_authoring_v1.py` |
+| `draft_authoring_contract` / `review_authoring_contract_for_run` / `finalize_authoring_contract` / `confirm_authoring_stage` | `test_agentic_authoring_v1.py` |
+| `build_execution_plan` / `generate_workbook_from_run` | `test_agentic_authoring_v1.py` |
 | `inspect_target_schema` | `test_mcp_tools.py` |
 | `list_fields` / `list_worksheets` / `list_dashboards` | `test_e2e.py`, `test_existing_workbook_editing.py` |
 | `list_capabilities` | `test_mcp_tools.py`, `test_capability_registry.py` |
@@ -191,9 +202,9 @@ The table below maps each SDK/MCP public function to its primary test file.
 
 ## Known Gaps & Out-of-Scope
 
-- **`inspect_target_schema` on real `.hyper` files**: requires `tableauhyperapi` installed and a real `.hyper` file. The MCP test covers the non-hyper fallback path only.
+- **`intake_datasource_schema` on real `.hyper` files**: covered in `test_agentic_authoring_v1.py`, but the test is skipped when the local `tableauhyperapi` runtime is unavailable or cannot inspect the sample extract in the current environment.
+- **Dedicated `set_excel_connection` unit test**: the Excel connection path is exercised indirectly by the guided authoring run generation flow, but there is not yet a standalone low-level XML verification test for `set_excel_connection`.
 - **`configure_chart` with `label_param`**: parameter-driven label content is not separately unit-tested (tested implicitly via `label_runs` with `param` key).
 - **`configure_chart` with `customized_label`** (raw string override): no dedicated test; simple text labels are covered by `test_label_runs.py`.
-- **`url` dashboard action type**: explicitly unsupported; error-path tested in `test_dashboard_action_types.py`.
 - **Multi-table hyper connection** (`tables` parameter in `set_hyper_connection`): no unit test; requires a real multi-table `.hyper` file.
-- **MCP resources** (`read_skill`, `read_skills_index`, `read_tableau_functions`): no automated tests; they are thin file-read wrappers.
+- **MCP resources and prompts**: skills/profile resources and prompt registration are partially covered in `test_agentic_authoring_v1.py`, but there is still no dedicated end-to-end client test that verifies prompt invocation behavior inside a third-party MCP client.

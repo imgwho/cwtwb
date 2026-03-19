@@ -30,7 +30,8 @@ AVAILABLE RESOURCES
 
 USAGE PATTERN (recommended by server instructions)
 ---------------------------------------------------
-  Before each major phase, fetch the relevant skill:
+  In guided authoring runs, fetch the workflow skill first and then the phase skills:
+    read_resource("cwtwb://skills/authoring_workflow")
     read_resource("cwtwb://skills/chart_builder")    # before configure_chart
     read_resource("cwtwb://skills/dashboard_designer") # before add_dashboard
 """

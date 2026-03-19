@@ -16,6 +16,19 @@ from .mcp.resources import (
     read_tableau_functions,
 )
 from .mcp.tools_layout import generate_layout_json
+from .mcp.tools_authoring import (
+    build_execution_plan,
+    confirm_authoring_stage,
+    draft_authoring_contract,
+    finalize_authoring_contract,
+    generate_workbook_from_run,
+    get_run_status,
+    intake_datasource_schema,
+    list_authoring_runs,
+    resume_authoring_run,
+    review_authoring_contract_for_run,
+    start_authoring_run,
+)
 from .mcp.tools_migration import (
     apply_twb_migration,
     inspect_target_schema,
@@ -48,6 +61,7 @@ from .mcp.tools_workbook import (
     open_workbook,
     remove_calculated_field,
     save_workbook,
+    set_excel_connection,
     set_worksheet_caption,
     set_hyper_connection,
     set_mysql_connection,

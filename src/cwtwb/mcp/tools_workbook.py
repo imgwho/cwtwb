@@ -31,6 +31,7 @@ TOOL INVENTORY
   configure_worksheet_style — apply background, axis, grid, cell formatting
   add_dashboard      — create a dashboard from a list of worksheet names
   add_dashboard_action — wire filter/highlight interactions between sheets
+  set_excel_connection — replace the datasource connection with a local Excel file
   set_mysql_connection / set_tableauserver_connection / set_hyper_connection
                      — replace the datasource connection in the workbook
   save_workbook      — serialize and write the current editor to a .twb/.twbx file
@@ -449,6 +450,22 @@ def inspect_target_schema(target_source: str) -> str:
                 lines.append(f"  {col['name']}: {col['type']}")
         return "\n".join(lines)
     return f"Unsupported file type: {target_source}"
+
+
+@server.tool()
+def set_excel_connection(
+    filepath: str,
+    sheet_name: str = "",
+    fields: list[dict] | None = None,
+) -> str:
+    """Configure the workbook datasource to use a local Excel connection."""
+
+    editor = get_editor()
+    return editor.set_excel_connection(
+        filepath=filepath,
+        sheet_name=sheet_name,
+        fields=fields,
+    )
 
 
 @server.tool()
