@@ -313,8 +313,7 @@ def create_worksheets(editor: TWBEditor) -> None:
         sort_descending="SUM(Current Year Sales)",
         filters=yf + [{"column": "State/Province", "top": 5, "by": "SUM(Current Year Sales)"}],
         label_runs=[
-            {"field": "State/Province", "fontname": "Tableau Regular", "fontcolor": "#333333"},
-            {"text": "\n"},
+
             {"field": "SUM(Current Year Sales)", "fontname": "Tableau Bold", "fontsize": 12, "fontcolor": "#666666"},
             {"text": "\n"},
         ],

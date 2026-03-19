@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-03-19
+
+### Fixed
+
+- **`FieldRegistry.remove()` missing**: `TWBEditor.remove_calculated_field()` and its `remove_calculated_field` MCP tool called `self.field_registry.remove()`, but `FieldRegistry` only defined `unregister()`. Added the missing `remove()` method; the MCP tool now works correctly instead of raising `AttributeError`.
+- **Dual-axis pane secondary ID mismatch**: `DualAxisChartBuilder` wrote `id="3"` for the secondary pane in both horizontal and vertical configurations, while all test assertions and internal lookups expected `id="2"`. Changed pane_2 id to `"2"` in both the same-measure (lollipop/donut) and different-measure (combo) branches.
+- **`format_capability_catalog()` missing `level_filter` parameter**: The function signature accepted no arguments, but the capability registry design and test suite expected an optional `level_filter: str` parameter to restrict output to a single level (e.g. `"core"`). Added the parameter; calling without it preserves the existing full-catalog behavior.
+- **`inspect_target_schema` crashes on non-Excel paths**: The MCP tool passed any path directly to `xlrd.open_workbook()`, raising `FileNotFoundError` or `XLRDError` for `.csv`, non-existent files, or unsupported formats. Added an extension check up-front and a `try/except` fallback; both now return a readable `"Unsupported…"` string instead of an exception.
+- **`analyze_twb` missing Capability gap section**: `analyze_twb` returned only `report.to_text()`, omitting the decision-oriented gap summary that `diff_template_gap` produces separately. The tool now appends `report.to_gap_text()` so a single `analyze_twb` call includes both the capability catalog and the gap triage.
+
 ## [0.15.0] - 2026-03-18
 
 ### Added

@@ -29,7 +29,7 @@ def analyze_twb(file_path: str) -> str:
     """Analyze a TWB file against cwtwb's declared capabilities."""
 
     report = analyze_workbook(file_path)
-    return report.to_text()
+    return report.to_text() + "\n\n" + report.to_gap_text()
 
 
 @server.tool()

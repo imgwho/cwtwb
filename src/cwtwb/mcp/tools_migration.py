@@ -18,8 +18,17 @@ def inspect_target_schema(target_source: str) -> str:
     """Inspect the first-sheet schema of a target Excel datasource."""
 
     import json
+    from pathlib import Path
 
-    return json.dumps(inspect_target_schema_impl(target_source), ensure_ascii=False, indent=2)
+    path = Path(target_source)
+    suffix = path.suffix.lower()
+    if suffix not in (".xls", ".xlsx", ".xlsm", ".xlsb"):
+        return f"Unsupported file type '{suffix}'. Only Excel files (.xls, .xlsx, .xlsm, .xlsb) are supported."
+
+    try:
+        return json.dumps(inspect_target_schema_impl(target_source), ensure_ascii=False, indent=2)
+    except Exception as exc:
+        return f"Unsupported or unreadable file: {exc}"
 
 
 @server.tool()

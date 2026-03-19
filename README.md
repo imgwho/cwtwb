@@ -232,7 +232,7 @@ editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .t
 | `generate_layout_json` | Build an interactive structured dashboard flexbox layout |
 | `list_capabilities` | Show cwtwb's declared support boundary |
 | `describe_capability` | Explain whether a chart or feature is core, advanced, recipe, or unsupported |
-| `analyze_twb` | Analyze a `.twb` file against the capability catalog |
+| `analyze_twb` | Analyze a `.twb` file against the capability catalog; output includes both the full capability breakdown and the capability gap triage summary |
 | `diff_template_gap` | Summarize the non-core gap of a template |
 | `validate_workbook` | Validate a workbook against the official Tableau TWB XSD schema (2026.1) |
 | `migrate_twb_guided` | Run the built-in TWB migration workflow and pause for warning confirmation when needed |

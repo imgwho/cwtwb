@@ -7,7 +7,7 @@ MCP tools, docs, and tests can reference the same source of truth.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 
 
 CapabilityLevel = Literal["core", "advanced", "recipe", "unsupported"]
@@ -456,9 +456,13 @@ def format_capability_detail(kind: CapabilityKind, name: str) -> str:
     return "\n".join(lines)
 
 
-def format_capability_catalog() -> str:
-    """Render the registry as a concise human-readable summary."""
+def format_capability_catalog(level_filter: Optional[str] = None) -> str:
+    """Render the registry as a concise human-readable summary.
 
+    Args:
+        level_filter: If provided, only include capabilities of this level
+                      (e.g. "core", "advanced", "recipe", "unsupported").
+    """
     lines = ["cwtwb capability catalog", ""]
     summary = get_level_summary()
     lines.append(
@@ -468,7 +472,8 @@ def format_capability_catalog() -> str:
         f"recipe={summary['recipe']}, "
         f"unsupported={summary['unsupported']}"
     )
-    for level in ("core", "advanced", "recipe", "unsupported"):
+    levels = (level_filter,) if level_filter else ("core", "advanced", "recipe", "unsupported")
+    for level in levels:
         lines.append("")
         lines.append(f"[{level}]")
         level_items = list_capabilities(level=level)

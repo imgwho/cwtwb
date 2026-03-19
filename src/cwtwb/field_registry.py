@@ -117,6 +117,9 @@ class FieldRegistry:
     def unregister(self, display_name: str) -> None:
         self._fields.pop(display_name, None)
 
+    def remove(self, display_name: str) -> None:
+        self._fields.pop(display_name, None)
+
     # ---- Queries ----
 
     def get(self, display_name: str) -> Optional[FieldInfo]:
