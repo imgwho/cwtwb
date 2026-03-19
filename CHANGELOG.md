@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Guided MCP authoring runs**: added a datasource-first, human-in-the-loop workflow that starts from a real local Excel or Hyper file and writes versioned artifacts to `tmp/agentic_run/{run_id}/`.
+  - New run lifecycle MCP tools: `start_authoring_run`, `list_authoring_runs`, `get_run_status`, `resume_authoring_run`
+  - New guided authoring MCP tools: `intake_datasource_schema`, `draft_authoring_contract`, `review_authoring_contract_for_run`, `finalize_authoring_contract`, `confirm_authoring_stage`, `build_execution_plan`, `generate_workbook_from_run`
+  - New `authoring_run.py` runtime with run manifests, confirmation gates, artifact versioning, execution-plan generation, and failure-state tracking
+- **Datasource-first MCP prompts**: added `guided_dashboard_authoring`, `dashboard_brief_to_contract`, `light_elicitation`, and `authoring_execution_plan` to guide natural-language requests through schema intake, contract review, execution planning, and workbook generation.
+- **Excel datasource connection support**: added `set_excel_connection` to the SDK/MCP surface so guided runs can repoint the workbook datasource to a local Excel file selected during schema intake.
+- **New dashboard action types**: `add_dashboard_action` now supports `url` and `go-to-sheet` in addition to the existing `filter` and `highlight` behaviors.
+- **Worksheet captions**: added `set_worksheet_caption` to the SDK/MCP surface for plain-text worksheet captions.
+- **Authoring contract template update**: added `workbook_template` to the contract schema so guided runs can carry a template decision from contract finalization into execution planning.
+- **Regression coverage for guided runs**: added `tests/test_agentic_authoring_v1.py` covering prompt registration, run lifecycle, Excel/Hyper schema intake, contract rewrite-after-rejection, end-to-end workbook generation, and failure-state handling.
+
+### Changed
+
+- **Examples and docs**: replaced the old pre-baked `agentic_mcp_authoring` demo artifacts with a runtime-oriented walkthrough that starts from a datasource file and lets the MCP workflow generate artifacts dynamically.
+- **Skill guidance**: updated the skills documentation and authoring workflow skill to recommend a gated flow of `datasource -> schema -> contract -> execution plan -> generation`.
+- **Profile-aware contract review**: the contract review flow remains generic while using external dataset profiles as hints during normalization and defaulting.
+
+### Fixed
+
+- **Hyper schema inspection robustness**: Hyper inspection now uses project `tmp/` paths, falls back more safely when temporary copies are unavailable, and raises clearer runtime errors when the local Hyper environment cannot inspect the datasource.
+- **Workbook generation failure visibility**: guided runs now record `workbook_generation_failed` with the failed tool step and last error in the manifest, making interrupted runs resumable and diagnosable.
+
 ## [0.16.0] - 2026-03-19
 
 ### Fixed

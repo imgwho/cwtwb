@@ -175,6 +175,31 @@ def _find_matching_profile(contract: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def suggest_profile_matches(
+    *,
+    available_fields: list[str] | None = None,
+    dataset_name: str = "",
+    explicit_profile: str = "",
+) -> list[dict[str, str]]:
+    """Return dataset profile suggestions for a field list or dataset name."""
+
+    contract = {
+        "dataset": dataset_name,
+        "dataset_profile": explicit_profile,
+        "available_fields": available_fields or [],
+    }
+    matched = _find_matching_profile(contract)
+    if matched is None:
+        return []
+    return [
+        {
+            "id": str(matched.get("id", "")).strip(),
+            "label": str(matched.get("label", "")).strip(),
+            "path": str(matched.get("_path", "")).strip(),
+        }
+    ]
+
+
 def _build_execution_outline(contract: dict[str, Any], profile_label: str | None) -> list[str]:
     dashboard_name = contract.get("dashboard", {}).get("name") or "Analytical Dashboard"
     dataset_name = contract.get("dataset") or "the active dataset"
@@ -231,6 +256,7 @@ def review_authoring_contract_payload(contract_json: str) -> ContractReviewResul
 
     _set_if_blank(contract, "dataset", "", defaults_applied, path="dataset")
     _set_if_blank(contract, "dataset_profile", "", defaults_applied, path="dataset_profile")
+    _set_if_blank(contract, "workbook_template", "", defaults_applied, path="workbook_template")
     _set_if_blank(contract, "available_fields", [], defaults_applied, path="available_fields")
     _set_if_blank(contract, "worksheets", [], defaults_applied, path="worksheets")
     _set_if_blank(contract, "actions", [], defaults_applied, path="actions")

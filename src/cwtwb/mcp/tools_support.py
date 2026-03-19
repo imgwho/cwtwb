@@ -123,6 +123,6 @@ def validate_workbook(file_path: Optional[str] = None) -> str:
 
 @server.tool()
 def review_authoring_contract(contract_json: str) -> str:
-    """Review a draft authoring contract and apply Superstore-oriented defaults."""
+    """Review a draft authoring contract and apply profile-aware defaults."""
 
     return review_authoring_contract_payload(contract_json).to_json()

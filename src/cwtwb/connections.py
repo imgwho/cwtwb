@@ -8,11 +8,11 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from lxml import etree
 
-from .config import _generate_uuid
+from .config import TMP_DIR, _generate_uuid
 
 
 def inspect_hyper_schema(filepath: str) -> dict:
@@ -32,31 +32,40 @@ def inspect_hyper_schema(filepath: str) -> dict:
     from tableauhyperapi import HyperProcess, Connection, Telemetry, SchemaName
 
     # Copy to a temp file so we don't fail on locked hyper files
-    tmp_dir = tempfile.mkdtemp(prefix="cwtwb_hyper_")
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_dir = tempfile.mkdtemp(prefix="cwtwb_hyper_", dir=str(TMP_DIR))
     tmp_path = os.path.join(tmp_dir, os.path.basename(filepath))
     try:
-        shutil.copy2(filepath, tmp_path)
+        database_path = filepath
+        try:
+            shutil.copy2(filepath, tmp_path)
+            database_path = tmp_path
+        except PermissionError:
+            database_path = filepath
 
         tables_out: list[dict] = []
-        with HyperProcess(telemetry=Telemetry.DO_NOT_SEND_USAGE_DATA_TO_TABLEAU) as hyper:
-            with Connection(
-                endpoint=hyper.endpoint,
-                database=tmp_path,
-            ) as conn:
-                for schema_name in conn.catalog.get_schema_names():
-                    for table_name in conn.catalog.get_table_names(schema_name):
-                        table_def = conn.catalog.get_table_definition(table_name)
-                        columns = []
-                        for col in table_def.columns:
-                            columns.append({
-                                "name": col.name.unescaped,
-                                "type": str(col.type),
+        try:
+            with HyperProcess(telemetry=Telemetry.DO_NOT_SEND_USAGE_DATA_TO_TABLEAU) as hyper:
+                with Connection(
+                    endpoint=hyper.endpoint,
+                    database=database_path,
+                ) as conn:
+                    for schema_name in conn.catalog.get_schema_names():
+                        for table_name in conn.catalog.get_table_names(schema_name):
+                            table_def = conn.catalog.get_table_definition(table_name)
+                            columns = []
+                            for col in table_def.columns:
+                                columns.append({
+                                    "name": col.name.unescaped,
+                                    "type": str(col.type),
+                                })
+                            tables_out.append({
+                                "schema": str(schema_name),
+                                "name": table_name.name.unescaped,
+                                "columns": columns,
                             })
-                        tables_out.append({
-                            "schema": str(schema_name),
-                            "name": table_name.name.unescaped,
-                            "columns": columns,
-                        })
+        except Exception as exc:
+            raise RuntimeError(f"Unable to inspect Hyper schema: {exc}") from exc
         return {"tables": tables_out}
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -64,6 +73,47 @@ def inspect_hyper_schema(filepath: str) -> dict:
 
 class ConnectionsMixin:
     """Mixin providing database connection methods for TWBEditor."""
+
+    def _register_external_fields(self, fields: list[dict[str, Any]] | None) -> None:
+        """Replace datasource field stubs from an inspected external schema."""
+
+        if not fields:
+            self.field_registry.set_unknown_field_policy(allow_unknown_fields=True)
+            return
+
+        for col in list(self._datasource.findall("column")):
+            calc = col.find("calculation")
+            if calc is None:
+                self._datasource.remove(col)
+
+        insert_before = self._datasource.find("layout")
+        for field in fields:
+            name = str(field.get("name", "")).strip()
+            if not name:
+                continue
+            datatype = str(field.get("datatype") or field.get("inferred_type") or "string").strip().lower()
+            if datatype not in {"string", "integer", "real", "boolean", "date", "datetime"}:
+                datatype = "string"
+            role = str(field.get("role", "dimension")).strip().lower() or "dimension"
+            field_type = str(field.get("field_type") or field.get("type") or "nominal").strip().lower()
+
+            col = etree.Element("column")
+            col.set("name", f"[{name}]")
+            col.set("caption", name)
+            col.set("datatype", "date" if datatype == "datetime" else datatype)
+            col.set("role", role)
+            col.set("type", field_type)
+            semantic_role = str(field.get("semantic_role", "")).strip().lower()
+            if semantic_role == "geographic":
+                col.set("semantic-role", "state")
+
+            if insert_before is not None:
+                insert_before.addprevious(col)
+            else:
+                self._datasource.append(col)
+
+        self._reinit_fields()
+        self.field_registry.set_unknown_field_policy(allow_unknown_fields=True)
 
     def set_mysql_connection(
         self,
@@ -149,6 +199,7 @@ class ConnectionsMixin:
             mr.getparent().remove(mr)
 
         self._reinit_fields()
+        self.field_registry.set_unknown_field_policy(allow_unknown_fields=True)
         return f"Configured MySQL connection to {server}/{dbname} (table: {table_name})"
 
     def set_tableauserver_connection(
@@ -219,7 +270,78 @@ class ConnectionsMixin:
             mr.getparent().remove(mr)
 
         self._reinit_fields()
+        self.field_registry.set_unknown_field_policy(allow_unknown_fields=True)
         return f"Configured Tableau Server connection to {server}/{dbname} (table: {table_name})"
+
+    def set_excel_connection(
+        self,
+        filepath: str,
+        sheet_name: str = "",
+        fields: list[dict[str, Any]] | None = None,
+    ) -> str:
+        """Configure the datasource to use a local Excel file."""
+
+        fed_conn = self._datasource.find("connection[@class='federated']")
+        if fed_conn is None:
+            for old_conn in self._datasource.findall("connection"):
+                self._datasource.remove(old_conn)
+            fed_conn = etree.Element("connection")
+            fed_conn.set("class", "federated")
+            self._datasource.insert(0, fed_conn)
+
+        named_conns = fed_conn.find("named-connections")
+        if named_conns is None:
+            named_conns = etree.SubElement(fed_conn, "named-connections")
+        else:
+            for child in list(named_conns):
+                named_conns.remove(child)
+
+        conn_name = f"excel-direct.{_generate_uuid().strip('{}').lower()}"
+        nc = etree.SubElement(named_conns, "named-connection")
+        nc.set("caption", os.path.basename(filepath))
+        nc.set("name", conn_name)
+
+        excel_conn = etree.SubElement(nc, "connection")
+        excel_conn.set("class", "excel-direct")
+        excel_conn.set("cleaning", "no")
+        excel_conn.set("compat", "no")
+        excel_conn.set("dataRefreshTime", "")
+        excel_conn.set("filename", filepath.replace("\\", "/"))
+        excel_conn.set("interpretationMode", "0")
+        excel_conn.set("password", "")
+        excel_conn.set("server", "")
+        excel_conn.set("validate", "no")
+
+        if not sheet_name:
+            sheet_name = "Sheet1"
+
+        relation = fed_conn.find("relation")
+        if relation is None:
+            relation = etree.SubElement(fed_conn, "relation")
+        relation.set("connection", conn_name)
+        relation.set("name", sheet_name)
+        relation.set("table", f"[{sheet_name}$]")
+        relation.set("type", "table")
+        for cols in relation.findall("columns"):
+            relation.remove(cols)
+
+        for og_rel in self._datasource.findall(".//object-graph//relation"):
+            og_rel.set("connection", conn_name)
+            og_rel.set("name", sheet_name)
+            og_rel.set("table", f"[{sheet_name}$]")
+            og_rel.set("type", "table")
+            for cols in og_rel.findall("columns"):
+                og_rel.remove(cols)
+
+        for mr in self._datasource.findall(".//metadata-record"):
+            mr.getparent().remove(mr)
+
+        aliases = self._datasource.find("aliases")
+        if aliases is not None:
+            self._datasource.remove(aliases)
+
+        self._register_external_fields(fields)
+        return f"Configured Excel connection to {filepath} (sheet: {sheet_name})"
 
     def set_hyper_connection(
         self,
@@ -321,7 +443,26 @@ class ConnectionsMixin:
         for mr in self._datasource.findall(".//metadata-record"):
             mr.getparent().remove(mr)
 
-        self._reinit_fields()
+        registered_fields: list[dict[str, Any]] = []
+        if tables:
+            for table in tables:
+                for column in table.get("columns", []):
+                    if isinstance(column, dict):
+                        field_name = str(column.get("name", "")).strip()
+                    else:
+                        field_name = str(column).strip()
+                    if not field_name:
+                        continue
+                    registered_fields.append(
+                        {
+                            "name": field_name,
+                            "role": "dimension",
+                            "field_type": "nominal",
+                            "datatype": "string",
+                        }
+                    )
+
+        self._register_external_fields(registered_fields)
         if tables and len(tables) > 1:
             names = ", ".join(t["name"] for t in tables)
             return f"Configured Hyper connection to {filepath} (tables: {names})"

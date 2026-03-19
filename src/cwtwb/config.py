@@ -33,9 +33,10 @@ CONTRACTS_DIR = Path(__file__).parent / "contracts"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
+TMP_DIR = PROJECT_ROOT / "tmp"
+DEFAULT_AUTHORING_RUNS_DIR = TMP_DIR / "agentic_run"
 DEFAULT_PROFILE_DIRS = (
     EXAMPLES_DIR / "profiles",
-    EXAMPLES_DIR / "agentic_mcp_authoring" / "profiles",
 )
 
 

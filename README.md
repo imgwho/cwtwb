@@ -17,6 +17,16 @@ The default workflow is:
 4. Assemble dashboards and interactions
 5. Save and validate a `.twb` or `.twbx` that opens in Tableau Desktop
 
+For natural-language MCP authoring, cwtwb also supports a guided run workflow
+that starts from a real datasource file instead of a hand-written contract:
+
+1. Start an authoring run from a local Excel or Hyper file
+2. Inspect the datasource schema and pause for human confirmation
+3. Draft, review, and finalize a structured authoring contract
+4. Pause for human confirmation again before planning and generation
+5. Build a mechanical execution plan and generate the final workbook
+6. Persist every intermediate artifact under `tmp/agentic_run/{run_id}/`
+
 ```
                             Interfaces
   ┌───────────────────────────────────────────────────────────────┐
@@ -144,6 +154,12 @@ In VSCode, you can open these files from the Command Palette with
 **MCP: Open User Configuration**. You can also use **MCP: Add Server** and
 enter the same `uvx cwtwb` command through the guided flow.
 
+For local testing without `uvx`, you can also start the server with:
+
+```bash
+python -m cwtwb.mcp
+```
+
 ### As Python Library
 
 Use `TWBEditor(...)` to start from a template and rebuild workbook content.
@@ -214,6 +230,17 @@ editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .t
 
 | Tool | Description |
 |---|---|
+| `start_authoring_run` | Create a guided datasource-first authoring run and persist its manifest under `tmp/agentic_run/{run_id}/` |
+| `list_authoring_runs` | List previously created authoring runs, their current status, and available artifacts |
+| `get_run_status` | Inspect one authoring run, including confirmation gates, current artifact versions, and failure details |
+| `resume_authoring_run` | Re-open a previous authoring run after a client or server restart |
+| `intake_datasource_schema` | Read the run datasource from the manifest and persist a structured schema summary for Excel or Hyper |
+| `draft_authoring_contract` | Create a contract draft from the schema summary plus a human brief |
+| `review_authoring_contract_for_run` | Review the current draft, apply profile-aware defaults, and produce clarification guidance |
+| `finalize_authoring_contract` | Merge review output with human answers and persist the finalized contract |
+| `confirm_authoring_stage` | Approve or reject the `schema`, `contract`, or `execution_plan` checkpoint |
+| `build_execution_plan` | Convert the finalized contract into a mechanical MCP tool-call plan |
+| `generate_workbook_from_run` | Execute the confirmed plan, save the workbook, and persist validation and analysis reports |
 | `create_workbook` | Load a `.twb` or `.twbx` template and initialize a rebuild-from-template workspace |
 | `open_workbook` | Open an existing `.twb` or `.twbx` and keep its worksheets and dashboards for editing |
 | `list_fields` | List all available dimensions and measures |
@@ -228,7 +255,8 @@ editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .t
 | `configure_dual_axis` | Configure a dual-axis chart composition |
 | `configure_chart_recipe` | Configure a showcase recipe chart such as `lollipop`, `donut`, `butterfly`, or `calendar` |
 | `add_dashboard` | Create a dashboard combining worksheets |
-| `add_dashboard_action` | Add filter or highlight actions to a dashboard |
+| `add_dashboard_action` | Add filter, highlight, URL, or go-to-sheet actions to a dashboard |
+| `set_worksheet_caption` | Set or clear a worksheet caption using plain text |
 | `generate_layout_json` | Build an interactive structured dashboard flexbox layout |
 | `list_capabilities` | Show cwtwb's declared support boundary |
 | `describe_capability` | Explain whether a chart or feature is core, advanced, recipe, or unsupported |
@@ -236,10 +264,56 @@ editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .t
 | `diff_template_gap` | Summarize the non-core gap of a template |
 | `validate_workbook` | Validate a workbook against the official Tableau TWB XSD schema (2026.1) |
 | `migrate_twb_guided` | Run the built-in TWB migration workflow and pause for warning confirmation when needed |
+| `set_excel_connection` | Configure the datasource to use a local Excel workbook and register fields from the selected sheet |
 | `set_mysql_connection` | Configure the datasource to use a local MySQL connection |
 | `set_tableauserver_connection` | Configure connection to an online Tableau Server |
 | `set_hyper_connection` | Configure the datasource to use a local Hyper extract connection |
 | `save_workbook` | Save the workbook as `.twb` (plain XML) or `.twbx` (ZIP with bundled extracts and images) |
+
+## MCP Prompts
+
+The MCP server also exposes prompts that guide a datasource-first, human-in-the-loop workflow:
+
+| Prompt | Purpose |
+|---|---|
+| `guided_dashboard_authoring` | Top-level orchestration prompt for `datasource -> schema -> contract -> execution -> workbook` |
+| `dashboard_brief_to_contract` | Convert a human brief plus schema summary into a strict contract draft |
+| `light_elicitation` | Ask only the minimum missing business questions from a contract review |
+| `authoring_execution_plan` | Turn a finalized contract into an execution-oriented MCP build plan |
+
+## Guided MCP Authoring Runs
+
+Use the guided run flow when you want a more structured Agentic BI authoring experience than a single free-form tool sequence.
+
+High-level flow:
+
+1. `start_authoring_run(datasource_path=...)`
+2. `intake_datasource_schema(run_id)`
+3. Human confirms the schema with `confirm_authoring_stage(..., stage="schema")`
+4. `draft_authoring_contract(...)`
+5. `review_authoring_contract_for_run(...)`
+6. `finalize_authoring_contract(...)`
+7. Human confirms the contract with `confirm_authoring_stage(..., stage="contract")`
+8. `build_execution_plan(...)`
+9. Human confirms the plan with `confirm_authoring_stage(..., stage="execution_plan")`
+10. `generate_workbook_from_run(...)`
+
+Every run writes versioned artifacts, for example:
+
+```text
+tmp/agentic_run/20260319-153045-a1b2c3d4/manifest.json
+tmp/agentic_run/20260319-153045-a1b2c3d4/schema_summary.20260319-153046.json
+tmp/agentic_run/20260319-153045-a1b2c3d4/contract_final.20260319-153120.json
+tmp/agentic_run/20260319-153045-a1b2c3d4/execution_plan.20260319-153155.json
+tmp/agentic_run/20260319-153045-a1b2c3d4/final_workbook.twb
+tmp/agentic_run/20260319-153045-a1b2c3d4/validation_report.20260319-153205.json
+tmp/agentic_run/20260319-153045-a1b2c3d4/analysis_report.20260319-153206.json
+```
+
+Supported datasource types for this workflow today:
+
+- Excel (`.xls`, `.xlsx`, `.xlsm`)
+- Hyper (`.hyper`)
 
 ## Capability Model
 
@@ -272,7 +346,8 @@ These are supported, but they are higher-level compositions or interaction featu
 - **Advanced worksheet styling** — `configure_worksheet_style` supports pane-level cell/datalabel/mark styles, per-field label/cell/header formats, axis tick control, tooltip disabling, and all Tableau visual noise suppressions
 - **Row dimension header suppression** — `configure_worksheet_style(hide_row_label="FieldName")`
 - Filter zones, parameter controls, color legends
-- Dashboard filter and highlight actions
+- Dashboard filter, highlight, URL, and go-to-sheet actions
+- Worksheet captions
 - Declarative JSON layout workflows
 - Dashboard zone title control via `show_title: false` in layout dicts
 
@@ -456,6 +531,9 @@ cwtwb/
 |   |-- __init__.py
 |   |-- capability_registry.py
 |   |-- config.py
+|   |-- contracts/
+|   |-- authoring_contract.py
+|   |-- authoring_run.py
 |   |-- charts/
 |   |-- connections.py
 |   |-- dashboard_actions.py
@@ -468,6 +546,7 @@ cwtwb/
 |   |-- layout_rendering.py
 |   |-- mcp/
 |   |-- parameters.py
+|   |-- skills/
 |   |-- twb_analyzer.py
 |   |-- twb_editor.py
 |   |-- validator.py

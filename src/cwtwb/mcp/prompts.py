@@ -1,60 +1,47 @@
-"""MCP prompts for contract-first dashboard authoring."""
+"""MCP prompts for guided datasource-first dashboard authoring."""
 
 from __future__ import annotations
 
 import json
 
-from ..authoring_contract import review_authoring_contract_payload
 from .app import server
 from .resources import read_dashboard_authoring_contract, read_profiles_index
-
-
-def _parse_available_fields(raw_fields: str) -> list[str]:
-    tokens: list[str] = []
-    for chunk in raw_fields.replace(";", "\n").replace(",", "\n").splitlines():
-        value = chunk.strip()
-        if value and value not in tokens:
-            tokens.append(value)
-    return tokens
 
 
 @server.prompt(
     name="guided_dashboard_authoring",
     title="Guided Dashboard Authoring",
-    description="Turn a natural-language dashboard brief into a guided cwtwb MCP authoring workflow.",
+    description="Turn a natural-language dashboard brief plus a datasource path into a gated cwtwb authoring run.",
 )
 def guided_dashboard_authoring(
     brief: str,
-    dataset: str = "",
-    available_fields: str = "",
-    output_path: str = "output/agentic_mcp_client_demo.twb",
+    datasource_path: str,
+    output_dir: str = "tmp/agentic_run",
 ) -> list[dict[str, str]]:
-    """Guide the full MCP workflow from a natural-language dashboard request."""
+    """Guide the full datasource-first workflow with explicit confirmation gates."""
 
-    field_list = _parse_available_fields(available_fields)
     return [
         {
             "role": "user",
             "content": (
-                "You are orchestrating a cwtwb MCP dashboard authoring session.\n"
-                "The human request below should stay natural-language in the final interaction, "
-                "but your internal workflow must be contract-first.\n\n"
+                "You are orchestrating a cwtwb MCP dashboard authoring run.\n"
+                "The human interaction must stay natural-language, but your internal workflow must be datasource-first and gated.\n\n"
                 "Required workflow:\n"
-                "1. Call the MCP prompt dashboard_brief_to_contract.\n"
-                "2. Read cwtwb://contracts/dashboard_authoring_v1.\n"
-                "3. Read cwtwb://profiles/index and inspect any matching dataset profile.\n"
-                "4. Call review_authoring_contract on the drafted contract.\n"
-                "5. If clarification_questions are returned, stop and ask only those questions.\n"
-                "6. If the contract is valid, call the MCP prompts light_elicitation and authoring_execution_plan.\n"
-                "7. Read cwtwb://skills/authoring_workflow plus the phase skills you need.\n"
-                "8. Create the workbook, build worksheets, dashboard, actions, and captions.\n"
-                "9. Save to the requested output path, then run validate_workbook and analyze_twb.\n"
-                "10. Finish with a concise summary of the normalized contract, detected profile, output path, validation, and capability analysis.\n\n"
-                "Human brief:\n"
-                f"{brief}\n\n"
-                f"Dataset hint: {dataset or '(none)'}\n"
-                f"Available fields: {json.dumps(field_list, ensure_ascii=False)}\n"
-                f"Requested output path: {output_path}"
+                "1. Call start_authoring_run with the datasource path.\n"
+                "2. Call intake_datasource_schema and summarize the resulting schema_summary artifact.\n"
+                "3. Stop and ask the human to confirm the schema before continuing.\n"
+                "4. Call dashboard_brief_to_contract to think about the draft shape, then call draft_authoring_contract.\n"
+                "5. Call review_authoring_contract_for_run.\n"
+                "6. If intent is still missing, call light_elicitation and ask only those questions.\n"
+                "7. Call finalize_authoring_contract.\n"
+                "8. Stop and ask the human to confirm the finalized contract.\n"
+                "9. Call authoring_execution_plan to reason about the build, then call build_execution_plan.\n"
+                "10. Stop and ask the human to confirm the execution plan.\n"
+                "11. Only after confirmation, call generate_workbook_from_run.\n"
+                "12. Finish by summarizing the run id, key artifacts, final workbook path, validation, and analysis.\n\n"
+                f"Human brief:\n{brief}\n\n"
+                f"Datasource path: {datasource_path}\n"
+                f"Run output root: {output_dir}"
             ),
         }
     ]
@@ -63,17 +50,16 @@ def guided_dashboard_authoring(
 @server.prompt(
     name="dashboard_brief_to_contract",
     title="Dashboard Brief To Contract",
-    description="Turn a human dashboard brief into a strict cwtwb authoring contract JSON draft.",
+    description="Turn a human brief plus schema summary into a strict cwtwb contract draft.",
 )
 def dashboard_brief_to_contract(
     brief: str,
-    dataset: str = "",
-    available_fields: str = "",
+    schema_summary_json: str,
 ) -> list[dict[str, str]]:
-    """Convert a human brief into a structured contract draft."""
+    """Convert a human brief plus schema context into a contract draft prompt."""
 
     template = json.loads(read_dashboard_authoring_contract())
-    field_list = _parse_available_fields(available_fields)
+    schema_summary = json.loads(schema_summary_json)
     profile_index = read_profiles_index()
 
     return [
@@ -84,15 +70,14 @@ def dashboard_brief_to_contract(
                 "Rules:\n"
                 "- Output valid JSON only.\n"
                 "- Follow the template shape exactly.\n"
-                "- Keep dataset blank if unknown.\n"
-                "- Put any known fields into available_fields.\n"
-                "- Do not invent unsupported worksheets or fields.\n"
-                "- Keep actions aligned with the user's analytical flow.\n\n"
+                "- Use only fields present in the schema summary.\n"
+                "- Keep workbook_template blank unless the human explicitly asks for one.\n"
+                "- Prefer simple, supported worksheet ideas over speculative complexity.\n"
+                "- Do not continue to execution; this prompt is only for draft thinking.\n\n"
                 f"Contract template:\n{json.dumps(template, indent=2, ensure_ascii=False)}\n\n"
                 f"Known dataset profiles:\n{profile_index}\n\n"
-                f"Human brief:\n{brief}\n\n"
-                f"Dataset hint: {dataset or '(none)'}\n"
-                f"Available fields: {json.dumps(field_list, ensure_ascii=False)}"
+                f"Schema summary:\n{json.dumps(schema_summary, indent=2, ensure_ascii=False)}\n\n"
+                f"Human brief:\n{brief}"
             ),
         }
     ]
@@ -101,36 +86,39 @@ def dashboard_brief_to_contract(
 @server.prompt(
     name="light_elicitation",
     title="Light Elicitation",
-    description="Ask only the missing high-value follow-up questions for a dashboard contract.",
+    description="Ask only the missing high-value follow-up questions from a contract review artifact.",
 )
-def light_elicitation(contract_json: str) -> list[dict[str, str]]:
-    """Generate concise follow-up questions from a contract review result."""
+def light_elicitation(contract_review_json: str) -> list[dict[str, str]]:
+    """Generate concise follow-up questions from a persisted contract review."""
 
-    review = review_authoring_contract_payload(contract_json)
+    review = json.loads(contract_review_json)
     normalized_contract = json.dumps(
-        review.normalized_contract,
+        review.get("normalized_contract", {}),
         indent=2,
         ensure_ascii=False,
     )
 
-    if review.valid:
+    if review.get("valid"):
         content = (
             "The reviewed contract is already valid.\n"
             "Respond with exactly: No clarification needed.\n\n"
-            f"Review summary: {review.summary}\n"
+            f"Review summary: {review.get('summary', '')}\n"
             f"Normalized contract:\n{normalized_contract}"
         )
     else:
-        question_block = "\n".join(f"- {question}" for question in review.clarification_questions)
+        question_block = "\n".join(
+            f"- {question}" for question in review.get("clarification_questions", [])
+        )
         content = (
             "Ask the user only the minimum necessary follow-up questions.\n"
             "Rules:\n"
             "- Ask at most 3 questions.\n"
             "- Keep them short and business-oriented.\n"
-            "- Do not ask about fields that already have defaults.\n"
-            "- Preserve the current analytical direction.\n\n"
-            f"Review summary: {review.summary}\n"
-            f"Detected profile: {review.detected_profile or '(none)'}\n"
+            "- Do not ask about fields that already exist in the schema summary.\n"
+            "- Preserve the current analytical direction.\n"
+            "- Stop after asking; do not continue to generation.\n\n"
+            f"Review summary: {review.get('summary', '')}\n"
+            f"Detected profile: {review.get('detected_profile') or '(none)'}\n"
             f"Suggested clarification questions:\n{question_block}\n\n"
             f"Normalized contract:\n{normalized_contract}"
         )
@@ -141,19 +129,12 @@ def light_elicitation(contract_json: str) -> list[dict[str, str]]:
 @server.prompt(
     name="authoring_execution_plan",
     title="Authoring Execution Plan",
-    description="Produce a concise MCP execution plan from a reviewed cwtwb authoring contract.",
+    description="Produce a concise build-oriented MCP execution plan from a finalized contract.",
 )
-def authoring_execution_plan(contract_json: str) -> list[dict[str, str]]:
-    """Generate an execution-oriented MCP plan from a contract."""
+def authoring_execution_plan(contract_final_json: str) -> list[dict[str, str]]:
+    """Generate an execution-oriented MCP plan from a finalized contract."""
 
-    review = review_authoring_contract_payload(contract_json)
-    normalized_contract = json.dumps(
-        review.normalized_contract,
-        indent=2,
-        ensure_ascii=False,
-    )
-    outline = "\n".join(f"{idx}. {step}" for idx, step in enumerate(review.execution_outline, start=1))
-    skills = ", ".join(review.recommended_skills)
+    contract_final = json.loads(contract_final_json)
 
     return [
         {
@@ -161,17 +142,12 @@ def authoring_execution_plan(contract_json: str) -> list[dict[str, str]]:
             "content": (
                 "Create a concise MCP execution plan for cwtwb.\n"
                 "Rules:\n"
-                "- Use the reviewed contract as the source of truth.\n"
-                "- Keep the plan aligned to cwtwb MCP resources, prompts, and tools.\n"
-                "- Mention required skills in execution order.\n"
-                "- Mention validation before final save.\n"
-                "- If the contract is still missing critical intent, say so first.\n\n"
-                f"Review valid: {review.valid}\n"
-                f"Review summary: {review.summary}\n"
-                f"Detected profile: {review.detected_profile or '(none)'}\n"
-                f"Recommended skills: {skills}\n"
-                f"Execution outline:\n{outline}\n\n"
-                f"Normalized contract:\n{normalized_contract}"
+                "- Use the finalized contract as the source of truth.\n"
+                "- Assume schema confirmation has already happened.\n"
+                "- Describe the likely tool sequence, but stop before execution.\n"
+                "- Mention the final human confirmation gate before generate_workbook_from_run.\n"
+                "- Keep the reasoning aligned to supported workbook tools.\n\n"
+                f"Final contract:\n{json.dumps(contract_final, indent=2, ensure_ascii=False)}"
             ),
         }
     ]

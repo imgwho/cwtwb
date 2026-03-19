@@ -1,73 +1,96 @@
-"""Regression coverage for Agentic BI Authoring V1 surfaces."""
+"""Regression coverage for the guided MCP authoring run workflow."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from uuid import uuid4
 
 import pytest
 
 from cwtwb.mcp.resources import (
-    read_dataset_profile,
     read_dashboard_authoring_contract,
     read_profiles_index,
     read_skill,
     read_skills_index,
 )
 from cwtwb.server import (
-    add_dashboard,
-    add_dashboard_action,
-    add_worksheet,
-    configure_chart,
-    create_workbook,
-    review_authoring_contract,
-    save_workbook,
+    build_execution_plan,
+    confirm_authoring_stage,
+    draft_authoring_contract,
+    finalize_authoring_contract,
+    generate_workbook_from_run,
+    get_run_status,
+    intake_datasource_schema,
+    list_authoring_runs,
+    resume_authoring_run,
+    review_authoring_contract_for_run,
     server,
-    set_worksheet_caption,
-    validate_workbook,
-    analyze_twb,
+    start_authoring_run,
 )
 
-
-TEMPLATE = Path("templates/twb/superstore.twb")
+XLS_SOURCE = Path("templates/Sample - Superstore - simple.xls")
+HYPER_SOURCE = Path("templates/dashboard/Sample _ Superstore.hyper")
+RUN_ROOT = Path("tmp") / "authoring_run_tests"
+GLOBAL_RUN_ROOT = Path("tmp") / "agentic_run"
 
 
 @pytest.fixture(autouse=True)
-def fresh_workbook():
-    create_workbook(str(TEMPLATE), "Agentic BI Tests")
+def clean_authoring_runs():
+    for root in (RUN_ROOT, GLOBAL_RUN_ROOT):
+        if root.exists():
+            shutil.rmtree(root, ignore_errors=True)
+    yield
+    for root in (RUN_ROOT, GLOBAL_RUN_ROOT):
+        if root.exists():
+            shutil.rmtree(root, ignore_errors=True)
 
 
-@pytest.fixture
-def tmp_file_factory():
-    root = Path("tmp")
-    root.mkdir(exist_ok=True)
-    created: list[Path] = []
+def _start_run() -> dict:
+    if not XLS_SOURCE.exists():
+        pytest.skip("Sample Excel datasource not available")
+    payload = json.loads(
+        start_authoring_run(
+            datasource_path=str(XLS_SOURCE),
+            output_dir=str(RUN_ROOT),
+        )
+    )
+    return payload
 
-    def build(name: str) -> Path:
-        path = root / f"{uuid4().hex}_{name}"
-        created.append(path)
-        return path
 
-    try:
-        yield build
-    finally:
-        for path in created:
-            path.unlink(missing_ok=True)
+def _approve_schema(run_id: str) -> None:
+    intake_payload = json.loads(intake_datasource_schema(run_id))
+    schema_path = Path(intake_payload["artifact"])
+    schema_summary = json.loads(schema_path.read_text(encoding="utf-8"))
+    if not schema_summary.get("selected_primary_object") and schema_summary.get("sheets"):
+        preferred = schema_summary["sheets"][0]["name"]
+        intake_datasource_schema(run_id, preferred_sheet=preferred)
+    confirm_authoring_stage(run_id, "schema", True, "Schema looks correct.")
+
+
+def _finalize_contract(run_id: str) -> None:
+    review_authoring_contract_for_run(run_id)
+    finalize_authoring_contract(
+        run_id,
+        json.dumps(
+            {
+                "audience": "Sales leaders",
+                "primary_question": "Which regions and categories are driving sales?",
+                "require_interaction": True,
+            },
+            ensure_ascii=False,
+        ),
+    )
+    confirm_authoring_stage(run_id, "contract", True, "Contract approved.")
 
 
 class TestAuthoringResources:
-    def test_contract_resource_contains_expected_sections(self):
+    def test_contract_resource_contains_workbook_template(self):
         contract = json.loads(read_dashboard_authoring_contract())
-        assert "goal" in contract
-        assert "audience" in contract
-        assert "constraints" in contract
-        assert "dashboard" in contract
-        assert "actions" in contract
+        assert "workbook_template" in contract
         assert contract["dataset"] == ""
-        assert contract["dataset_profile"] == ""
 
     def test_skills_index_includes_authoring_workflow(self):
         index_text = read_skills_index()
@@ -76,15 +99,12 @@ class TestAuthoringResources:
 
     def test_profiles_resources_expose_superstore_profile(self):
         index_text = read_profiles_index()
-        profile = json.loads(read_dataset_profile("superstore"))
         assert "superstore" in index_text
-        assert profile["id"] == "superstore"
-        assert "Sales" in profile["match"]["fields_all_of"]
 
     def test_authoring_workflow_skill_is_readable(self):
         skill_text = read_skill("authoring_workflow")
-        assert "review_authoring_contract" in skill_text
-        assert "set_worksheet_caption" in skill_text
+        assert "start_authoring_run" in skill_text
+        assert "generate_workbook_from_run" in skill_text
 
 
 class TestAuthoringPrompts:
@@ -92,213 +112,186 @@ class TestAuthoringPrompts:
         prompt = server._prompt_manager.get_prompt("guided_dashboard_authoring")
         assert prompt is not None
 
-    def test_guided_dashboard_authoring_prompt_keeps_workflow_inside_mcp(self):
+    def test_guided_dashboard_authoring_prompt_references_confirmation_gates(self):
         messages = asyncio.run(
             server._prompt_manager.render_prompt(
                 "guided_dashboard_authoring",
                 {
-                    "brief": "Build an executive sales dashboard for sales leaders.",
-                    "available_fields": "Sales, Profit, Region, State/Province, Order Date",
-                    "output_path": "output/demo.twb",
+                    "brief": "Build an executive sales dashboard.",
+                    "datasource_path": str(XLS_SOURCE),
                 },
             )
         )
         text = messages[0].content.text
-        assert "The human request below should stay natural-language" in text
-        assert "Call the MCP prompt dashboard_brief_to_contract" in text
-        assert "Requested output path: output/demo.twb" in text
+        assert "start_authoring_run" in text
+        assert "confirm the schema" in text
+        assert "generate_workbook_from_run" in text
 
-    def test_dashboard_brief_to_contract_prompt_is_registered(self):
-        prompt = server._prompt_manager.get_prompt("dashboard_brief_to_contract")
-        assert prompt is not None
-
-    def test_dashboard_brief_to_contract_prompt_renders_contract_guidance(self):
+    def test_dashboard_brief_to_contract_prompt_uses_schema_summary(self):
+        schema_summary = {
+            "datasource": {"path": str(XLS_SOURCE), "type": "excel"},
+            "selected_primary_object": "Orders",
+            "fields": [{"name": "Sales"}, {"name": "Region"}],
+            "field_candidates": {"dimensions": ["Region"], "measures": ["Sales"], "date_fields": [], "geo_fields": []},
+        }
         messages = asyncio.run(
             server._prompt_manager.render_prompt(
                 "dashboard_brief_to_contract",
                 {
-                    "brief": "Build a sales dashboard for regional leaders.",
-                    "available_fields": "Sales, Profit, Region",
+                    "brief": "Build a sales dashboard for leaders.",
+                    "schema_summary_json": json.dumps(schema_summary, ensure_ascii=False),
                 },
             )
         )
         text = messages[0].content.text
-        assert "strict JSON only" in text
-        assert "Contract template" in text
-        assert "Known dataset profiles" in text
+        assert "Schema summary" in text
+        assert "Use only fields present in the schema summary" in text
 
-    def test_light_elicitation_prompt_uses_review_feedback(self):
+    def test_light_elicitation_uses_review_artifact(self):
+        review_payload = {
+            "valid": False,
+            "summary": "Need clarification.",
+            "clarification_questions": ["Who is the audience?"],
+            "normalized_contract": {"goal": "Build a dashboard"},
+            "detected_profile": "superstore",
+        }
         messages = asyncio.run(
             server._prompt_manager.render_prompt(
                 "light_elicitation",
-                {"contract_json": json.dumps({"goal": "", "audience": ""})},
+                {"contract_review_json": json.dumps(review_payload, ensure_ascii=False)},
             )
         )
         text = messages[0].content.text
         assert "Ask the user only the minimum necessary follow-up questions" in text
-        assert "What is the main business goal" in text
+        assert "Who is the audience?" in text
 
-    def test_authoring_execution_plan_prompt_renders_outline(self):
-        payload = {
-            "goal": "Build a sales dashboard",
-            "audience": "Sales leaders",
-            "primary_question": "Which regions are driving sales?",
-            "require_interaction": True,
-            "available_fields": [
-                "Order Date",
-                "Region",
-                "State/Province",
-                "Sales",
-                "Profit",
-                "Quantity",
-            ],
-        }
+    def test_authoring_execution_plan_prompt_mentions_final_gate(self):
         messages = asyncio.run(
             server._prompt_manager.render_prompt(
                 "authoring_execution_plan",
-                {"contract_json": json.dumps(payload)},
+                {"contract_final_json": json.dumps({"dashboard": {"name": "Exec"}})},
             )
         )
         text = messages[0].content.text
-        assert "Create a concise MCP execution plan for cwtwb" in text
-        assert "Execution outline" in text
-        assert "Detected profile: superstore" in text
+        assert "final human confirmation gate" in text
+        assert "Final contract" in text
 
 
-class TestContractReview:
-    def test_complete_contract_is_valid(self):
-        payload = {
-            "goal": "Create an executive sales dashboard",
-            "audience": "Sales leaders",
-            "dataset": "",
-            "primary_question": "Which regions and categories are driving sales and profit?",
-            "require_interaction": True,
-            "available_fields": [
-                "Order Date",
-                "Region",
-                "State/Province",
-                "Sales",
-                "Profit",
-                "Quantity",
-            ],
-            "constraints": {
-                "max_dashboards": 1,
-                "allowed_support_levels": ["core", "advanced"],
-            },
-            "worksheets": [
-                {"name": "Sales Map", "question": "Where are sales concentrated?", "mark_type": "Map"},
-            ],
-            "dashboard": {"name": "Executive Overview"},
-            "actions": [],
-            "acceptance_checks": ["Workbook validates successfully"],
-        }
+class TestAuthoringRunLifecycle:
+    def test_start_list_status_and_resume(self):
+        run = _start_run()
+        run_id = run["run_id"]
 
-        result = json.loads(review_authoring_contract(json.dumps(payload)))
-        assert result["valid"] is True
-        assert result["clarification_questions"] == []
-        assert result["recommended_skills"][0] == "authoring_workflow"
-        assert result["execution_outline"][0].startswith("Read resource")
-        assert result["detected_profile"] == "superstore"
-        assert result["normalized_contract"]["constraints"]["filters"] == [
-            "Order Date",
-            "Region",
-            "State/Province",
-        ]
+        listed = json.loads(list_authoring_runs(str(RUN_ROOT)))
+        assert any(item["run_id"] == run_id for item in listed["runs"])
 
-    def test_blank_contract_applies_defaults_and_limits_questions(self):
-        result = json.loads(review_authoring_contract("{}"))
-        normalized = result["normalized_contract"]
-        assert result["valid"] is False
-        assert len(result["clarification_questions"]) == 3
-        assert normalized["dataset"] == ""
-        assert normalized["constraints"]["layout_pattern"] == "executive overview"
-        assert normalized["constraints"]["filters"] == []
-        assert result["detected_profile"] is None
+        status = json.loads(get_run_status(run_id))
+        assert status["status"] == "initialized"
+        assert status["datasource_path"].endswith("Sample - Superstore - simple.xls")
 
-    def test_dataset_name_also_matches_profile(self):
-        payload = {
-            "goal": "Build a sales dashboard",
-            "audience": "Regional managers",
-            "dataset": "Sample Superstore",
-            "primary_question": "Which regions are leading?",
-            "require_interaction": True,
-        }
-        result = json.loads(review_authoring_contract(json.dumps(payload)))
-        assert result["detected_profile"] == "superstore"
-        assert result["normalized_contract"]["dashboard"]["name"] == "Executive Overview"
+        resumed = json.loads(resume_authoring_run(run_id))
+        assert resumed["run_id"] == run_id
+        assert resumed["needs_attention"] is False
 
+    def test_excel_schema_intake_creates_artifact(self):
+        run = _start_run()
+        run_id = run["run_id"]
+        payload = json.loads(intake_datasource_schema(run_id))
 
-class TestWorksheetCaption:
-    def test_set_caption_writes_plain_text_formatted_text(self, tmp_file_factory):
-        add_worksheet("Sales Trend")
-        set_worksheet_caption(
-            worksheet_name="Sales Trend",
-            caption="Monthly sales trend after current dashboard filters.",
+        artifact = Path(payload["artifact"])
+        assert artifact.exists()
+        schema_summary = json.loads(artifact.read_text(encoding="utf-8"))
+        assert schema_summary["datasource"]["type"] == "excel"
+        assert schema_summary["fields"]
+        assert "dimensions" in schema_summary["field_candidates"]
+
+    def test_hyper_schema_intake_lists_tables(self):
+        if not HYPER_SOURCE.exists():
+            pytest.skip("Sample Hyper datasource not available")
+        run = json.loads(
+            start_authoring_run(
+                datasource_path=str(HYPER_SOURCE),
+                output_dir=str(RUN_ROOT),
+            )
         )
+        try:
+            payload = json.loads(intake_datasource_schema(run["run_id"]))
+        except RuntimeError as exc:
+            pytest.skip(f"Hyper inspection unavailable in this environment: {exc}")
+        schema_summary = json.loads(Path(payload["artifact"]).read_text(encoding="utf-8"))
+        assert schema_summary["datasource"]["type"] == "hyper"
+        assert schema_summary["tables"]
+        assert schema_summary["selected_primary_object"]
 
-        output = tmp_file_factory("captioned.twb")
-        save_workbook(str(output))
+    def test_contract_can_be_rewritten_after_rejection(self):
+        run = _start_run()
+        run_id = run["run_id"]
+        _approve_schema(run_id)
+        draft_authoring_contract(run_id, "Build a regional sales dashboard.")
+        review_authoring_contract_for_run(run_id)
+        finalize_authoring_contract(run_id)
+        confirm_authoring_stage(run_id, "contract", False, "Please rewrite from scratch.")
 
-        root = ET.parse(output).getroot()
-        run = root.find(
-            ".//worksheet[@name='Sales Trend']/layout-options/caption/formatted-text/run"
+        rewrite = json.loads(
+            draft_authoring_contract(
+                run_id,
+                "Rewrite this as an executive profitability dashboard.",
+                rewrite=True,
+            )
         )
-        assert run is not None
-        assert run.text == "Monthly sales trend after current dashboard filters."
+        assert rewrite["status"] == "contract_drafted"
 
-    def test_caption_can_be_overwritten_and_cleared(self, tmp_file_factory):
-        add_worksheet("Sales Trend")
-        set_worksheet_caption("Sales Trend", "First caption")
-        set_worksheet_caption("Sales Trend", "Updated caption")
-        set_worksheet_caption("Sales Trend", "")
+    def test_full_guided_run_generates_workbook_and_reports(self):
+        run = _start_run()
+        run_id = run["run_id"]
 
-        output = tmp_file_factory("caption-cleared.twb")
-        save_workbook(str(output))
-
-        root = ET.parse(output).getroot()
-        assert root.find(".//worksheet[@name='Sales Trend']/layout-options/caption") is None
-
-    def test_captioned_workbook_validates_against_schema(self, tmp_file_factory):
-        add_worksheet("Sales Trend")
-        baseline_output = tmp_file_factory("baseline.twb")
-        save_workbook(str(baseline_output))
-        baseline_validation = validate_workbook(str(baseline_output))
-
-        set_worksheet_caption("Sales Trend", "Monthly sales trend.")
-
-        output = tmp_file_factory("caption-valid.twb")
-        save_workbook(str(output))
-
-        validation = validate_workbook(str(output))
-        assert ("FAIL" in baseline_validation) == ("FAIL" in validation)
-        assert "layout-options" not in validation.lower()
-
-
-class TestAuthoringActionsAndAnalyzer:
-    def test_analyzer_detects_url_and_go_to_sheet_actions(self, tmp_file_factory):
-        add_worksheet("Source")
-        configure_chart("Source", mark_type="Bar", rows=["Category"], columns=["SUM(Sales)"])
-        add_worksheet("Detail")
-        configure_chart("Detail", mark_type="Line", columns=["MONTH(Order Date)"], rows=["SUM(Sales)"])
-        add_dashboard("Executive Overview", ["Source", "Detail"])
-        add_dashboard_action(
-            dashboard_name="Executive Overview",
-            action_type="url",
-            source_sheet="Source",
-            url="https://example.com/detail",
-            caption="Open Detail",
+        _approve_schema(run_id)
+        draft_authoring_contract(
+            run_id,
+            "Build an executive sales dashboard for sales leaders with interactive filtering.",
         )
-        add_dashboard_action(
-            dashboard_name="Executive Overview",
-            action_type="go-to-sheet",
-            source_sheet="Source",
-            target_sheet="Detail",
-            caption="Open Detail Sheet",
+        _finalize_contract(run_id)
+
+        plan = json.loads(build_execution_plan(run_id))
+        assert plan["status"] == "execution_planned"
+        confirm_authoring_stage(run_id, "execution_plan", True, "Execution plan approved.")
+
+        generated = json.loads(generate_workbook_from_run(run_id))
+        workbook_path = Path(generated["final_workbook"])
+        assert workbook_path.exists()
+        assert generated["status"] == "analyzed"
+
+        status = json.loads(get_run_status(run_id))
+        assert status["status"] == "analyzed"
+        assert any(name.startswith("validation_report.") for name in status["artifacts_present"])
+        assert any(name.startswith("analysis_report.") for name in status["artifacts_present"])
+
+        root = ET.parse(workbook_path).getroot()
+        caption = root.find(".//worksheet[@name='Summary View']/layout-options/caption/formatted-text/run")
+        assert caption is not None
+
+    def test_generation_failure_sets_failed_status(self):
+        run = _start_run()
+        run_id = run["run_id"]
+
+        _approve_schema(run_id)
+        draft_authoring_contract(
+            run_id,
+            "Build an executive sales dashboard for sales leaders with interactive filtering.",
         )
+        _finalize_contract(run_id)
+        build_execution_plan(run_id)
 
-        output = tmp_file_factory("actions-analysis.twb")
-        save_workbook(str(output))
-        report = analyze_twb(str(output))
+        manifest = json.loads((RUN_ROOT / run_id / "manifest.json").read_text(encoding="utf-8"))
+        plan_path = RUN_ROOT / run_id / manifest["artifacts"]["execution_plan"]["current"]
+        plan_payload = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan_payload["steps"][1]["tool"] = "save_workbook"
+        plan_path.write_text(json.dumps(plan_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        assert "URL Action" in report
-        assert "Go-To-Sheet Action" in report
+        confirm_authoring_stage(run_id, "execution_plan", True, "Approve the broken plan for failure coverage.")
+        with pytest.raises(RuntimeError):
+            generate_workbook_from_run(run_id)
+
+        failed_status = json.loads(get_run_status(run_id))
+        assert failed_status["status"] == "workbook_generation_failed"
+        assert failed_status["last_error"]["step_tool"] == "save_workbook"

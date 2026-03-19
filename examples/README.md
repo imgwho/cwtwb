@@ -9,6 +9,11 @@ python examples/scripts/demo_e2e_mcp_workflow.py
 
 All scripts use the **built-in Superstore dataset** — no external files needed.
 
+For the newer datasource-first MCP workflow, see
+`examples/agentic_mcp_authoring/README.md`. That flow starts from a real
+Excel or Hyper file, writes run artifacts under `tmp/agentic_run/{run_id}/`,
+and is designed for human-in-the-loop dashboard authoring.
+
 ---
 
 ## Scripts — Simple to Complex
@@ -36,6 +41,11 @@ python examples/scripts/demo_all_supported_charts.py
 
 ## Prompts — for MCP / LLM Clients
 
+For the guided run workflow, prefer the MCP prompts exposed by the server:
+`guided_dashboard_authoring`, `dashboard_brief_to_contract`,
+`light_elicitation`, and `authoring_execution_plan`. The files in this section
+remain useful as direct prompt examples for one-shot workbook generation.
+
 Copy these into any LLM client (Claude, etc.) with the `cwtwb` MCP server configured.
 
 | Step | Prompt file | Level | What it demonstrates |
@@ -59,6 +69,7 @@ End-to-end examples with their own subfolders and all required assets.
 
 | Project | What it shows | How to run |
 |---------|---------------|------------|
+| `agentic_mcp_authoring/` | Datasource-first guided MCP authoring run: schema intake, contract review, human confirmation gates, execution planning, and final `.twb` generation | Start the MCP server with `python -m cwtwb.mcp` or `uvx cwtwb`, then follow `agentic_mcp_authoring/README.md` in your MCP client |
 | `superstore_recreated/` | Full recreation of Tableau's "Exec Overview" dashboard — table calculations, KPI badges, donut via `extra_axes`, Top N filters, rich-text labels | `python examples/superstore_recreated/build_exec_overview.py` |
 | `migrate_workflow/` | Migrate an existing `.twb` workbook to a new datasource with automatic field mapping and a migration report | `python examples/migrate_workflow/test_migration_workflow.py` |
 | `screenshot2layout/` | Dashboard screenshots paired with their JSON layout descriptors — useful as reference input for layout-generation workflows | Open the PNGs and JSON files directly |
