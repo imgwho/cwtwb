@@ -1,4 +1,50 @@
-"""Workbook migration helpers for reusing TWB templates with a new datasource."""
+"""Workbook migration — re-target an existing TWB onto a different datasource.
+
+PURPOSE
+-------
+Given an existing Tableau workbook (.twb) built against datasource A, produce
+a new workbook pointing at datasource B with all calculated fields and chart
+configurations preserved.  Only the field name references inside <column> and
+<column-instance> elements are rewritten.
+
+FIVE-STEP PIPELINE
+------------------
+Each step is exposed as a JSON-returning function that the MCP tools call:
+
+  inspect_target_schema(target_source)
+      Read an Excel file and return {fields, sample_values}.
+      Supports .xls, .xlsx, .xlsm via xlrd.
+
+  profile_twb_for_migration_json(file_path, scope, target_source)
+      Parse the TWB: find the primary datasource, list all field references
+      per worksheet, and determine which worksheets are in scope.
+      Returns a JSON summary string.
+
+  propose_field_mapping_json(file_path, target_source, scope, mapping_overrides)
+      Fuzzy-match source fields to target fields using difflib SequenceMatcher.
+      Returns a ranked list of MappingCandidate objects (source, target,
+      confidence 0–1, reason).
+
+  preview_twb_migration_json(file_path, target_source, scope, mapping_overrides)
+      Dry-run: build the full MigrationPreview dataclass, classify issues as
+      "blocking" (unmapped fields) or "warning" (low confidence matches).
+      Returns the preview as JSON without writing any files.
+
+  apply_twb_migration_json(file_path, target_source, scope, mapping_overrides, output_path)
+      Apply the mapping to the lxml tree: rewrite <column name=...>,
+      <column-instance column=...>, and calculated field formulas.
+      Write the migrated TWB + a JSON migration report to output_path.
+
+  migrate_twb_guided_json(...)
+      Convenience wrapper: runs preview, returns early if blocking issues exist,
+      optionally applies and returns the final report in one call.
+
+DATA MODELS
+-----------
+  MappingCandidate   — one source→target field match with confidence + reason
+  MigrationIssue     — a blocking or warning problem found during preview
+  MigrationPreview   — full dry-run result (schema, candidates, issues, summary)
+"""
 
 from __future__ import annotations
 

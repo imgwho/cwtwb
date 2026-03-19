@@ -1,4 +1,24 @@
-"""Basic (Single Pane) Chart Builder."""
+"""Single-pane chart builder for standard Tableau mark types.
+
+Handles Bar, Line, Area, Circle, Square, Gantt Bar, and any mark type that
+maps to a single <pane> inside the worksheet <table>.  This is the default
+builder — the dispatcher routes here unless mark_type or feature flags
+indicate Pie, Map, Text, or Dual-Axis.
+
+build() sequence:
+  1. Gather all field expressions from constructor args.
+  2. Resolve each to a ColumnInstance via FieldRegistry.
+  3. Write <datasource-dependencies> into the <view> element.
+  4. Write <filter> elements (categorical / quantitative / Top-N).
+  5. Write <rows> and <cols> shelf expressions (nested dimension syntax).
+  6. Configure the single <pane>: <mark class>, <encodings>, <style>.
+  7. Optionally write <customized-label> (rich-text label_runs).
+  8. Optionally write a datasource-level <encoding> palette for color_map.
+  9. Apply axis_fixed_range and mark_sizing_off tweaks if requested.
+
+Returned value: worksheet_name (str) — the caller uses this to confirm
+which worksheet was modified.
+"""
 
 import re
 from typing import Optional, Union

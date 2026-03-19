@@ -1,4 +1,16 @@
-"""FastMCP application instance for cwtwb."""
+"""FastMCP server singleton for the cwtwb MCP server.
+
+This module creates the single FastMCP `server` instance that all tool and
+resource modules register against via @server.tool() and @server.resource().
+
+Import order matters: app.py must be imported before tools_*.py and resources.py
+so that `server` exists when the decorators run.  The entry point (typically
+run via `mcp run` or `python -m cwtwb.mcp`) imports all tool modules, which
+self-register, and then starts the server transport.
+
+The `instructions` string is what AI agents read when they first connect —
+it summarises the required call order and points agents to skill resources.
+"""
 
 from mcp.server.fastmcp import FastMCP
 

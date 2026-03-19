@@ -1,4 +1,33 @@
-"""MCP resources exposed by cwtwb."""
+"""MCP resources exposed by cwtwb — read-only reference data for AI agents.
+
+Resources are different from tools: they are read-only data blobs that an
+AI agent fetches for context, not actions that modify state.
+
+AVAILABLE RESOURCES
+-------------------
+  file://docs/tableau_all_functions.json
+      Complete list of Tableau calculation functions with syntax and examples.
+      Source: docs/tableau_all_functions.json (bundled with cwtwb).
+      Use this to look up function signatures when writing calculated fields.
+
+  cwtwb://skills/index
+      Markdown index listing all available agent skill files with descriptions.
+      Read this first to understand which skills exist before fetching one.
+
+  cwtwb://skills/{skill_name}
+      A specific agent skill Markdown file.  Skills are expert-level guides
+      for common phases of workbook construction:
+        - calculation_builder  → writing Tableau formulas and calculated fields
+        - chart_builder        → choosing mark types and encoding best practices
+        - dashboard_designer   → layout patterns, zone sizing, action wiring
+        - formatting           → color palettes, font choices, style consistency
+
+USAGE PATTERN (recommended by server instructions)
+---------------------------------------------------
+  Before each major phase, fetch the relevant skill:
+    read_resource("cwtwb://skills/chart_builder")    # before configure_chart
+    read_resource("cwtwb://skills/dashboard_designer") # before add_dashboard
+"""
 
 from __future__ import annotations
 

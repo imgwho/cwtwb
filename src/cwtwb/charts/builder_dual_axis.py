@@ -1,4 +1,29 @@
-"""Dual Axis Chart Builder."""
+"""Dual-axis chart builder — two overlapping panes sharing a shelf.
+
+Used for Lollipop, Combo (Bar + Line), Donut, and any chart pattern that
+requires two independent mark layers drawn on the same worksheet.
+
+How Tableau dual-axis works (XML perspective):
+  The last two measures on the dual_axis_shelf (rows or columns) are
+  "folded" into a dual-axis layout.  Each measure gets its own <pane>
+  inside <table>, identified by id="1" (primary) and id="2" (secondary).
+  A <_.fcp.ObjectModelEncryptionV2.true...>dual-axis</> element on the
+  shelf expression signals Tableau to render them overlaid.
+
+build() sequence:
+  1. Extract measure_1 (rows[-2]) and measure_2 (rows[-1]) from the shelf.
+  2. Gather all field expressions (shared columns/rows + per-pane encodings).
+  3. Resolve all to ColumnInstances; write <datasource-dependencies>.
+  4. Write <filter> elements (shared across both panes).
+  5. Build shelf expressions with dual-axis notation on the last two measures.
+  6. Configure pane id=1: mark_type_1, color_1, size_1, label_1, mark_color_1.
+  7. Configure pane id=2: mark_type_2, color_2, size_2, label_2, mark_color_2.
+  8. Handle extra_axes: additional panes (id=3+) for Donut / KPI circle layers.
+  9. Write synchronized-axis and axis-style elements if requested.
+  10. Write datasource-level palette encoding for color_map_1 if provided.
+
+Returned value: worksheet_name (str).
+"""
 
 from typing import Optional, Union
 from lxml import etree

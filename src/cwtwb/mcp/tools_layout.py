@@ -1,4 +1,37 @@
-"""Layout-related MCP tools."""
+"""Layout helper MCP tools — dashboard layout JSON generation.
+
+The add_dashboard tool accepts either a simple string ("vertical", "horizontal")
+or a path to a layout JSON file for complex multi-zone dashboards.
+
+This module provides the tool for generating that JSON file:
+
+  generate_layout_json(output_path, layout_tree, ascii_preview)
+      Saves a dashboard layout definition to a JSON file that can then be
+      passed as the `layout` parameter to add_dashboard().
+
+LAYOUT JSON STRUCTURE
+---------------------
+  {
+    "_ascii_layout_preview": ["line 1", "line 2", ...],   // human-readable preview
+    "layout_schema": {                                     // the actual layout tree
+      "type": "vertical" | "horizontal" | "tiled",
+      "children": [
+        {"type": "worksheet", "name": "Sheet1", "width": 600, "height": 400},
+        {"type": "horizontal", "children": [...]}
+      ]
+    }
+  }
+
+The ascii_preview field is stored for documentation only; add_dashboard ignores it.
+The layout_schema tree is parsed by dashboard_layouts.resolve_dashboard_layout()
+to produce Tableau's <zone> XML elements inside the <dashboard> element.
+
+TYPICAL WORKFLOW
+----------------
+  1. Design the layout in your head / with the user → produce an ASCII sketch.
+  2. Call generate_layout_json() to persist it.
+  3. Call add_dashboard(layout="/path/to/layout.json") to apply it.
+"""
 
 from __future__ import annotations
 

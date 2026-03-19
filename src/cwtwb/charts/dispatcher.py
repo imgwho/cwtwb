@@ -1,4 +1,26 @@
-"""Builder dispatch for chart configuration."""
+"""Builder dispatch for chart configuration.
+
+This module is the routing layer between the stable public API (ChartsMixin)
+and the concrete builder implementations.  It answers two questions:
+
+  1. Which builder class should handle this request?
+     → routing_policy.profile_chart_request() maps mark_type + feature flags
+       to a ChartRouteProfile (builder_name: "basic" | "text" | "pie" | "map").
+
+  2. How should arguments be forwarded to that builder?
+     → configure_chart() and configure_dual_axis() are thin adapter functions
+       that instantiate the right builder and call build().
+
+Call chain (for a standard chart):
+  ChartsMixin.configure_chart()
+    → dispatcher.configure_chart()
+      → decide_chart_builder() → ChartRouteProfile
+        → BasicChartBuilder / TextChartBuilder / PieChartBuilder / MapChartBuilder
+          → builder.build() → mutates editor.root (lxml tree), returns worksheet_name
+
+For dual-axis charts the chain ends at DualAxisChartBuilder instead.
+No business logic lives here — all XML mutation is in the builder classes.
+"""
 
 from __future__ import annotations
 

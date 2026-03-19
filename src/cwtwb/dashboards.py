@@ -1,4 +1,51 @@
-"""Dashboard creation mixin for TWBEditor."""
+"""Dashboard creation mixin for TWBEditor.
+
+DashboardsMixin is mixed into TWBEditor and provides:
+  - add_dashboard(name, worksheet_names, layout, width, height)
+  - add_dashboard_action(dashboard_name, action_type, source_sheet, target_sheet, fields)
+
+LAYOUT MODEL
+------------
+The `layout` parameter accepts three forms:
+
+  "vertical"   (default) — stack all worksheets top-to-bottom, equal height
+  "horizontal"           — place all worksheets left-to-right, equal width
+  dict or JSON file path — structured layout tree (see dashboard_layouts.py)
+
+Structured layout tree example:
+  {
+    "type": "horizontal",
+    "children": [
+      {"type": "worksheet", "name": "Sidebar KPIs", "width": 300},
+      {"type": "vertical", "children": [
+        {"type": "worksheet", "name": "CY Sales"},
+        {"type": "worksheet", "name": "Sales by Sub-Category"}
+      ]}
+    ]
+  }
+
+XML OUTPUT
+----------
+add_dashboard() writes a <dashboard> element under <dashboards> in the workbook:
+  <dashboard name="..." type="automatic">
+    <size maxheight="..." maxwidth="..." minheight="..." minwidth="..."/>
+    <zones>
+      <zone h="..." id="..." type="layout-flow" w="..." x="..." y="...">
+        <zone name="Sheet1" param="Sheet1" type="worksheet" .../>
+        <zone name="Sheet2" param="Sheet2" type="worksheet" .../>
+      </zone>
+    </zones>
+    <devicelayouts/>
+    <snapshots/>
+  </dashboard>
+
+Zone IDs are generated as UUIDs to avoid collisions across multiple dashboards.
+
+ACTIONS
+-------
+add_dashboard_action() wires filter or highlight interactions between worksheets.
+It writes an <action> element inside the <dashboard> using dashboard_actions.py.
+"""
 
 from __future__ import annotations
 

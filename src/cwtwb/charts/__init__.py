@@ -1,7 +1,29 @@
-"""Public chart facade for TWBEditor.
+"""Public chart facade for TWBEditor — stable API surface for all chart operations.
 
-The public mixin stays stable, while routing, pattern mapping, and shared
-builder helpers live in focused internal modules.
+ChartsMixin is mixed into TWBEditor and exposes two public methods:
+  - configure_chart()      → standard single-pane charts
+  - configure_dual_axis()  → dual-pane overlaid charts
+
+Internal architecture (hidden from callers):
+  ChartsMixin.configure_chart()
+    └─ dispatcher.configure_chart()
+         └─ routing_policy.profile_chart_request()  → ChartRouteProfile
+              └─ Selects one of:
+                   BasicChartBuilder   (Bar, Line, Area, Circle, GanttBar, …)
+                   TextChartBuilder    (Text / cross-tab / measure-values)
+                   PieChartBuilder     (Pie with color/wedge-size encodings)
+                   MapChartBuilder     (filled / symbol maps)
+                      └─ builder.build() → mutates editor.root, returns worksheet_name
+
+  ChartsMixin.configure_dual_axis()
+    └─ dispatcher.configure_dual_axis()
+         └─ DualAxisChartBuilder.build()
+
+  ChartsMixin.configure_worksheet_style()  — called separately after configure_chart
+    └─ helpers.apply_worksheet_style()
+
+The public mixin stays stable; routing, pattern mapping, and builder helpers
+live in focused internal modules and can change without breaking callers.
 """
 
 from typing import Optional, Union

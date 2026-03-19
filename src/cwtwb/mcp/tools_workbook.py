@@ -1,4 +1,40 @@
-"""Workbook-oriented MCP tools."""
+"""Workbook-oriented MCP tools — the primary entry points for AI agents.
+
+STATEFUL SESSION MODEL
+----------------------
+The MCP server holds a single TWBEditor instance in mcp.state._editor.
+Tools must be called in this order within each session:
+
+  1. create_workbook(template_path)  OR  open_workbook(file_path)
+       → Loads/creates a TWBEditor, stores it in state via set_editor().
+  2. list_fields()
+       → Inspect which datasource fields are available.
+  3. add_worksheet(name)  [repeat as needed]
+  4. configure_chart(name, ...) / configure_dual_axis(name, ...)
+  5. configure_worksheet_style(name, ...)  [optional per sheet]
+  6. add_dashboard(name, worksheet_names=[...])
+  7. save_workbook(output_path)
+
+Any tool that calls get_editor() will raise RuntimeError if step 1 was skipped.
+
+TOOL INVENTORY
+--------------
+  create_workbook    — load a TWB/TWBX template into the active session
+  open_workbook      — alias for create_workbook that also shows workbook state
+  list_fields        — return datasource field list from the active editor
+  list_worksheets    — return worksheet names in the active workbook
+  list_dashboards    — return dashboard names and their zone worksheet lists
+  add_worksheet      — append a blank worksheet to the workbook
+  configure_chart    — set mark type, shelves, encodings, filters for a worksheet
+  configure_dual_axis — set up a two-pane overlaid chart
+  configure_chart_recipe — apply a named showcase recipe (e.g. "lollipop")
+  configure_worksheet_style — apply background, axis, grid, cell formatting
+  add_dashboard      — create a dashboard from a list of worksheet names
+  add_dashboard_action — wire filter/highlight interactions between sheets
+  set_mysql_connection / set_tableauserver_connection / set_hyper_connection
+                     — replace the datasource connection in the workbook
+  save_workbook      — serialize and write the current editor to a .twb/.twbx file
+"""
 
 from __future__ import annotations
 

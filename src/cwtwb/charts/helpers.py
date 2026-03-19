@@ -1,4 +1,36 @@
-"""Shared chart helper functions used by chart builders."""
+"""Shared XML and shelf helpers used by all chart builders.
+
+This module contains stateless utility functions called by builders and by
+ChartsMixin directly.  Nothing here mutates the editor root — callers apply
+the returned values themselves.
+
+Key helpers:
+
+  apply_chart_macros(editor, mark_type, columns, rows, color)
+    → Normalises higher-level patterns (e.g. "Lollipop", "Bubble Chart")
+      into primitive mark_type + adjusted shelf lists via pattern_mapping.
+      Returns (actual_mark_type, columns, rows).
+
+  build_dimension_shelf(editor, instances, exprs)
+    → Builds Tableau's nested shelf expression string from a list of field
+      expressions.  Dimensions are joined with "/" (cross-product), measures
+      with "*" (inner join).  Example: "(Region / (SUM(Sales) * YEAR(Date)))".
+
+  apply_measure_values(editor, worksheet_name, measure_values)
+    → Writes <measure-values-column> declarations into the worksheet view
+      when using Measure Names / Measure Values patterns.
+
+  apply_worksheet_style(editor, worksheet_name, **style_kwargs)
+    → Top-level dispatcher for all worksheet-level styling options
+      (background color, axis/grid/border visibility, cell formats, etc.).
+      Delegates to _apply_style_* helpers within this module.
+
+  setup_table_style(table, options)
+    → Writes <style> / <style-rule> elements directly into a <table> element.
+
+  setup_mapsources(editor, worksheet_name)
+    → Writes the <mapsource> element required for geographic worksheets.
+"""
 
 from __future__ import annotations
 

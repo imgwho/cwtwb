@@ -1,4 +1,51 @@
-"""Base builder for Chart construction in cwtwb."""
+"""Base chart builder — shared XML mutation helpers for all chart types.
+
+Every concrete builder (BasicChartBuilder, DualAxisChartBuilder, etc.)
+inherits from BaseChartBuilder.  The base class does three things:
+
+1. Stores references to editor internals (root lxml tree, field_registry,
+   _datasource element, _parameters dict) so subclasses don't have to.
+
+2. Provides shared XML helpers used by all builders:
+   - _gather_expressions()          — collects all field expressions from chart args
+   - _parse_and_prepare_instances() — resolves each expression via FieldRegistry
+                                      into a ColumnInstance (internal TWB name)
+   - _setup_datasource_dependencies() — writes <datasource-dependencies> into the
+                                        <view> element (required for each worksheet)
+   - _setup_pane()                  — writes <mark>, <encodings>, <style> into a pane
+   - _add_filters()                 — writes categorical / quantitative / Top-N filters
+   - _build_rich_label()            — writes <customized-label> rich-text runs
+   - _add_shelf_sort()              — writes <shelf-sorts> for descending sort by measure
+
+3. Declares the abstract build() contract:
+   Subclasses must override build() and return the worksheet_name string.
+   build() is the only public entry point called by the dispatcher.
+
+XML structure written by builders (inside editor.root):
+  <workbook>
+    <worksheets>
+      <worksheet name="...">
+        <table>
+          <view>
+            <datasource-dependencies datasource="...">...</datasource-dependencies>
+            <filter .../>
+            <aggregation value="true"/>
+          </view>
+          <pane id="1">
+            <mark class="Bar"/>
+            <encodings>
+              <color column="[ds].[instance]"/>
+              <text  column="..."/>
+            </encodings>
+            <style>...</style>
+          </pane>
+          <rows>(dim / SUM(measure))</rows>
+          <cols>YEAR(date)</cols>
+        </table>
+      </worksheet>
+    </worksheets>
+  </workbook>
+"""
 
 import copy
 import logging

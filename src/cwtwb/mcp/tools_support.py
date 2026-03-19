@@ -1,4 +1,38 @@
-"""Capability and template-analysis MCP tools."""
+"""Capability catalog and workbook analysis MCP tools.
+
+These tools help an AI agent understand what cwtwb can and cannot do before
+attempting to build or migrate a workbook.
+
+TOOL INVENTORY
+--------------
+  list_capabilities()
+      Return the full capability catalog from capability_registry.py as a
+      formatted text table.  Shows every declared chart type, encoding, and
+      feature with its support level (core / advanced / recipe / unsupported).
+      Call this at the start of a session to know what is possible.
+
+  describe_capability(kind, name)
+      Return details for a single capability entry — level, description, and
+      any caveats.  Use when the catalog shows something unexpected.
+
+  analyze_twb(file_path)
+      Parse an existing .twb file and report:
+        - Which chart types and encodings it uses.
+        - Which capabilities are core, advanced, recipe-level, or unsupported.
+        - The full capability gap section (features used that cwtwb cannot yet
+          reproduce automatically).
+      Combines twb_analyzer.to_text() + to_gap_text() in one call.
+
+  diff_template_gap(file_path)
+      Return only the capability gap section (a subset of analyze_twb output).
+      Useful when you already understand the workbook structure and just need
+      to know what the SDK cannot handle.
+
+  validate_workbook(file_path=None)
+      Validate a saved .twb/.twbx file — or the current in-memory editor —
+      against the official Tableau XSD schema (2026.1).  Failures are
+      informational: Tableau Desktop is the true validator.
+"""
 
 from __future__ import annotations
 

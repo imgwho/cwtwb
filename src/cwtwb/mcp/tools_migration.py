@@ -1,4 +1,46 @@
-"""Migration-oriented MCP tools."""
+"""Migration-oriented MCP tools — re-target an existing TWB onto a new datasource.
+
+PURPOSE
+-------
+These tools allow an AI agent to take an existing Tableau workbook (built
+against one datasource/Excel file) and reconnect it to a different datasource
+without rebuilding from scratch.  All calculated fields, dashboard layouts,
+and chart configurations are preserved; only field name references change.
+
+FIVE-STEP WORKFLOW (must be followed in order)
+----------------------------------------------
+  Step 1 — inspect_target_schema(target_source)
+      Read the column names and data types from the new Excel file.
+      Returns a JSON object: {"fields": [...], "sample_values": {...}}.
+
+  Step 2 — profile_twb_for_migration(file_path, target_source, scope)
+      Scan the TWB to discover which datasource is used, which worksheets
+      are in scope ("workbook" | "worksheet:Name"), and which fields appear.
+      Returns a JSON profile summary.
+
+  Step 3 — propose_field_mapping(file_path, target_source, mapping_overrides)
+      Fuzzy-match source field names to target field names and return a
+      ranked candidate list with confidence scores.
+      Use mapping_overrides={source: target} to force specific mappings.
+
+  Step 4 — preview_twb_migration(file_path, target_source, mapping_overrides)
+      Dry-run the full migration: report blocking issues (fields that cannot
+      be mapped), warnings (low-confidence matches), and the rewrite summary.
+      Does NOT write any files.
+
+  Step 5a — apply_twb_migration(file_path, target_source, output_path)
+      Write the migrated TWB to output_path plus a JSON report.
+      Only call this after reviewing the preview and confirming no blockers.
+
+  Step 5b — migrate_twb_guided(file_path, target_source, output_path)
+      Combined convenience wrapper: runs preview, pauses if warnings exist
+      for agent confirmation, then applies if apply_if_no_blockers=True.
+
+SCOPE PARAMETER
+---------------
+  "workbook"          — migrate all worksheets (default)
+  "worksheet:Name"    — migrate only the named worksheet
+"""
 
 from __future__ import annotations
 
