@@ -63,6 +63,8 @@ from .twb_analyzer import analyze_workbook
 
 @dataclass
 class MappingCandidate:
+    """Represents one proposed source->target field mapping."""
+
     source_field: str
     target_field: str
     confidence: float
@@ -71,6 +73,8 @@ class MappingCandidate:
 
 @dataclass
 class MigrationIssue:
+    """One migration problem found during preview or apply."""
+
     issue_type: str
     severity: str
     message: str
@@ -81,6 +85,8 @@ class MigrationIssue:
 
 @dataclass
 class MigrationPreview:
+    """Full dry-run result for a migration request."""
+
     template_file: str
     target_source: str
     source_datasource: str
@@ -117,6 +123,8 @@ class MigrationPreview:
 
 @dataclass
 class WorkbookMigrationProfile:
+    """Workbook-level profile used to drive mapping and preview."""
+
     template_file: str
     scope: str
     datasources: list[dict[str, Any]]
@@ -134,6 +142,8 @@ class WorkbookMigrationProfile:
 
 @dataclass
 class ColumnProfile:
+    """Lightweight schema+distribution fingerprint for one column."""
+
     field: str
     index: int
     kind: str
@@ -573,6 +583,8 @@ def _collect_dashboards_for_worksheets(root: etree._Element, worksheet_names: se
 
 
 def inspect_target_schema(target_source: str | Path) -> dict[str, Any]:
+    """Read the target Excel file and return headers plus profiling metadata."""
+
     info = _read_excel_profiles(target_source)
     info["target_source"] = _normalize_path(target_source)
     return info
@@ -583,6 +595,8 @@ def profile_twb_for_migration(
     scope: str = "workbook",
     target_source: str | Path | None = None,
 ) -> WorkbookMigrationProfile:
+    """Profile workbook scope, datasources, and source schema before migration."""
+
     path = Path(file_path)
     root = etree.parse(str(path)).getroot()
     scope_worksheets = _collect_scope_worksheets(root, scope)
@@ -749,6 +763,8 @@ def propose_field_mapping(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    """Generate source->target mapping candidates with confidence and issues."""
+
     profile = profile_twb_for_migration(file_path, scope=scope, target_source=target_source)
     target_schema = inspect_target_schema(target_source)
     target_fields = target_schema["headers"]
@@ -949,6 +965,8 @@ def preview_twb_migration(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
 ) -> MigrationPreview:
+    """Dry-run migration and report blockers/warnings without writing files."""
+
     path = Path(file_path)
     root = etree.parse(str(path)).getroot()
     scope_worksheets = _collect_scope_worksheets(root, scope)
@@ -1072,6 +1090,8 @@ def apply_twb_migration(
     mapping_overrides: dict[str, str] | None = None,
     output_path: str | Path | None = None,
 ) -> dict[str, Any]:
+    """Apply migration rewrites and write migrated workbook plus reports."""
+
     preview = preview_twb_migration(
         file_path=file_path,
         target_source=target_source,
@@ -1129,6 +1149,8 @@ def migrate_twb_guided(
     mapping_overrides: dict[str, str] | None = None,
     apply_if_no_blockers: bool = True,
 ) -> dict[str, Any]:
+    """Run preview-first workflow and optionally apply when safe to proceed."""
+
     preview = preview_twb_migration(
         file_path=file_path,
         target_source=target_source,
@@ -1173,6 +1195,8 @@ def profile_twb_for_migration_json(
     scope: str = "workbook",
     target_source: str | Path | None = None,
 ) -> str:
+    """JSON wrapper for ``profile_twb_for_migration``."""
+
     profile = profile_twb_for_migration(file_path=file_path, scope=scope, target_source=target_source)
     return json.dumps(profile.to_dict(), ensure_ascii=False, indent=2)
 
@@ -1183,6 +1207,8 @@ def propose_field_mapping_json(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
 ) -> str:
+    """JSON wrapper for ``propose_field_mapping``."""
+
     payload = propose_field_mapping(
         file_path=file_path,
         target_source=target_source,
@@ -1198,6 +1224,8 @@ def preview_twb_migration_json(
     scope: str = "workbook",
     mapping_overrides: dict[str, str] | None = None,
 ) -> str:
+    """JSON wrapper for ``preview_twb_migration``."""
+
     preview = preview_twb_migration(
         file_path=file_path,
         target_source=target_source,
@@ -1214,6 +1242,8 @@ def apply_twb_migration_json(
     mapping_overrides: dict[str, str] | None = None,
     output_path: str | Path | None = None,
 ) -> str:
+    """JSON wrapper for ``apply_twb_migration``."""
+
     result = apply_twb_migration(
         file_path=file_path,
         target_source=target_source,
@@ -1232,6 +1262,8 @@ def migrate_twb_guided_json(
     mapping_overrides: dict[str, str] | None = None,
     apply_if_no_blockers: bool = True,
 ) -> str:
+    """JSON wrapper for ``migrate_twb_guided``."""
+
     payload = migrate_twb_guided(
         file_path=file_path,
         target_source=target_source,

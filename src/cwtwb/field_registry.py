@@ -7,8 +7,9 @@ Maps user-friendly field names (e.g. Sales) to TWB internal references
 
 from __future__ import annotations
 
+import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -63,6 +64,8 @@ _EXPR_RE = re.compile(
     r"^([A-Z]+)\((.+)\)$"  # FUNC(field)
 )
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class FieldInfo:
@@ -90,9 +93,15 @@ class ColumnInstance:
 class FieldRegistry:
     """Field name -> TWB internal reference mapping table."""
 
-    def __init__(self, datasource_name: str):
+    def __init__(self, datasource_name: str, allow_unknown_fields: bool = False):
         self.datasource_name = datasource_name
+        self.allow_unknown_fields = allow_unknown_fields
         self._fields: dict[str, FieldInfo] = {}
+
+    def set_unknown_field_policy(self, *, allow_unknown_fields: bool) -> None:
+        """Control whether unknown fields can be auto-registered."""
+
+        self.allow_unknown_fields = allow_unknown_fields
 
     # ---- Registration ----
 
@@ -205,8 +214,8 @@ class FieldRegistry:
 
     def _find_field(self, name: str) -> FieldInfo:
         """Find a field by display name, with exact and fuzzy matching.
-        If the field doesn't exist, we assume it's a dynamic field from a new database connection
-        and dynamically register it as a generic dimension/measure.
+        Unknown fields raise by default to avoid silent mapping mistakes.
+        Set ``allow_unknown_fields=True`` to keep legacy auto-registration behavior.
         """
         # Exact match
         if name in self._fields:
@@ -218,21 +227,27 @@ class FieldRegistry:
             if k.lower() == name_lower:
                 return v
 
-        # Remove naive partial match which causes dangerous bugs (e.g. 'Sub-Category' matches 'Category')
+        if not self.allow_unknown_fields:
+            examples = ", ".join(sorted(self._fields.keys())[:10])
+            if len(self._fields) > 10:
+                examples += ", ..."
+            raise KeyError(
+                f"Unknown field '{name}'. Register the field before use, "
+                f"or enable allow_unknown_fields for compatibility. "
+                f"Known fields: {examples or '(none)'}."
+            )
 
-        # Dynamic Field Registration for new database connections 
-        # (Since we lack schema info offline, we guess type based on name)
-        # E.g. assume integer/measure if it contains 'id', 'sales', 'profit', 'qty', 'amount'
+        # Legacy compatibility mode: dynamic registration with heuristics.
         guessed_role = "dimension"
         guessed_datatype = "string"
         guessed_type = "nominal"
-        
+
         lower_name = name.lower()
-        if any(kw in lower_name for kw in ['sales', 'profit', 'discount', 'quantity', 'amount', 'cost', 'id']):
+        if any(kw in lower_name for kw in ["sales", "profit", "discount", "quantity", "amount", "cost", "id"]):
             guessed_role = "measure"
             guessed_datatype = "real"
             guessed_type = "quantitative"
-            
+
         self.register(
             display_name=name,
             local_name=f"[{name}]",
@@ -240,5 +255,12 @@ class FieldRegistry:
             role=guessed_role,
             field_type=guessed_type,
             is_calculated=False,
+        )
+        logger.warning(
+            "Auto-registered unknown field '%s' (role=%s, datatype=%s, type=%s).",
+            name,
+            guessed_role,
+            guessed_datatype,
+            guessed_type,
         )
         return self._fields[name]

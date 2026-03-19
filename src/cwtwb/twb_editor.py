@@ -409,7 +409,10 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
 
     def remove_calculated_field(self, field_name: str) -> str:
         """Remove a calculated field."""
-        fi = self.field_registry._find_field(field_name)
+        try:
+            fi = self.field_registry._find_field(field_name)
+        except KeyError:
+            return f"Calculated field '{field_name}' does not exist"
         col = self._datasource.find(f"column[@name='{fi.local_name}']")
         if col is not None:
             self._datasource.remove(col)

@@ -9,6 +9,9 @@ pip install -e ".[dev]"
 pytest
 ```
 
+`[dev]` includes local contributor tooling (test/lint/type-check).  
+If you only need runtime usage, `pip install -e .` is enough.
+
 All tests should pass before you start. If any fail, check the known-issues
 section in `tests/README.md` first.
 
