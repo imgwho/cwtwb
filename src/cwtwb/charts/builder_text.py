@@ -34,6 +34,7 @@ class TextChartBuilder(BaseChartBuilder):
         label_runs: Optional[list[dict]] = None,
         label_param: Optional[str] = None,
     ) -> None:
+        """Capture text-table/KPI options, including measure-values configuration."""
         super().__init__(editor)
         self.worksheet_name = worksheet_name
         self.mark_type = "Text"
@@ -51,6 +52,7 @@ class TextChartBuilder(BaseChartBuilder):
         self.label_param = label_param
 
     def build(self) -> str:
+        """Build text mark worksheet XML and optional measure-values overlays."""
         ws = self.editor._find_worksheet(self.worksheet_name)
         table = ws.find("table")
         if table is None:

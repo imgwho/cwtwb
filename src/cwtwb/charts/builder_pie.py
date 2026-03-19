@@ -1,4 +1,9 @@
-"""Pie Chart Builder."""
+"""Pie chart builder for wedge-size driven part-to-whole visuals.
+
+This module builds Pie worksheets by wiring datasource dependencies, pie mark
+encodings (color/wedge-size/label/detail/tooltip), and optional filters.
+Shared pane/style behavior is inherited from ``BaseChartBuilder``.
+"""
 
 from typing import Optional, Union
 from lxml import etree
@@ -15,6 +20,7 @@ class PieChartBuilder(BaseChartBuilder):
                  detail: Optional[str] = None,
                  tooltip: Optional[Union[str, list[str]]] = None,
                  filters: Optional[list[dict]] = None) -> None:
+        """Capture pie-chart specific encodings for one worksheet."""
         super().__init__(editor)
         self.worksheet_name = worksheet_name
         self.mark_type = "Pie"
@@ -26,6 +32,7 @@ class PieChartBuilder(BaseChartBuilder):
         self.filters = filters
 
     def build(self) -> str:
+        """Build pie mark XML including wedge-size, label, and filter wiring."""
         ws = self.editor._find_worksheet(self.worksheet_name)
         table = ws.find("table")
         if table is None:

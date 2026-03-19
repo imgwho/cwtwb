@@ -72,6 +72,7 @@ def build_dimension_shelf(editor, instances: dict[str, "ColumnInstance"], exprs:
         return ""
 
     def build_nested(idx: int) -> str:
+        """Recursively build nested shelf text using Tableau operator semantics."""
         if idx == len(parts) - 1:
             return parts[idx]
         op = " * " if ci_list[idx + 1].ci_type == "quantitative" else " / "
@@ -542,4 +543,3 @@ def apply_measure_values(
         fmt.set("attr", "line-visibility")
         fmt.set("scope", scope)
         fmt.set("value", "off")
-

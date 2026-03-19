@@ -77,6 +77,7 @@ class BaseChartBuilder:
         raise NotImplementedError("Subclasses must implement build().")
 
     def _gather_expressions(self, columns, rows, color, size, label, detail, wedge_size, sort_descending, tooltip, filters, geographic_field, measure_values) -> list[str]:
+        """Collect all field expressions needed for dependencies and encodings."""
         all_exprs: list[str] = []
         all_exprs.extend(columns or [])
         all_exprs.extend(rows or [])
@@ -101,6 +102,7 @@ class BaseChartBuilder:
         return all_exprs
 
     def _parse_and_prepare_instances(self, all_exprs: list[str], filters: Optional[list[dict]]) -> dict[str, ColumnInstance]:
+        """Parse expressions into ColumnInstances and normalize filter-side types."""
         instances: dict[str, ColumnInstance] = {}
         for expr in all_exprs:
             ci = self.field_registry.parse_expression(expr)
@@ -117,6 +119,7 @@ class BaseChartBuilder:
         return instances
 
     def _setup_datasource_dependencies(self, view: etree._Element, ds_name: str, instances: dict[str, ColumnInstance], all_exprs: list[str]) -> None:
+        """Rewrite <datasource-dependencies> to include required columns and instances."""
         for old_dep in view.findall("datasource-dependencies"):
             view.remove(old_dep)
         deps = etree.Element("datasource-dependencies")
@@ -214,6 +217,7 @@ class BaseChartBuilder:
         self._add_calculated_field_deps(view, ds_name, all_exprs)
 
     def _add_calculated_field_deps(self, view: etree._Element, ds_name: str, all_exprs: list[str]) -> None:
+        """Ensure calculated fields are present in dependency blocks when needed."""
         deps = view.find(f"datasource-dependencies[@datasource='{ds_name}']")
         if deps is None:
             return
@@ -234,6 +238,7 @@ class BaseChartBuilder:
                             deps.append(col_copy)
 
     def _get_or_create_pane(self, table: etree._Element, pane_id: Optional[int] = None) -> etree._Element:
+        """Return an existing pane (optionally by id) or create one."""
         panes_el = table.find("panes")
         if panes_el is not None:
             if pane_id is not None:
@@ -332,6 +337,7 @@ class BaseChartBuilder:
                     r.text = text
 
     def _ensure_mark_style(self, pane_style: etree._Element, mark_type: str, original_mark_type: str = None) -> None:
+        """Ensure pane style has a mark rule with required default formats."""
         for sr in pane_style.findall("style-rule"):
             if sr.get("element") == "mark":
                 return
@@ -357,6 +363,7 @@ class BaseChartBuilder:
         fmt.set("value", "true")
 
     def _setup_pane(self, pane: etree._Element, mark_type: str, original_mark_type: str, instances: dict[str, ColumnInstance], color: Optional[str], size: Optional[str], label: Optional[str], detail: Optional[str], wedge_size: Optional[str], tooltip: Optional[Union[str, list[str]]], is_map: bool, geographic_field: Optional[str], map_fields: Optional[list[str]], ds_name: str) -> None:
+        """Populate pane mark, encodings, tooltip, style, and map-specific XML."""
         mark_el = pane.find("mark")
         if mark_el is not None:
             mark_el.set("class", mark_type)
@@ -426,6 +433,7 @@ class BaseChartBuilder:
         instances: dict[str, "ColumnInstance"],
         filters: list[dict],
     ) -> None:
+        """Append supported filter XML nodes to the worksheet view."""
         for f in filters:
             expr = f.get("column")
             if not expr:
@@ -545,6 +553,7 @@ class BaseChartBuilder:
                 view.append(filter_el)
 
     def _ensure_manifest_entry(self, entry_name: str) -> None:
+        """Add a document-format manifest flag if not already present."""
         manifest = self.root.find("document-format-change-manifest")
         if manifest is None:
             manifest = etree.SubElement(self.root, "document-format-change-manifest")
@@ -559,6 +568,7 @@ class BaseChartBuilder:
         rows: list[str],
         sort_measure_expr: str,
     ) -> None:
+        """Attach descending shelf sort metadata for the leading row dimension."""
         dim_ci = None
         for expr in rows:
             ci = instances.get(expr)

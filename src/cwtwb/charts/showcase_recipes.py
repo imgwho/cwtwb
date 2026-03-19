@@ -27,6 +27,7 @@ DEFAULT_CALENDAR_COLOR_FORMULA = 'IF SUM([Sales]) > 500 THEN "Yes" ELSE "No" END
 
 @dataclass(frozen=True)
 class _RecipeSpec:
+    """Registry entry describing required args and builder for one recipe."""
     required_args: tuple[str, ...]
     defaults: dict[str, str]
     auto_ensure: Callable[[object, dict[str, str]], None] | None
@@ -260,6 +261,7 @@ def _apply_calendar_recipe_layout(
 
 
 def _ensure_default_donut_prerequisites(editor, recipe_args: dict[str, str]) -> None:
+    """Create default donut helper field when recipe uses the standard setup."""
     min_zero_field = recipe_args.get("min_zero_field", DEFAULT_DONUT_MIN_ZERO_FIELD)
     recipe_args["min_zero_field"] = min_zero_field
     if min_zero_field != DEFAULT_DONUT_MIN_ZERO_FIELD:
@@ -270,6 +272,7 @@ def _ensure_default_donut_prerequisites(editor, recipe_args: dict[str, str]) -> 
 
 
 def _ensure_default_calendar_prerequisites(editor, recipe_args: dict[str, str]) -> None:
+    """Create default calendar color helper field when missing."""
     color = recipe_args.get("color", DEFAULT_CALENDAR_COLOR_FIELD)
     recipe_args["color"] = color
     if color != DEFAULT_CALENDAR_COLOR_FIELD:
@@ -284,6 +287,7 @@ def _ensure_default_calendar_prerequisites(editor, recipe_args: dict[str, str]) 
 
 
 def _field_exists(editor, field_name: str) -> bool:
+    """Return whether a display-name field already exists in the registry."""
     if editor.field_registry.get(field_name) is not None:
         return True
 
@@ -295,6 +299,7 @@ def _field_exists(editor, field_name: str) -> bool:
 
 
 def _build_lollipop(editor, worksheet_name: str, recipe_args: dict[str, str]) -> str:
+    """Recipe dispatcher wrapper for lollipop chart construction."""
     return _configure_lollipop_recipe(
         editor,
         worksheet_name,
@@ -304,6 +309,7 @@ def _build_lollipop(editor, worksheet_name: str, recipe_args: dict[str, str]) ->
 
 
 def _build_donut(editor, worksheet_name: str, recipe_args: dict[str, str]) -> str:
+    """Recipe dispatcher wrapper for donut chart construction."""
     return _configure_donut_recipe(
         editor,
         worksheet_name,
@@ -314,6 +320,7 @@ def _build_donut(editor, worksheet_name: str, recipe_args: dict[str, str]) -> st
 
 
 def _build_butterfly(editor, worksheet_name: str, recipe_args: dict[str, str]) -> str:
+    """Recipe dispatcher wrapper for butterfly chart construction."""
     return _configure_butterfly_recipe(
         editor,
         worksheet_name,
@@ -324,6 +331,7 @@ def _build_butterfly(editor, worksheet_name: str, recipe_args: dict[str, str]) -
 
 
 def _build_calendar(editor, worksheet_name: str, recipe_args: dict[str, str]) -> str:
+    """Recipe dispatcher wrapper for calendar chart construction."""
     return _configure_calendar_recipe(
         editor,
         worksheet_name,
@@ -368,6 +376,7 @@ _RECIPE_REGISTRY: dict[str, _RecipeSpec] = {
 
 
 def _ensure_column_instance(view, column_instance) -> None:
+    """Ensure calendar helper column-instance exists in dependencies."""
     deps = view.find("datasource-dependencies")
     if deps is None:
         return
@@ -385,6 +394,7 @@ def _ensure_column_instance(view, column_instance) -> None:
 
 
 def _upsert_calendar_filter(view, aggregation, instance_name: str, ref_name: str, year_month: str) -> None:
+    """Insert or update MY(date) calendar filter for selected year-month."""
     for existing in view.findall("filter"):
         if existing.get("column") == ref_name:
             groupfilter = existing.find("groupfilter")
@@ -410,6 +420,7 @@ def _upsert_calendar_filter(view, aggregation, instance_name: str, ref_name: str
 
 
 def _upsert_calendar_slices(view, aggregation, ref_name: str) -> None:
+    """Insert or update slices block pointing at the calendar month reference."""
     existing = view.find("slices")
     if existing is not None:
         column = existing.find("column")
@@ -428,6 +439,7 @@ def _upsert_calendar_slices(view, aggregation, ref_name: str) -> None:
 
 
 def _ensure_mark_sizing_after_mark(pane) -> None:
+    """Guarantee mark-sizing node exists immediately after pane mark node."""
     mark_el = pane.find("mark")
     if mark_el is None:
         return
@@ -443,6 +455,7 @@ def _ensure_mark_sizing_after_mark(pane) -> None:
 
 
 def _upsert_mark_size(style, size_value: str) -> None:
+    """Insert or update mark size format on the pane mark style rule."""
     mark_rule = None
     for style_rule in style.findall("style-rule"):
         if style_rule.get("element") == "mark":

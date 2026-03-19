@@ -129,6 +129,7 @@ class SchemaValidationResult:
     schema_available: bool = True
 
     def to_text(self) -> str:
+        """Render a user-facing PASS/FAIL summary string for MCP responses."""
         if not self.schema_available:
             return (
                 "XSD schema not available — vendor/tableau-document-schemas "

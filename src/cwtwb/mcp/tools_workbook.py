@@ -48,6 +48,7 @@ from .state import get_editor, set_editor
 
 
 def _format_worksheets(editor: TWBEditor) -> str:
+    """Render worksheet names as a compact human-readable section."""
     worksheets = editor.list_worksheets()
     if not worksheets:
         return "=== Worksheets ===\n  (none)"
@@ -57,6 +58,7 @@ def _format_worksheets(editor: TWBEditor) -> str:
 
 
 def _format_dashboards(editor: TWBEditor) -> str:
+    """Render dashboard names with worksheet-zone membership details."""
     dashboards = editor.list_dashboards()
     if not dashboards:
         return "=== Dashboards ===\n  (none)"

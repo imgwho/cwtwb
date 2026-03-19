@@ -25,6 +25,7 @@ class ChartRouteProfile:
 
 
 def _resolve_support_level(mark_type: str) -> CapabilityLevel | None:
+    """Resolve declared support tier for a requested chart/mark label."""
     spec = get_capability("chart", mark_type)
     return None if spec is None else spec.level
 
