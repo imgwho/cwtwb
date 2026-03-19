@@ -1,4 +1,13 @@
-"""Map Chart Builder."""
+"""Map chart builder for geographic worksheets.
+
+This module owns XML generation for map-style charts, including:
+- single-layer maps (default Multipolygon behavior)
+- multi-layer map panes with per-layer mark styling
+- map-specific encodings such as Geometry and LOD fields
+
+It focuses on worksheet/table/pane wiring and delegates shared shelf/filter
+mechanics to ``BaseChartBuilder``.
+"""
 
 import logging
 from typing import Optional, Union
@@ -40,6 +49,7 @@ class MapChartBuilder(BaseChartBuilder):
                  map_fields: Optional[list[str]] = None,
                  filters: Optional[list[dict]] = None,
                  map_layers: Optional[list[dict]] = None) -> None:
+        """Capture map-specific encodings and layer settings."""
         super().__init__(editor)
         self.worksheet_name = worksheet_name
         self.mark_type = "Map"
@@ -57,6 +67,7 @@ class MapChartBuilder(BaseChartBuilder):
     # Public entry point
     # ------------------------------------------------------------------
     def build(self) -> str:
+        """Build map worksheet XML, including optional multi-layer panes."""
         ws = self.editor._find_worksheet(self.worksheet_name)
         table = ws.find("table")
         if table is None:
@@ -145,6 +156,7 @@ class MapChartBuilder(BaseChartBuilder):
     # Single-layer (legacy behaviour)
     # ------------------------------------------------------------------
     def _build_single_layer(self, table, ds_name, instances):
+        """Render the legacy single-layer map pane path."""
         pane = self._get_or_create_pane(table)
         self._setup_pane(
             pane, "Multipolygon", "Map", instances,

@@ -322,15 +322,19 @@ class ChartsMixin:
         rows: list[str],
         color: Optional[str],
     ) -> tuple[str, list[str], list[str]]:
+        """Compatibility wrapper around helper-level chart macro expansion."""
         return apply_chart_macros(self, mark_type, columns, rows, color)
 
     def _build_dimension_shelf(self, instances: dict, exprs: list[str]) -> str:
+        """Build Tableau shelf text while preserving dimension nesting semantics."""
         return build_dimension_shelf(self, instances, exprs)
 
     def _setup_table_style(self, table, mark_type) -> None:
+        """Apply default table style defaults for the resolved mark type."""
         setup_table_style(table, mark_type)
 
     def _setup_mapsources(self, view) -> None:
+        """Ensure required top-level map source XML exists for map worksheets."""
         setup_mapsources(self, view)
 
     def _apply_measure_values(
@@ -342,4 +346,5 @@ class ChartsMixin:
         instances: dict,
         measure_values: list[str],
     ) -> None:
+        """Attach measure-values specific XML after base pane setup."""
         apply_measure_values(self, view, table, pane, ds_name, instances, measure_values)

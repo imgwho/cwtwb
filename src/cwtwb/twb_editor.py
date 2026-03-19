@@ -39,6 +39,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
     """lxml-based TWB XML editor."""
 
     def __init__(self, template_path: str | Path, clear_existing_content: bool = True):
+        """Load a TWB/TWBX template and initialize editor-side registries."""
         template_path = self._resolve_template_path(template_path)
 
         if not template_path.exists():
@@ -109,6 +110,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
     # ================================================================
 
     def _resolve_template_path(self, template_path: str | Path) -> Path:
+        """Resolve user input to a template path and mark default-template usage."""
         if not template_path:
             from .config import REFERENCES_DIR
 

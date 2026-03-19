@@ -1,4 +1,10 @@
-﻿"""Read-only TWB capability analysis helpers."""
+﻿"""Read-only capability analysis for existing Tableau workbooks.
+
+The analyzer parses a TWB file and maps detected XML features to cwtwb's
+capability registry (core/advanced/recipe/unsupported). It is used by MCP
+tools to judge template fit, surface migration risks, and explain why a
+workbook is or is not a good support target.
+"""
 
 from __future__ import annotations
 
@@ -37,6 +43,7 @@ class AnalysisReport:
 
     @property
     def summary(self) -> dict[str, int]:
+        """Return aggregated counts by support level plus unknown capabilities."""
         counts = {"core": 0, "advanced": 0, "recipe": 0, "unsupported": 0, "unknown": 0}
         for item in self.detected:
             if item.level is not None:
@@ -46,6 +53,7 @@ class AnalysisReport:
 
     @property
     def fit_level(self) -> TemplateFit:
+        """Classify template fit quality from detected capability tiers."""
         summary = self.summary
         if summary["recipe"] > 0:
             return "recipe-heavy"
@@ -57,13 +65,16 @@ class AnalysisReport:
 
     @property
     def non_core_detected(self) -> list[DetectedCapability]:
+        """Return detected capabilities outside the core support tier."""
         return [item for item in self.detected if item.level in {"advanced", "recipe", "unsupported"}]
 
     @property
     def gap_items(self) -> list[DetectedCapability]:
+        """Return all capabilities that require migration/design attention."""
         return self.non_core_detected + self.unknown
 
     def _format_items(self, level: str) -> list[str]:
+        """Format one support-level block for text rendering."""
         items = [item for item in self.detected if item.level == level]
         if not items:
             return []
@@ -166,6 +177,7 @@ class TWBAnalyzer:
     """Inspect a TWB file and map observed features onto cwtwb capabilities."""
 
     def analyze(self, file_path: str | Path) -> AnalysisReport:
+        """Run all detectors and return a normalized analysis report."""
         path = Path(file_path)
         tree = etree.parse(str(path))
         root = tree.getroot()
@@ -203,6 +215,7 @@ class TWBAnalyzer:
         source: str,
         xpath_hint: str,
     ) -> None:
+        """Upsert a detected capability and accumulate occurrence metadata."""
         key = (kind, canonical or raw_name, source)
         current = bucket.get(key)
         if current is None:
@@ -232,6 +245,7 @@ class TWBAnalyzer:
         source: str,
         xpath_hint: str,
     ) -> None:
+        """Resolve capability metadata from registry and record into target buckets."""
         spec = get_capability(kind, raw_name)
         if spec is None:
             self._record_detection(
@@ -261,6 +275,7 @@ class TWBAnalyzer:
         detected: dict[tuple[str, str, str], DetectedCapability],
         unknown: dict[tuple[str, str, str], DetectedCapability],
     ) -> None:
+        """Detect chart marks/patterns from worksheet pane and naming hints."""
         for worksheet in root.findall(".//worksheet"):
             worksheet_name = worksheet.get("name", "<unnamed>")
             xpath_hint = f".//worksheet[@name='{worksheet_name}']"
@@ -301,6 +316,7 @@ class TWBAnalyzer:
         detected: dict[tuple[str, str, str], DetectedCapability],
         unknown: dict[tuple[str, str, str], DetectedCapability],
     ) -> None:
+        """Detect recipe-like chart patterns inferred from worksheet names."""
         for name in (
             "Donut Chart",
             "Lollipop Chart",
@@ -329,6 +345,7 @@ class TWBAnalyzer:
         detected: dict[tuple[str, str, str], DetectedCapability],
         unknown: dict[tuple[str, str, str], DetectedCapability],
     ) -> None:
+        """Detect encoding channels declared under worksheet panes."""
         for encoding in root.findall(".//encodings/*"):
             raw_name = etree.QName(encoding).localname
             self._resolve_and_record(
@@ -346,6 +363,7 @@ class TWBAnalyzer:
         detected: dict[tuple[str, str, str], DetectedCapability],
         unknown: dict[tuple[str, str, str], DetectedCapability],
     ) -> None:
+        """Detect dashboard zone/control types used in the workbook."""
         for zone in root.findall(".//dashboard//zone"):
             raw_name = zone.get("type-v2") or "worksheet"
             self._resolve_and_record(
@@ -363,6 +381,7 @@ class TWBAnalyzer:
         detected: dict[tuple[str, str, str], DetectedCapability],
         unknown: dict[tuple[str, str, str], DetectedCapability],
     ) -> None:
+        """Detect interaction action commands declared in workbook XML."""
         for command in root.findall(".//action/command"):
             raw_name = command.get("command", "")
             if not raw_name:
@@ -382,6 +401,7 @@ class TWBAnalyzer:
         detected: dict[tuple[str, str, str], DetectedCapability],
         unknown: dict[tuple[str, str, str], DetectedCapability],
     ) -> None:
+        """Detect connection classes across all datasource connection nodes."""
         for connection in root.findall(".//connection"):
             raw_name = connection.get("class", "")
             if not raw_name:
@@ -401,6 +421,7 @@ class TWBAnalyzer:
         detected: dict[tuple[str, str, str], DetectedCapability],
         unknown: dict[tuple[str, str, str], DetectedCapability],
     ) -> None:
+        """Detect known unsupported feature markers for migration triage."""
         if root.find(".//reference-line") is not None:
             self._resolve_and_record(
                 detected,

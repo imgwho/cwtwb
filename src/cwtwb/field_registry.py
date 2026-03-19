@@ -94,6 +94,7 @@ class FieldRegistry:
     """Field name -> TWB internal reference mapping table."""
 
     def __init__(self, datasource_name: str, allow_unknown_fields: bool = False):
+        """Initialize registry state for one datasource namespace."""
         self.datasource_name = datasource_name
         self.allow_unknown_fields = allow_unknown_fields
         self._fields: dict[str, FieldInfo] = {}
@@ -114,6 +115,7 @@ class FieldRegistry:
         field_type: str,
         is_calculated: bool = False,
     ) -> None:
+        """Register one field and its Tableau metadata in the lookup table."""
         self._fields[display_name] = FieldInfo(
             display_name=display_name,
             local_name=local_name,
@@ -124,23 +126,29 @@ class FieldRegistry:
         )
 
     def unregister(self, display_name: str) -> None:
+        """Remove a field mapping if it exists."""
         self._fields.pop(display_name, None)
 
     def remove(self, display_name: str) -> None:
+        """Alias of unregister() kept for API readability."""
         self._fields.pop(display_name, None)
 
     # ---- Queries ----
 
     def get(self, display_name: str) -> Optional[FieldInfo]:
+        """Return field metadata by display name, or None when unknown."""
         return self._fields.get(display_name)
 
     def all_fields(self) -> list[FieldInfo]:
+        """Return all registered fields in insertion order."""
         return list(self._fields.values())
 
     def dimensions(self) -> list[FieldInfo]:
+        """Return only fields declared as dimensions."""
         return [f for f in self._fields.values() if f.role == "dimension"]
 
     def measures(self) -> list[FieldInfo]:
+        """Return only fields declared as measures."""
         return [f for f in self._fields.values() if f.role == "measure"]
 
     # ---- Expression parsing ----

@@ -134,6 +134,7 @@ def _render_container(
     get_id_fn: Callable[[], str],
     context: dict[str, Any],
 ) -> None:
+    """Render a layout container zone and recursively emit its children."""
     zone.set("type-v2", "layout-flow")
     zone.set("param", "horz" if node.direction == "horizontal" else "vert")
     if node.layout_strategy:
@@ -143,6 +144,7 @@ def _render_container(
 
 
 def _render_text(node: FlexNode, zone: etree._Element) -> None:
+    """Render a text zone with a single formatted-text run."""
     zone.set("type-v2", "text")
     zone.set("forceUpdate", "true")
     formatted_text = etree.SubElement(zone, "formatted-text")
@@ -165,6 +167,7 @@ def _render_filter(
     zone: etree._Element,
     context: dict[str, Any],
 ) -> None:
+    """Render a filter control zone and resolve its backing field reference."""
     zone.set("type-v2", "filter")
     if node.worksheet:
         zone.set("name", node.worksheet)
@@ -193,6 +196,7 @@ def _render_paramctrl(
     zone: etree._Element,
     context: dict[str, Any],
 ) -> None:
+    """Render a parameter control zone using workbook parameter metadata."""
     zone.set("type-v2", "paramctrl")
     if node.mode:
         zone.set("mode", node.mode)
@@ -212,6 +216,7 @@ def _render_color(
     zone: etree._Element,
     context: dict[str, Any],
 ) -> None:
+    """Render a color legend/control zone bound to a worksheet field."""
     zone.set("type-v2", "color")
     if node.worksheet:
         zone.set("name", node.worksheet)
@@ -226,6 +231,7 @@ def _render_color(
 
 
 def _find_filter_param(node: FlexNode, context: dict[str, Any]) -> str | None:
+    """Try reusing an existing worksheet filter column reference when available."""
     if not (node.field and context.get("editor") and node.worksheet):
         return None
 

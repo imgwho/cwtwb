@@ -108,13 +108,16 @@ class MigrationPreview:
 
     @property
     def blocking_issue_count(self) -> int:
+        """Count unresolved blocking issues in the preview result."""
         return sum(1 for issue in self.issues if issue.severity == "blocking")
 
     @property
     def warning_issue_count(self) -> int:
+        """Count warning issues that still require explicit user review."""
         return sum(1 for issue in self.issues if issue.severity == "warning")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize preview payload with derived blocking/warning counters."""
         payload = asdict(self)
         payload["blocking_issue_count"] = self.blocking_issue_count
         payload["warning_issue_count"] = self.warning_issue_count
@@ -137,6 +140,7 @@ class WorkbookMigrationProfile:
     source_excel_profile: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize workbook profile into plain JSON-compatible structures."""
         return asdict(self)
 
 
@@ -158,18 +162,22 @@ class ColumnProfile:
     sample_values: list[str]
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize column profile into plain JSON-compatible structures."""
         return asdict(self)
 
 
 def _normalize_path(path: str | Path) -> str:
+    """Normalize filesystem paths to absolute, forward-slash form."""
     return str(Path(path).resolve()).replace("\\", "/")
 
 
 def _normalize_field_name(value: str) -> str:
+    """Normalize field names for fuzzy comparison scoring."""
     return "".join(ch for ch in value.casefold() if ch.isalnum())
 
 
 def _normalize_sample_value(value: Any) -> str:
+    """Normalize sample cell values for overlap-based similarity checks."""
     text = str(value).strip()
     if not text:
         return ""
@@ -183,6 +191,7 @@ def _normalize_sample_value(value: Any) -> str:
 
 
 def _sequence_similarity(left: str, right: str) -> float:
+    """Return SequenceMatcher similarity ratio for two normalized strings."""
     if not left or not right:
         return 0.0
     return difflib.SequenceMatcher(a=left, b=right).ratio()
@@ -193,6 +202,7 @@ def _build_warning_review_bundle(
     source_profiles: dict[str, ColumnProfile],
     target_profiles: dict[str, ColumnProfile],
 ) -> dict[str, Any]:
+    """Build a structured review bundle for low-confidence field mappings."""
     if not warning_candidates:
         return {
             "status": "not-needed",
@@ -242,6 +252,7 @@ def _build_warning_review_bundle(
 
 
 def _sample_overlap_score(source_profile: ColumnProfile, target_profile: ColumnProfile) -> tuple[float, list[str]]:
+    """Score two fields by direct sample value overlap and positional alignment."""
     source_samples = [_normalize_sample_value(value) for value in source_profile.sample_values]
     target_samples = [_normalize_sample_value(value) for value in target_profile.sample_values]
     source_samples = [value for value in source_samples if value]
@@ -271,6 +282,7 @@ def _sample_overlap_score(source_profile: ColumnProfile, target_profile: ColumnP
 
 
 def _frequency_signature_score(source_profile: ColumnProfile, target_profile: ColumnProfile) -> tuple[float, list[str]]:
+    """Score two fields by similarity of top-value frequency distributions."""
     reasons: list[str] = []
     if not source_profile.top_frequencies or not target_profile.top_frequencies:
         return 0.0, reasons
@@ -286,6 +298,7 @@ def _frequency_signature_score(source_profile: ColumnProfile, target_profile: Co
 
 
 def _numeric_range_score(source_profile: ColumnProfile, target_profile: ColumnProfile) -> tuple[float, list[str]]:
+    """Score numeric fields by lower-bound and span similarity."""
     reasons: list[str] = []
     if source_profile.numeric_min is None or target_profile.numeric_min is None:
         return 0.0, reasons
@@ -304,6 +317,7 @@ def _numeric_range_score(source_profile: ColumnProfile, target_profile: ColumnPr
 
 
 def _read_excel_headers(path: str | Path) -> dict[str, Any]:
+    """Read first-sheet header names from an Excel file."""
     workbook = xlrd.open_workbook(_normalize_path(path))
     sheet = workbook.sheet_by_index(0)
     headers = [str(value).strip() for value in sheet.row_values(0) if str(value).strip()]
@@ -314,6 +328,7 @@ def _read_excel_headers(path: str | Path) -> dict[str, Any]:
 
 
 def _strip_table_brackets(table_name: str | None) -> str | None:
+    """Normalize relation table names by removing Tableau bracket wrappers."""
     if not table_name:
         return None
     cleaned = table_name.strip()
@@ -326,6 +341,7 @@ def _strip_table_brackets(table_name: str | None) -> str | None:
 
 
 def _find_excel_connection_filename(datasource: etree._Element) -> str | None:
+    """Extract excel-direct connection filename from a datasource node."""
     connection = datasource.find(".//connection[@class='excel-direct']")
     if connection is None:
         return None
@@ -339,6 +355,7 @@ def _resolve_linked_excel_path(
     workbook_path: str | Path,
     linked_path: str | Path | None,
 ) -> str | None:
+    """Resolve workbook-relative Excel links to an existing absolute path."""
     if not linked_path:
         return None
 
@@ -358,6 +375,7 @@ def _resolve_linked_excel_path(
 
 
 def _find_relation_sheet_name(datasource: etree._Element) -> str | None:
+    """Read worksheet name from datasource relation metadata when available."""
     relation = datasource.find(".//relation")
     if relation is None:
         return None
@@ -365,6 +383,7 @@ def _find_relation_sheet_name(datasource: etree._Element) -> str | None:
 
 
 def _open_excel_sheet(path: str | Path, sheet_name: str | None = None):
+    """Open an Excel workbook and return the requested (or first) sheet."""
     workbook = xlrd.open_workbook(_normalize_path(path))
     if sheet_name:
         for worksheet in workbook.sheets():
@@ -374,6 +393,7 @@ def _open_excel_sheet(path: str | Path, sheet_name: str | None = None):
 
 
 def _infer_value_kind(values: list[Any]) -> str:
+    """Infer coarse value kind for a sampled column."""
     non_blank = [value for value in values if value not in ("", None)]
     if not non_blank:
         return "empty"
@@ -388,6 +408,7 @@ def _infer_value_kind(values: list[Any]) -> str:
 
 
 def _infer_value_pattern(kind: str, values: list[Any], distinct_ratio: float, blank_ratio: float) -> str:
+    """Infer higher-level column pattern label from sampled values."""
     if blank_ratio >= 0.8:
         return "blank-heavy"
     non_blank = [value for value in values if value not in ("", None)]
@@ -420,6 +441,7 @@ def _infer_value_pattern(kind: str, values: list[Any], distinct_ratio: float, bl
 
 
 def _build_column_profiles(headers: list[str], rows: list[list[Any]], max_samples: int = 50) -> dict[str, ColumnProfile]:
+    """Build lightweight profile fingerprints for all sampled columns."""
     profiles: dict[str, ColumnProfile] = {}
     if not headers:
         return profiles
@@ -468,6 +490,7 @@ def _build_column_profiles(headers: list[str], rows: list[list[Any]], max_sample
 
 
 def _read_excel_profiles(path: str | Path, sheet_name: str | None = None) -> dict[str, Any]:
+    """Read sheet rows and return schema/profile payload for scoring."""
     workbook, sheet = _open_excel_sheet(path, sheet_name)
     headers = [str(value).strip() for value in sheet.row_values(0) if str(value).strip()]
     rows = [sheet.row_values(row_index) for row_index in range(1, min(sheet.nrows, 151))]
@@ -482,6 +505,7 @@ def _read_excel_profiles(path: str | Path, sheet_name: str | None = None) -> dic
 
 
 def _top_level_datasources(root: etree._Element) -> list[etree._Element]:
+    """Return workbook-level datasource nodes from <datasources>."""
     datasources = root.find("datasources")
     if datasources is None:
         return []
@@ -489,6 +513,7 @@ def _top_level_datasources(root: etree._Element) -> list[etree._Element]:
 
 
 def _get_datasource_fields(datasource: etree._Element) -> dict[str, str]:
+    """Read relation column mapping (remote->local) for one datasource."""
     relation = datasource.find(".//relation")
     fields: dict[str, str] = {}
     if relation is None:
@@ -501,6 +526,7 @@ def _get_datasource_fields(datasource: etree._Element) -> dict[str, str]:
 
 
 def _get_datasource_by_name(root: etree._Element, datasource_name: str) -> etree._Element | None:
+    """Find one top-level datasource by its internal Tableau name."""
     for ds in _top_level_datasources(root):
         if ds.get("name") == datasource_name:
             return ds
@@ -512,6 +538,7 @@ def _find_target_datasource(
     target_source: str | Path,
     workbook_path: str | Path | None = None,
 ) -> etree._Element | None:
+    """Find workbook datasource linked to the provided target Excel path."""
     target_name = Path(target_source).name.casefold()
     normalized_target = _normalize_path(target_source).casefold()
     for datasource in _top_level_datasources(root):
@@ -533,6 +560,7 @@ def _find_target_datasource(
 
 
 def _collect_scope_worksheets(root: etree._Element, scope: str) -> list[etree._Element]:
+    """Collect worksheets covered by the requested migration scope."""
     if scope != "workbook":
         raise ValueError(f"Unsupported migration scope: {scope}")
     worksheets = root.find("worksheets")
@@ -542,6 +570,7 @@ def _collect_scope_worksheets(root: etree._Element, scope: str) -> list[etree._E
 
 
 def _worksheet_datasource_names(worksheet: etree._Element) -> list[str]:
+    """Collect distinct datasource names referenced by one worksheet."""
     seen: list[str] = []
     for dep in worksheet.findall(".//datasource-dependencies"):
         datasource_name = dep.get("datasource")
@@ -551,6 +580,7 @@ def _worksheet_datasource_names(worksheet: etree._Element) -> list[str]:
 
 
 def _find_source_datasource_name(root: etree._Element, target_datasource_name: str | None, scope: str) -> str:
+    """Pick the most relevant source datasource for migration mapping."""
     usage_count: dict[str, int] = {}
     for worksheet in _collect_scope_worksheets(root, scope):
         for datasource_name in _worksheet_datasource_names(worksheet):
@@ -570,6 +600,7 @@ def _find_source_datasource_name(root: etree._Element, target_datasource_name: s
 
 
 def _collect_dashboards_for_worksheets(root: etree._Element, worksheet_names: set[str]) -> list[str]:
+    """Return dashboards containing at least one worksheet in scope."""
     dashboards = root.find("dashboards")
     if dashboards is None:
         return []
@@ -660,6 +691,7 @@ def profile_twb_for_migration(
 
 
 def _profile_from_dict(field: str, payload: dict[str, Any]) -> ColumnProfile:
+    """Hydrate ColumnProfile from serialized dictionary payload."""
     return ColumnProfile(
         field=field,
         index=int(payload["index"]),
@@ -677,6 +709,7 @@ def _profile_from_dict(field: str, payload: dict[str, Any]) -> ColumnProfile:
 
 
 def _score_field_match(source_field: str, target_field: str, source_profile: ColumnProfile, target_profile: ColumnProfile) -> tuple[float, list[str]]:
+    """Compute confidence score and reasons for one source->target pair."""
     score = 0.0
     reasons: list[str] = []
 
@@ -940,6 +973,7 @@ def propose_field_mapping(
 
 
 def _calculation_summary(worksheets: list[etree._Element]) -> dict[str, int]:
+    """Summarize calculation rewrite workload across scoped worksheets."""
     total_calcs = 0
     rewrite_candidates = 0
     for worksheet in worksheets:
@@ -1034,6 +1068,7 @@ def preview_twb_migration(
 
 
 def _build_string_replacements(preview: MigrationPreview) -> dict[str, str]:
+    """Build ordered string replacement map from preview mapping decisions."""
     if not preview.target_datasource:
         raise ValueError("Cannot build replacements without a target datasource already present in the workbook.")
 
@@ -1050,6 +1085,7 @@ def _build_string_replacements(preview: MigrationPreview) -> dict[str, str]:
 
 
 def _replace_in_sections(root: etree._Element, replacements: dict[str, str]) -> None:
+    """Apply replacement map to mutable workbook sections used during migration."""
     ordered = sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True)
     for section_name in ("worksheets", "dashboards", "windows", "actions"):
         section = root.find(section_name)
@@ -1076,6 +1112,7 @@ def _set_datasource_excel_connection_path(
     datasource: etree._Element | None,
     source_path: str | Path,
 ) -> None:
+    """Update excel-direct filename for the target datasource after migration."""
     if datasource is None:
         return
     connection = datasource.find(".//connection[@class='excel-direct']")

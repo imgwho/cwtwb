@@ -144,6 +144,7 @@ class DashboardsMixin:
         return f"Created dashboard '{dashboard_name}'"
 
     def _next_zone_id(self) -> int:
+        """Return the next monotonic dashboard zone id for layout generation."""
         self._zone_id_counter += 1
         return self._zone_id_counter
 

@@ -383,6 +383,7 @@ CAPABILITY_SPECS: tuple[CapabilitySpec, ...] = (
 
 
 def _normalize_name(value: str) -> str:
+    """Normalize free-form capability names for case-insensitive lookup keys."""
     return " ".join(value.strip().casefold().replace("_", " ").replace("-", " ").split())
 
 

@@ -1,4 +1,9 @@
-"""Helpers for adding dashboard-level datasource dependencies."""
+"""Dashboard-level datasource dependency builders.
+
+This module inserts `<datasources>` and `<datasource-dependencies>` blocks
+required by dashboard controls (filter zones and parameter controls), ensuring
+dashboard XML has the same field/parameter context expected by Tableau.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +21,7 @@ def add_dashboard_dependencies(editor, db: etree._Element, layout_dict: dict) ->
     paramctrl_zones: list[dict] = []
 
     def _extract_zones(node: dict) -> None:
+        """Collect filter/parameter-control nodes from nested layout config."""
         if node.get("type") == "filter":
             filter_zones.append(node)
         elif node.get("type") == "paramctrl":

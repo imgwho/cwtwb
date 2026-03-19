@@ -64,6 +64,7 @@ class DualAxisChartBuilder(BaseChartBuilder):
                  extra_axes: Optional[list[dict]] = None,
                  color_map_1: Optional[dict[str, str]] = None,
                  ) -> None:
+        """Capture dual-axis chart settings for later XML composition."""
         super().__init__(editor)
         self.worksheet_name = worksheet_name
         self.mark_type_1 = mark_type_1
@@ -97,6 +98,7 @@ class DualAxisChartBuilder(BaseChartBuilder):
         self.color_map_1 = color_map_1 or {}
 
     def build(self) -> str:
+        """Build overlapping panes and shelves required for dual-axis charts."""
         if self.dual_axis_shelf == "rows":
             if len(self.rows) < 2:
                 raise ValueError("dual_axis_shelf 'rows' must have at least 2 expressions to fold.")
@@ -245,6 +247,7 @@ class DualAxisChartBuilder(BaseChartBuilder):
 
         # Helper to build nested measures shelf expression
         def _build_measures_shelf(refs):
+            """Build nested Tableau shelf expression for multiple measure refs."""
             if len(refs) == 1:
                 return refs[0]
             return f"({refs[0]} + {_build_measures_shelf(refs[1:])})"

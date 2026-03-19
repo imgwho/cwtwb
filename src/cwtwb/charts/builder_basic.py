@@ -47,6 +47,7 @@ class BasicChartBuilder(BaseChartBuilder):
                  text_format: Optional[dict[str, str]] = None,
                  label_extra: Optional[list[str]] = None,
                  label_runs: Optional[list[dict]] = None) -> None:
+        """Capture chart configuration for one single-pane worksheet mutation."""
         super().__init__(editor)
         self.worksheet_name = worksheet_name
         self.mark_type = mark_type
@@ -68,6 +69,7 @@ class BasicChartBuilder(BaseChartBuilder):
         self.label_runs = label_runs or []
 
     def build(self) -> str:
+        """Create/update worksheet XML for a standard single-pane chart."""
         # Macro processing
         mark_type, columns, rows = self.editor._apply_chart_macros(
             self.mark_type, self.columns, self.rows, self.color
@@ -148,6 +150,7 @@ class BasicChartBuilder(BaseChartBuilder):
             ft = etree.SubElement(cl, "formatted-text")
 
             def _add_run(text_value: str) -> None:
+                """Append a default-formatted run to customized label text."""
                 r = etree.SubElement(ft, "run")
                 r.set("fontalignment", "2")
                 r.set("fontname", "Tableau Medium")

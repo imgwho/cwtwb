@@ -9,6 +9,7 @@ class FlexNode:
     """A node in the declarative dashboard layout tree."""
 
     def __init__(self, d: dict[str, Any]):
+        """Build a layout node from declarative config payload."""
         self.type = d.get("type", "container")
         self.direction = d.get("direction", "vertical")
         self.children = [FlexNode(c) for c in d.get("children", [])]
@@ -94,6 +95,7 @@ class FlexNode:
         dash_w: float,
         dash_h: float,
     ) -> None:
+        """Lay out child nodes left-to-right using fixed sizes and weights."""
         total_fixed = sum(c.fixed_size for c in self.children if c.fixed_size is not None)
         total_weight = sum(c.weight for c in self.children if c.fixed_size is None)
         remaining_px = max(0, px_w - total_fixed)
@@ -117,6 +119,7 @@ class FlexNode:
         dash_w: float,
         dash_h: float,
     ) -> None:
+        """Lay out child nodes top-to-bottom using fixed sizes and weights."""
         total_fixed = sum(c.fixed_size for c in self.children if c.fixed_size is not None)
         total_weight = sum(c.weight for c in self.children if c.fixed_size is None)
         remaining_px = max(0, px_h - total_fixed)

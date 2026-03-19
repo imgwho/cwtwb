@@ -1,4 +1,9 @@
-"""Helpers for dashboard interaction actions."""
+"""Dashboard action XML helpers for filter and highlight interactions.
+
+This module builds `<action>` blocks and command payloads used by Tableau
+dashboards to wire cross-sheet interactions. It keeps action XML assembly
+separate from dashboard layout code so MCP tools can expose a focused API.
+"""
 
 from __future__ import annotations
 
@@ -108,6 +113,7 @@ def _configure_filter_action(
     fields: list[str],
     exclude_sheets: list[str],
 ) -> None:
+    """Populate XML for a filter action, including link payload and command params."""
     if fields:
         ds_name = editor._datasource.get("name", "")
         link_el = etree.SubElement(action_el, "link")
@@ -155,6 +161,7 @@ def _configure_highlight_action(
     fields: list[str],
     exclude_sheets: list[str],
 ) -> None:
+    """Populate XML for a highlight action command block."""
     cmd_el = etree.SubElement(action_el, "command")
     cmd_el.set("command", "tsc:brush")
 
