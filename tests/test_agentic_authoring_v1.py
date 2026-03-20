@@ -26,8 +26,10 @@ from cwtwb.server import (
     finalize_authoring_contract,
     finalize_wireframe,
     generate_workbook_from_run,
+    get_client_interaction_capabilities,
     get_run_status,
     intake_datasource_schema,
+    interactive_stage_confirmation,
     list_authoring_runs,
     reopen_authoring_stage,
     resume_authoring_run,
@@ -189,6 +191,8 @@ class TestAuthoringPrompts:
         text = messages[0].content.text
         assert "build_analysis_brief" in text
         assert "build_wireframe" in text
+        assert "interactive_stage_confirmation" in text
+        assert "chat_fallback" in text
         assert "stage='schema'" in text
         assert "stage='analysis'" in text
         assert "stage='contract'" in text
@@ -199,11 +203,17 @@ class TestAuthoringPrompts:
 
     def test_server_instructions_reference_all_guided_confirmation_calls(self):
         text = server.instructions
+        assert "interactive_stage_confirmation('schema')" in text
+        assert "interactive_stage_confirmation('analysis')" in text
+        assert "interactive_stage_confirmation('contract')" in text
+        assert "interactive_stage_confirmation('wireframe')" in text
+        assert "interactive_stage_confirmation('execution_plan')" in text
         assert "confirm_authoring_stage('schema')" in text
         assert "confirm_authoring_stage('analysis')" in text
         assert "confirm_authoring_stage('contract')" in text
         assert "confirm_authoring_stage('wireframe')" in text
         assert "confirm_authoring_stage('execution_plan')" in text
+        assert "get_client_interaction_capabilities" in text
         assert "Do not switch to low-level workbook tools" in text
 
     def test_dashboard_brief_to_contract_prompt_uses_schema_summary(self):
@@ -262,6 +272,12 @@ class TestAuthoringPrompts:
 
 
 class TestAuthoringRunLifecycle:
+    def test_client_capabilities_without_context_prefer_chat_fallback(self):
+        payload = json.loads(get_client_interaction_capabilities())
+        assert payload["request_context_available"] is False
+        assert payload["form_elicitation_supported"] is False
+        assert payload["preferred_confirmation_mode"] == "chat_fallback"
+
     def test_start_list_status_and_resume(self):
         run = _start_run()
         run_id = run["run_id"]
@@ -291,6 +307,27 @@ class TestAuthoringRunLifecycle:
         assert schema_summary["fields"]
         assert "dimensions" in schema_summary["field_candidates"]
         assert "# Schema Review" in review_artifact.read_text(encoding="utf-8")
+
+    def test_interactive_stage_confirmation_falls_back_to_chat_without_client_support(self):
+        run = _start_run()
+        run_id = run["run_id"]
+        intake_payload = json.loads(intake_datasource_schema(run_id))
+
+        result = json.loads(
+            asyncio.run(
+                interactive_stage_confirmation(
+                    run_id=run_id,
+                    stage="schema",
+                    stage_summary="Schema review for fallback coverage.",
+                )
+            )
+        )
+
+        assert result["status"] == "awaiting_human_confirmation"
+        assert result["confirmation_mode"] == "chat_fallback"
+        assert Path(result["review_artifact"]) == Path(intake_payload["review_artifact"])
+        status = json.loads(get_run_status(run_id))
+        assert status["status"] == "schema_intaked"
 
     def test_hyper_schema_intake_lists_tables(self):
         if not HYPER_SOURCE.exists():
