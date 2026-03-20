@@ -12,8 +12,9 @@ All scripts use the **built-in Superstore dataset** — no external files needed
 For the newer datasource-first MCP workflow, see
 `examples/agentic_mcp_authoring/README.md`. That flow starts from a real
 Excel or Hyper file, writes paired JSON + Markdown review artifacts under
-`tmp/agentic_run/{run_id}/`, and is designed for human-in-the-loop dashboard
-authoring.
+`tmp/agentic_run/{run_id}/`, prefers MCP elicitation for approval gates when
+the client supports it, and falls back cleanly to chat confirmation when it
+does not.
 
 ---
 

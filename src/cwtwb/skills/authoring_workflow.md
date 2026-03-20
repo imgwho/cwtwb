@@ -38,6 +38,7 @@ only generate the workbook after the required confirmation gates have passed.
 
 - **Datasource before contract**: Always inspect the datasource first.
 - **Respect the gates**: Do not continue past `schema`, `analysis`, `contract`, `wireframe`, or `execution_plan` until the human approves.
+- **Prefer protocol confirmations**: Use `interactive_stage_confirmation(...)` first so supporting clients can surface MCP elicitation. If the tool falls back to chat, then ask the human in chat and call `confirm_authoring_stage(...)` with the explicit answer.
 - **Artifacts matter**: Every major stage should write a run artifact under `tmp/agentic_run/{run_id}/`, and the human-facing stages should also write a paired Markdown review file.
 - **Prompts guide, tools persist**: Use MCP prompts to reason and tools to write files or change run state.
 - **Prefer small clarifications**: Ask only the minimum questions needed to make the contract executable.
@@ -50,21 +51,26 @@ only generate the workbook after the required confirmation gates have passed.
 ```text
 start_authoring_run(...)
 intake_datasource_schema(...)
-confirm_authoring_stage(..., stage="schema", ...)
+interactive_stage_confirmation(..., stage="schema", ...)
+confirm_authoring_stage(..., stage="schema", ...)  # only if chat fallback was required
 build_analysis_brief(...)
 finalize_analysis_brief(...)
-confirm_authoring_stage(..., stage="analysis", ...)
+interactive_stage_confirmation(..., stage="analysis", ...)
+confirm_authoring_stage(..., stage="analysis", ...)  # only if chat fallback was required
 read_resource("cwtwb://contracts/dashboard_authoring_v1")
 read_resource("cwtwb://profiles/index")
 draft_authoring_contract(...)
 review_authoring_contract_for_run(...)
 finalize_authoring_contract(...)
-confirm_authoring_stage(..., stage="contract", ...)
+interactive_stage_confirmation(..., stage="contract", ...)
+confirm_authoring_stage(..., stage="contract", ...)  # only if chat fallback was required
 build_wireframe(...)
 finalize_wireframe(...)
-confirm_authoring_stage(..., stage="wireframe", ...)
+interactive_stage_confirmation(..., stage="wireframe", ...)
+confirm_authoring_stage(..., stage="wireframe", ...)  # only if chat fallback was required
 build_execution_plan(...)
-confirm_authoring_stage(..., stage="execution_plan", ...)
+interactive_stage_confirmation(..., stage="execution_plan", ...)
+confirm_authoring_stage(..., stage="execution_plan", ...)  # only if chat fallback was required
 read_resource("cwtwb://skills/calculation_builder")
 read_resource("cwtwb://skills/chart_builder")
 read_resource("cwtwb://skills/dashboard_designer")

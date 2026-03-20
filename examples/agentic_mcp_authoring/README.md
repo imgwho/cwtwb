@@ -60,26 +60,33 @@ Recommended live sequence:
 2. Let it call `start_authoring_run(...)`.
 3. Let it call `intake_datasource_schema(...)`.
 4. Show the generated schema summary and confirm it.
-5. Make sure it calls `confirm_authoring_stage(..., stage="schema")`.
-6. Let it build and finalize the analysis brief.
-7. Show the candidate directions and confirm the selected analysis direction.
-8. Make sure it calls `confirm_authoring_stage(..., stage="analysis")`.
-9. Let it draft, review, and finalize the contract.
-10. Show the finalized contract and confirm it.
-11. Make sure it calls `confirm_authoring_stage(..., stage="contract")`.
-12. Let it build and finalize the ASCII wireframe.
-13. Show the wireframe and support/workaround notes, then confirm it.
-14. Make sure it calls `confirm_authoring_stage(..., stage="wireframe")`.
-15. Let it build the execution plan.
-16. Show the execution plan and confirm it.
-17. Make sure it calls `confirm_authoring_stage(..., stage="execution_plan")`.
-18. Let it call `generate_workbook_from_run(...)`.
-19. End by showing the final workbook path plus validation and analysis artifacts.
+5. Prefer `interactive_stage_confirmation(..., stage="schema")`.
+6. If the client reports `chat_fallback`, answer in chat and then make sure it calls `confirm_authoring_stage(..., stage="schema")`.
+7. Let it build and finalize the analysis brief.
+8. Show the candidate directions and confirm the selected analysis direction.
+9. Prefer `interactive_stage_confirmation(..., stage="analysis")`.
+10. If the client reports `chat_fallback`, answer in chat and then make sure it calls `confirm_authoring_stage(..., stage="analysis")`.
+11. Let it draft, review, and finalize the contract.
+12. Show the finalized contract and confirm it.
+13. Prefer `interactive_stage_confirmation(..., stage="contract")`.
+14. If the client reports `chat_fallback`, answer in chat and then make sure it calls `confirm_authoring_stage(..., stage="contract")`.
+15. Let it build and finalize the ASCII wireframe.
+16. Show the wireframe and support/workaround notes, then confirm it.
+17. Prefer `interactive_stage_confirmation(..., stage="wireframe")`.
+18. If the client reports `chat_fallback`, answer in chat and then make sure it calls `confirm_authoring_stage(..., stage="wireframe")`.
+19. Let it build the execution plan.
+20. Show the execution plan and confirm it.
+21. Prefer `interactive_stage_confirmation(..., stage="execution_plan")`.
+22. If the client reports `chat_fallback`, answer in chat and then make sure it calls `confirm_authoring_stage(..., stage="execution_plan")`.
+23. Let it call `generate_workbook_from_run(...)`.
+24. End by showing the final workbook path plus validation and analysis artifacts.
 
 What to emphasize while speaking:
 
 - The system starts from a real Excel file, not a baked demo JSON.
 - The agent pauses at `schema`, `analysis`, `contract`, `wireframe`, and `execution_plan`.
+- When the client supports MCP elicitation, the preferred gate is `interactive_stage_confirmation(...)`.
+- When the client does not support elicitation, the workflow degrades cleanly to chat confirmation plus `confirm_authoring_stage(...)`.
 - The prompts guide; the tools write files and move run state.
 - The run is resumable because artifacts live under `tmp/agentic_run/{run_id}/`.
 - The human-facing review surface is now paired Markdown artifacts, not just JSON.
@@ -94,7 +101,9 @@ python examples/agentic_mcp_authoring/demo_guided_authoring_mcp_client.py
 
 This script does not call Python functions directly. It uses the official
 `mcp` client over stdio to connect to `python -m cwtwb.mcp`, then executes the
-full guided flow and prints each checkpoint.
+full guided flow and prints each checkpoint. It also demonstrates client
+capability detection and shows the `chat_fallback` path when the raw Python MCP
+client does not advertise form elicitation support.
 
 Useful overrides:
 

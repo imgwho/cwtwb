@@ -75,6 +75,37 @@ async def _call_tool(
     return payload
 
 
+async def _confirm_stage(
+    session: ClientSession,
+    *,
+    run_id: str,
+    stage: str,
+    notes: str,
+    stage_summary: str,
+) -> dict[str, Any]:
+    interactive = await _call_tool(
+        session,
+        "interactive_stage_confirmation",
+        {
+            "run_id": run_id,
+            "stage": stage,
+            "stage_summary": stage_summary,
+        },
+    )
+    if interactive.get("confirmation_mode") != "chat_fallback":
+        return interactive
+    return await _call_tool(
+        session,
+        "confirm_authoring_stage",
+        {
+            "run_id": run_id,
+            "stage": stage,
+            "approved": True,
+            "notes": notes,
+        },
+    )
+
+
 async def run_demo(
     datasource: str,
     brief: str,
@@ -91,6 +122,9 @@ async def run_demo(
         read_stream, write_stream = streams
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
+
+            capabilities = await _call_tool(session, "get_client_interaction_capabilities")
+            _print_block("CLIENT INTERACTION CAPABILITIES", capabilities)
 
             guided_prompt = await session.get_prompt(
                 "guided_dashboard_authoring",
@@ -134,15 +168,15 @@ async def run_demo(
                 },
             )
 
-            await _call_tool(
+            await _confirm_stage(
                 session,
-                "confirm_authoring_stage",
-                {
-                    "run_id": run_id,
-                    "stage": "schema",
-                    "approved": True,
-                    "notes": "Orders is the only sheet and the schema looks correct for the demo.",
-                },
+                run_id=run_id,
+                stage="schema",
+                notes="Orders is the only sheet and the schema looks correct for the demo.",
+                stage_summary=(
+                    "Schema review: Orders is the only sheet and it exposes Sales, Profit, Region, "
+                    "Category, and Order Date for the guided demo."
+                ),
             )
 
             analysis = await _call_tool(session, "build_analysis_brief", {"run_id": run_id})
@@ -169,15 +203,15 @@ async def run_demo(
                     ),
                 },
             )
-            await _call_tool(
+            await _confirm_stage(
                 session,
-                "confirm_authoring_stage",
-                {
-                    "run_id": run_id,
-                    "stage": "analysis",
-                    "approved": True,
-                    "notes": "Executive Overview is the right direction for the demo.",
-                },
+                run_id=run_id,
+                stage="analysis",
+                notes="Executive Overview is the right direction for the demo.",
+                stage_summary=(
+                    "Analysis review: keep Executive Overview as the selected direction for the "
+                    "Matthew-facing sales dashboard."
+                ),
             )
 
             await _call_tool(
@@ -234,15 +268,15 @@ async def run_demo(
                 },
             )
 
-            await _call_tool(
+            await _confirm_stage(
                 session,
-                "confirm_authoring_stage",
-                {
-                    "run_id": run_id,
-                    "stage": "contract",
-                    "approved": True,
-                    "notes": "Contract is aligned with the Matthew-facing demo.",
-                },
+                run_id=run_id,
+                stage="contract",
+                notes="Contract is aligned with the Matthew-facing demo.",
+                stage_summary=(
+                    "Contract review: the dashboard keeps the executive audience, top-level KPI tiles, "
+                    "and drill-friendly regional analysis."
+                ),
             )
 
             wireframe = await _call_tool(session, "build_wireframe", {"run_id": run_id})
@@ -264,15 +298,15 @@ async def run_demo(
                     "user_answers_json": json.dumps({}, ensure_ascii=False),
                 },
             )
-            await _call_tool(
+            await _confirm_stage(
                 session,
-                "confirm_authoring_stage",
-                {
-                    "run_id": run_id,
-                    "stage": "wireframe",
-                    "approved": True,
-                    "notes": "Wireframe and interaction notes look good for the demo.",
-                },
+                run_id=run_id,
+                stage="wireframe",
+                notes="Wireframe and interaction notes look good for the demo.",
+                stage_summary=(
+                    "Wireframe review: keep the KPI header, region-first primary view, and linked "
+                    "detail trend layout."
+                ),
             )
 
             execution_prompt = await session.get_prompt(
@@ -295,15 +329,15 @@ async def run_demo(
                 },
             )
 
-            await _call_tool(
+            await _confirm_stage(
                 session,
-                "confirm_authoring_stage",
-                {
-                    "run_id": run_id,
-                    "stage": "execution_plan",
-                    "approved": True,
-                    "notes": "Execution plan approved for the demo run.",
-                },
+                run_id=run_id,
+                stage="execution_plan",
+                notes="Execution plan approved for the demo run.",
+                stage_summary=(
+                    "Execution plan review: proceed with the generated read-only plan and run the "
+                    "workbook build."
+                ),
             )
 
             generated = await _call_tool(session, "generate_workbook_from_run", {"run_id": run_id})
