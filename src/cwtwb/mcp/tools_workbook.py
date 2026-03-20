@@ -42,7 +42,6 @@ from __future__ import annotations
 from typing import Optional
 
 from ..charts.showcase_recipes import configure_chart_recipe as configure_chart_recipe_impl
-from ..connections import inspect_hyper_schema
 from ..twb_editor import TWBEditor
 from .app import server
 from .state import get_editor, set_editor
@@ -434,22 +433,6 @@ def set_tableauserver_connection(
         directory=directory,
         port=port,
     )
-
-
-@server.tool()
-def inspect_target_schema(target_source: str) -> str:
-    """Inspect the first-sheet schema of a target Excel datasource."""
-    # Delegate to inspect_hyper_schema for .hyper files
-    if target_source.endswith(".hyper"):
-        import json
-        result = inspect_hyper_schema(target_source)
-        lines = [f"=== Hyper Schema: {target_source} ==="]
-        for tbl in result["tables"]:
-            lines.append(f"\nTable: [{tbl['schema']}].[{tbl['name']}]")
-            for col in tbl["columns"]:
-                lines.append(f"  {col['name']}: {col['type']}")
-        return "\n".join(lines)
-    return f"Unsupported file type: {target_source}"
 
 
 @server.tool()

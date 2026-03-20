@@ -1,42 +1,111 @@
 # Guided MCP Authoring Run
 
-This example folder no longer stores pre-baked `brief`, `contract`, or `review`
-artifacts.
+This folder is the recommended Excel-first demo for Guided MCP Authoring Run V1.
 
-The intended demo now starts from a real datasource file and lets the MCP
-workflow create run artifacts dynamically under:
+Use the local datasource in this folder:
+
+```text
+examples/agentic_mcp_authoring/Sample - Superstore.xls
+```
+
+This workbook has a single `Orders` sheet, which keeps the live demo focused on
+the authoring workflow instead of multi-sheet intake decisions.
+
+## What This Demo Proves
+
+The goal is not "AI can draw a chart". The goal is to show a controlled
+Agentic BI workflow:
+
+```text
+real datasource -> schema summary -> contract -> execution plan -> workbook
+```
+
+The strongest Matthew-facing checkpoints are:
+
+1. `schema_summary.json`
+2. `contract_final.json`
+3. `execution_plan.json`
+4. `final_workbook.twb`
+5. `validation_report.json`
+6. `analysis_report.json`
+
+## Demo Mode 1: Live MCP Client
+
+Start the server from the project root:
+
+```bash
+python -m cwtwb.mcp
+```
+
+You can also use `uvx cwtwb` when your local environment supports it.
+
+Then connect from an MCP-capable client such as Claude Desktop, Cursor, VSCode,
+or Codex, and use this brief plus datasource path:
+
+```text
+Build an executive sales performance dashboard for Matthew.
+Audience: sales leaders
+Primary question: Which regions, categories, and sub-categories are driving sales and profit, and where should leaders drill deeper?
+Please include interactive filtering from the top view into detail, and keep the dashboard simple enough for a polished demo.
+
+Datasource path:
+C:\Users\imgwho\Desktop\projects\20260227-cwtwb\examples\agentic_mcp_authoring\Sample - Superstore.xls
+```
+
+Recommended live sequence:
+
+1. Ask the client to use the `guided_dashboard_authoring` prompt.
+2. Let it call `start_authoring_run(...)`.
+3. Let it call `intake_datasource_schema(...)`.
+4. Show the generated schema summary and confirm it.
+5. Make sure it calls `confirm_authoring_stage(..., stage="schema")`.
+6. Let it draft, review, and finalize the contract.
+7. Show the finalized contract and confirm it.
+8. Make sure it calls `confirm_authoring_stage(..., stage="contract")`.
+9. Let it build the execution plan.
+10. Show the execution plan and confirm it.
+11. Make sure it calls `confirm_authoring_stage(..., stage="execution_plan")`.
+12. Let it call `generate_workbook_from_run(...)`.
+13. End by showing the final workbook path plus validation and analysis artifacts.
+
+What to emphasize while speaking:
+
+- The system starts from a real Excel file, not a baked demo JSON.
+- The agent pauses at `schema`, `contract`, and `execution_plan`.
+- The prompts guide; the tools write files and move run state.
+- The run is resumable because artifacts live under `tmp/agentic_run/{run_id}/`.
+
+## Demo Mode 2: Deterministic Real MCP Client Script
+
+If you want a reproducible fallback that still uses the real MCP protocol, run:
+
+```bash
+python examples/agentic_mcp_authoring/demo_guided_authoring_mcp_client.py
+```
+
+This script does not call Python functions directly. It uses the official
+`mcp` client over stdio to connect to `python -m cwtwb.mcp`, then executes the
+full guided flow and prints each checkpoint.
+
+Useful overrides:
+
+```bash
+python examples/agentic_mcp_authoring/demo_guided_authoring_mcp_client.py ^
+  --datasource "C:\path\to\your.xls" ^
+  --output-dir "tmp/agentic_run" ^
+  --brief "Build a sales dashboard for regional leaders." ^
+  --user-answers-json "{\"audience\":\"regional leaders\",\"primary_question\":\"Which regions need attention first?\",\"require_interaction\":true}"
+```
+
+## What Gets Written
+
+Each run writes its own artifacts under:
 
 ```text
 tmp/agentic_run/{run_id}/
 ```
 
-## Recommended Demo Flow
-
-1. Start with a real datasource:
-   - Excel: `templates/Sample - Superstore - simple.xls`
-   - Hyper: `templates/dashboard/Sample _ Superstore.hyper`
-2. In the MCP client, start with a natural-language dashboard request and let
-   the server use the `guided_dashboard_authoring` prompt internally.
-3. Let the agent call:
-   - `start_authoring_run(...)`
-   - `intake_datasource_schema(...)`
-4. Review the generated `schema_summary` and confirm the schema.
-5. Let the agent draft, review, and finalize the contract.
-6. Confirm the finalized contract.
-7. Let the agent build an execution plan.
-8. Confirm the execution plan.
-9. Let the agent call `generate_workbook_from_run(...)`.
-
-The server-side prompts most relevant to this flow are:
-
-- `guided_dashboard_authoring`
-- `dashboard_brief_to_contract`
-- `light_elicitation`
-- `authoring_execution_plan`
-
-## What Gets Written
-
-Each run writes its own artifacts, for example:
+Typical output:
 
 ```text
 tmp/agentic_run/20260319-153045-a1b2c3d4/manifest.json
@@ -44,6 +113,8 @@ tmp/agentic_run/20260319-153045-a1b2c3d4/schema_summary.20260319-153046.json
 tmp/agentic_run/20260319-153045-a1b2c3d4/contract_final.20260319-153120.json
 tmp/agentic_run/20260319-153045-a1b2c3d4/execution_plan.20260319-153155.json
 tmp/agentic_run/20260319-153045-a1b2c3d4/final_workbook.twb
+tmp/agentic_run/20260319-153045-a1b2c3d4/validation_report.20260319-153205.json
+tmp/agentic_run/20260319-153045-a1b2c3d4/analysis_report.20260319-153206.json
 ```
 
 Use `list_authoring_runs()` and `get_run_status(run_id)` to recover a run after
