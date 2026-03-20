@@ -596,8 +596,12 @@ def _extract_audience(brief: str) -> str:
     lines = [line.strip(" -\t") for line in brief.splitlines() if line.strip()]
     for line in lines:
         lower = line.casefold()
-        if lower.startswith("audience:"):
-            return line.split(":", 1)[1].strip()
+        if lower.startswith("audience:") or lower.startswith("audience -"):
+            return line.split(":", 1)[1].strip() if ":" in line else line.split("-", 1)[1].strip()
+        if lower.startswith("受众：") or lower.startswith("受众:"):
+            return line.split(":", 1)[1].strip() if ":" in line else line.split("：", 1)[1].strip()
+    for line in lines:
+        lower = line.casefold()
         if lower.startswith("for "):
             return line[4:].strip()
         if "管理层" in line or "leaders" in lower or "executive" in lower or "manager" in lower:
@@ -607,6 +611,14 @@ def _extract_audience(brief: str) -> str:
 
 def _extract_primary_question(brief: str) -> str:
     lines = [line.strip(" -\t") for line in brief.splitlines() if line.strip()]
+    for line in lines:
+        lower = line.casefold()
+        if lower.startswith("primary question:") or lower.startswith("primary question -"):
+            return line.split(":", 1)[1].strip() if ":" in line else line.split("-", 1)[1].strip()
+        if lower.startswith("question:") or lower.startswith("question -"):
+            return line.split(":", 1)[1].strip() if ":" in line else line.split("-", 1)[1].strip()
+        if line.startswith("核心问题：") or line.startswith("核心问题:"):
+            return line.split(":", 1)[1].strip() if ":" in line else line.split("：", 1)[1].strip()
     for line in lines:
         if line.endswith("?") or "？" in line:
             return line
@@ -649,7 +661,38 @@ def _choose_dimension(fields: dict[str, list[str]], fallback: str = "Category") 
 
 
 def _choose_geo(fields: dict[str, list[str]], fallback: str = "State/Province") -> str:
-    return fields["geo_fields"][0] if fields["geo_fields"] else fallback
+    geo_fields = fields.get("geo_fields", [])
+    if not geo_fields:
+        return fallback
+
+    preferred_order = [
+        "region",
+        "state/province",
+        "state",
+        "province",
+        "country/region",
+        "country",
+        "city",
+        "postal code",
+        "zip code",
+        "zipcode",
+        "latitude",
+        "longitude",
+        "lat",
+        "lon",
+    ]
+    ranked = {
+        name: index
+        for index, name in enumerate(preferred_order)
+    }
+
+    def _rank(field_name: str) -> tuple[int, str]:
+        normalized = " ".join(
+            field_name.casefold().replace("_", " ").replace("-", " ").split()
+        )
+        return (ranked.get(normalized, len(preferred_order)), field_name)
+
+    return sorted(geo_fields, key=_rank)[0]
 
 
 def _choose_date(fields: dict[str, list[str]], fallback: str = "Order Date") -> str:
@@ -1077,6 +1120,46 @@ def _build_chart_step(
     return {"tool": "configure_chart", "args": args}
 
 
+def _choose_default_action_sheets(
+    worksheets: list[dict[str, Any]],
+    worksheet_names: list[str],
+) -> tuple[str, str]:
+    primary_name = ""
+    detail_name = ""
+
+    for worksheet in worksheets:
+        if not isinstance(worksheet, dict):
+            continue
+        name = str(worksheet.get("name", "")).strip()
+        if not name or name not in worksheet_names:
+            continue
+        priority = str(worksheet.get("priority", "")).strip().casefold()
+        if priority == "primary" and not primary_name:
+            primary_name = name
+        elif priority == "detail" and not detail_name:
+            detail_name = name
+
+    non_summary_names = [
+        str(worksheet.get("name", "")).strip()
+        for worksheet in worksheets
+        if isinstance(worksheet, dict)
+        and str(worksheet.get("name", "")).strip() in worksheet_names
+        and str(worksheet.get("priority", "")).strip().casefold() != "summary"
+    ]
+
+    if not primary_name and non_summary_names:
+        primary_name = non_summary_names[0]
+    if not detail_name and len(non_summary_names) >= 2:
+        detail_name = non_summary_names[1]
+
+    if not primary_name and worksheet_names:
+        primary_name = worksheet_names[0]
+    if not detail_name and len(worksheet_names) >= 2:
+        detail_name = worksheet_names[1]
+
+    return primary_name, detail_name
+
+
 def build_execution_plan(run_id: str) -> str:
     """Create a mechanical MCP tool sequence from the current final contract."""
 
@@ -1181,21 +1264,33 @@ def build_execution_plan(run_id: str) -> str:
                 }
             )
     elif contract.get("require_interaction") and len(worksheet_names) >= 2:
-        steps.append(
-            {
-                "tool": "add_dashboard_action",
-                "args": {
-                    "dashboard_name": dashboard_name,
-                    "action_type": "filter",
-                    "source_sheet": worksheet_names[0],
-                    "target_sheet": worksheet_names[1],
-                    "fields": [field_candidates["geo_fields"][0]]
-                    if field_candidates["geo_fields"]
-                    else ([field_candidates["dimensions"][0]] if field_candidates["dimensions"] else []),
-                    "caption": f"Filter {worksheet_names[1]} from {worksheet_names[0]}",
-                },
-            }
+        source_sheet, target_sheet = _choose_default_action_sheets(
+            [
+                worksheet
+                for worksheet in contract.get("worksheets", [])
+                if isinstance(worksheet, dict)
+            ],
+            worksheet_names,
         )
+        action_field = (
+            _choose_geo(field_candidates)
+            if field_candidates.get("geo_fields")
+            else _choose_dimension(field_candidates)
+        )
+        if source_sheet and target_sheet and source_sheet != target_sheet:
+            steps.append(
+                {
+                    "tool": "add_dashboard_action",
+                    "args": {
+                        "dashboard_name": dashboard_name,
+                        "action_type": "filter",
+                        "source_sheet": source_sheet,
+                        "target_sheet": target_sheet,
+                        "fields": [action_field] if action_field else [],
+                        "caption": f"Filter {target_sheet} from {source_sheet}",
+                    },
+                }
+            )
 
     plan = {
         "run_id": run_id,

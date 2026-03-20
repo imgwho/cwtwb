@@ -124,8 +124,17 @@ class TestAuthoringPrompts:
         )
         text = messages[0].content.text
         assert "start_authoring_run" in text
-        assert "confirm the schema" in text
+        assert "confirm_authoring_stage" in text
+        assert "stage='schema'" in text
+        assert "stage='contract'" in text
+        assert "stage='execution_plan'" in text
         assert "generate_workbook_from_run" in text
+
+    def test_server_instructions_reference_all_guided_confirmation_calls(self):
+        text = server.instructions
+        assert "confirm_authoring_stage('schema')" in text
+        assert "confirm_authoring_stage('contract')" in text
+        assert "confirm_authoring_stage('execution_plan')" in text
 
     def test_dashboard_brief_to_contract_prompt_uses_schema_summary(self):
         schema_summary = {
@@ -240,6 +249,60 @@ class TestAuthoringRunLifecycle:
             )
         )
         assert rewrite["status"] == "contract_drafted"
+
+    def test_draft_contract_prefers_explicit_audience_and_primary_question_labels(self):
+        run = _start_run()
+        run_id = run["run_id"]
+        _approve_schema(run_id)
+
+        draft = json.loads(
+            draft_authoring_contract(
+                run_id,
+                (
+                    "Build an executive sales performance dashboard for Matthew.\n"
+                    "Audience: sales leaders\n"
+                    "Primary question: Which regions and categories are driving sales and profit?\n"
+                    "Please include interactive filtering from the top view into detail."
+                ),
+            )
+        )
+        contract = json.loads(Path(draft["artifact"]).read_text(encoding="utf-8"))
+        assert contract["audience"] == "sales leaders"
+        assert contract["primary_question"] == "Which regions and categories are driving sales and profit?"
+
+    def test_execution_plan_prefers_regional_geo_and_primary_to_detail_action(self):
+        run = _start_run()
+        run_id = run["run_id"]
+        _approve_schema(run_id)
+        draft_authoring_contract(
+            run_id,
+            (
+                "Build an executive sales performance dashboard for Matthew.\n"
+                "Audience: sales leaders\n"
+                "Primary question: Which regions, categories, and sub-categories are driving sales and profit?\n"
+                "Please include interactive filtering from the top view into detail."
+            ),
+        )
+        review_authoring_contract_for_run(run_id)
+        finalize_authoring_contract(run_id)
+        confirm_authoring_stage(run_id, "contract", True, "Contract approved.")
+
+        plan = json.loads(build_execution_plan(run_id))
+        payload = json.loads(Path(plan["artifact"]).read_text(encoding="utf-8"))
+        primary_view_step = next(
+            step
+            for step in payload["steps"]
+            if step["tool"] == "configure_chart"
+            and step["args"].get("worksheet_name") == "Primary View"
+        )
+        assert primary_view_step["args"]["geographic_field"] == "Region"
+
+        action_step = next(
+            step for step in payload["steps"] if step["tool"] == "add_dashboard_action"
+        )
+        assert action_step["args"]["source_sheet"] == "Primary View"
+        assert action_step["args"]["target_sheet"] == "Detail View"
+        assert action_step["args"]["fields"] == ["Region"]
 
     def test_full_guided_run_generates_workbook_and_reports(self):
         run = _start_run()
