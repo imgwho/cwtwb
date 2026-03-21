@@ -67,6 +67,21 @@ from .dashboard_layouts import (
 class DashboardsMixin:
     """Mixin providing dashboard creation and action methods for TWBEditor."""
 
+    def _remove_existing_dashboard(self, dashboard_name: str) -> None:
+        """Remove any existing dashboard/window entries with the same name."""
+
+        dashboards = self.root.find("dashboards")
+        if dashboards is not None:
+            for dashboard in list(dashboards.findall("dashboard")):
+                if dashboard.get("name") == dashboard_name:
+                    dashboards.remove(dashboard)
+
+        windows = self.root.find("windows")
+        if windows is not None:
+            for window in list(windows.findall("window")):
+                if window.get("class") == "dashboard" and window.get("name") == dashboard_name:
+                    windows.remove(window)
+
     def add_dashboard(
         self,
         dashboard_name: str,
@@ -80,6 +95,11 @@ class DashboardsMixin:
 
         for ws_name in worksheet_names:
             self._find_worksheet(ws_name)
+
+        # Guided authoring can refine a dashboard more than once. Replace any
+        # existing dashboard/window pair with the same name so Tableau never
+        # sees duplicate dashboard identities.
+        self._remove_existing_dashboard(dashboard_name)
 
         dashboards = self.root.find("dashboards")
         if dashboards is None:

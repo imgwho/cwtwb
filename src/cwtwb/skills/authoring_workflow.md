@@ -19,12 +19,12 @@ only generate the workbook after the required confirmation gates have passed.
 1. Start an authoring run from the datasource path
 2. Intake the datasource schema and summarize it for the human
 3. Stop for schema confirmation
-4. Build an analysis brief with 2-4 candidate dashboard directions
-5. Finalize the chosen analysis direction
+4. Build an analysis brief scaffold, then author 2-4 candidate dashboard directions
+5. Finalize the chosen analysis direction with explicit direction metadata and any contract seed
 6. Stop for analysis confirmation
-7. Draft a contract from the brief + schema + selected direction
+7. Draft a contract scaffold from the brief + schema + selected direction
 8. Review the contract and ask only the missing high-value questions
-9. Finalize the contract with human answers or an edited review Markdown file
+9. Finalize the contract with explicit worksheet specs, fields, encodings, and actions
 10. Stop for contract confirmation
 11. Build an ASCII wireframe and support/workaround notes
 12. Finalize the wireframe review
@@ -43,6 +43,7 @@ only generate the workbook after the required confirmation gates have passed.
 - **Reopen scope formally**: If the human adds a new worksheet, KPI, or core interaction after `contract` is confirmed, reopen `contract` before continuing. Do not hide contract-scope changes in `wireframe` notes.
 - **Artifacts matter**: Every major stage should write a run artifact under `tmp/agentic_run/{run_id}/`, and the human-facing stages should also write a paired Markdown review file.
 - **Prompts guide, tools persist**: Use MCP prompts to reason and tools to write files or change run state.
+- **Agent decides, server verifies**: In `agent_first` mode, you must explicitly choose the dashboard direction, worksheet list, KPI list, filters, and interactions. The server will not infer them from keywords.
 - **Prefer small clarifications**: Ask only the minimum questions needed to make the contract executable.
 - **Hard-stop on failures**: If a guided-run tool fails, stop, call `get_run_status(run_id)`, explain `last_error`, and ask whether to reopen `analysis`, `contract`, `wireframe`, or `execution_plan`.
 - **Keep plan scope honest**: `build_execution_plan(...)` only accepts a wireframe that still matches the confirmed contract. If scope drift appears, reopen `contract` and rebuild downstream stages.
@@ -52,19 +53,19 @@ only generate the workbook after the required confirmation gates have passed.
 ## Recommended Call Order
 
 ```text
-start_authoring_run(...)
+start_authoring_run(..., authoring_mode="agent_first")
 intake_datasource_schema(...)
 interactive_stage_confirmation(..., stage="schema", ...)
 confirm_authoring_stage(..., stage="schema", ...)  # only if chat fallback was required
 build_analysis_brief(...)
-finalize_analysis_brief(...)
+finalize_analysis_brief(...)  # include explicit directions and selected_direction_id
 interactive_stage_confirmation(..., stage="analysis", ...)
 confirm_authoring_stage(..., stage="analysis", ...)  # only if chat fallback was required
 read_resource("cwtwb://contracts/dashboard_authoring_v1")
 read_resource("cwtwb://profiles/index")
 draft_authoring_contract(...)
 review_authoring_contract_for_run(...)
-finalize_authoring_contract(...)
+finalize_authoring_contract(...)  # include explicit worksheet specs/encodings/actions
 interactive_stage_confirmation(..., stage="contract", ...)
 confirm_authoring_stage(..., stage="contract", ...)  # only if chat fallback was required
 build_wireframe(...)
