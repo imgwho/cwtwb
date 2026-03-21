@@ -69,7 +69,7 @@ _STAGE_REVIEW_ARTIFACTS = {
 _STAGE_LABELS = {
     SCHEMA_STAGE: "schema review",
     ANALYSIS_STAGE: "analysis direction review",
-    CONTRACT_STAGE: "authoring contract review",
+    CONTRACT_STAGE: "dashboard proposal review",
     WIREFRAME_STAGE: "wireframe review",
     EXECUTION_STAGE: "execution plan review",
 }

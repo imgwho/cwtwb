@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from cwtwb.authoring_contract import review_authoring_contract_payload
 from cwtwb.authoring_run import _is_expression, validate_generated_workbook_semantics
 from cwtwb.mcp.resources import (
     read_dashboard_authoring_contract,
@@ -17,6 +18,7 @@ from cwtwb.mcp.resources import (
     read_skill,
     read_skills_index,
 )
+from cwtwb.mcp.tools_authoring import _STAGE_LABELS
 from cwtwb.server import (
     build_analysis_brief,
     build_execution_plan,
@@ -85,6 +87,18 @@ def _worksheet_encoding_columns(workbook_path: Path, worksheet_name: str, encodi
         encoding.get("column", "")
         for encoding in worksheet.findall(f".//pane/encodings/{encoding_name}")
         if encoding.get("column", "")
+    ]
+
+
+def _worksheet_pane_mark_classes(workbook_path: Path, worksheet_name: str) -> list[str]:
+    root = ET.parse(workbook_path).getroot()
+    worksheet = root.find(f".//worksheet[@name='{worksheet_name}']")
+    if worksheet is None:
+        return []
+    return [
+        mark.get("class", "")
+        for mark in worksheet.findall(".//pane/mark")
+        if mark.get("class")
     ]
 
 
@@ -234,11 +248,78 @@ def _full_brief() -> str:
     )
 
 
+def _agent_first_direction_payload(selected_direction: dict, selected_direction_id: str) -> dict:
+    alternate_direction = {
+        "id": "regional_focus",
+        "title": "Regional Focus",
+        "business_question": "Which regions and states need attention first?",
+        "why_it_matters": "Helps leaders compare geographic performance before committing to a dashboard direction.",
+        "recommended_kpis": ["Sales", "Profit"],
+        "primary_view": {
+            "name": "Regional Sales",
+            "question": "Which State/Province is driving Sales?",
+            "mark_type": "Map",
+        },
+        "detail_view": {
+            "name": "Regional Trend",
+            "question": "How is regional sales changing over Order Date?",
+            "mark_type": "Line",
+        },
+        "recommended_filters": ["Order Date", "State/Province"],
+        "interaction_pattern": "Map filters detail.",
+        "caveats": [],
+        "contract_seed": {},
+    }
+    if selected_direction.get("id") == alternate_direction["id"]:
+        alternate_direction["id"] = "category_focus"
+        alternate_direction["title"] = "Category Focus"
+        alternate_direction["business_question"] = "Which categories and sub-categories drive the business?"
+        alternate_direction["detail_view"]["name"] = "Category Trend"
+    return {
+        "directions": [selected_direction, alternate_direction],
+        "selected_direction_id": selected_direction_id,
+    }
+
+
 def test_is_expression_does_not_treat_parenthesized_field_labels_as_formulas():
     assert _is_expression("Product (ID)") is False
     assert _is_expression("Revenue (USD)") is False
     assert _is_expression("[Revenue (USD)]") is True
     assert _is_expression("SUM(Revenue (USD))") is True
+
+
+def test_contract_review_promotes_top_level_worksheet_shorthand_into_encodings():
+    review = json.loads(
+        review_authoring_contract_payload(
+            json.dumps(
+                {
+                    "goal": "Build an executive dashboard.",
+                    "audience": "Executives",
+                    "primary_question": "How are sales and profit trending?",
+                    "require_interaction": True,
+                    "worksheets": [
+                        {
+                            "name": "Sales & Profit Trend",
+                            "mark_type": "Line",
+                            "dimensions": ["Order Date"],
+                            "measures": ["Sales", "Profit"],
+                            "columns": ["YEAR(Order Date)"],
+                            "rows": ["SUM(Sales)", "SUM(Profit)"],
+                            "color": "Region",
+                            "tooltip": ["Order Date", "SUM(Sales)", "SUM(Profit)"],
+                        }
+                    ],
+                }
+            ),
+            strict_execution=True,
+        ).to_json()
+    )
+    worksheet = review["normalized_contract"]["worksheets"][0]
+    encodings = worksheet["encodings"]
+    assert encodings["columns"] == ["YEAR(Order Date)"]
+    assert encodings["rows"] == ["SUM(Sales)", "SUM(Profit)"]
+    assert encodings["color"] == "Region"
+    assert encodings["tooltip"] == ["Order Date", "SUM(Sales)", "SUM(Profit)"]
 
 
 class TestAuthoringResources:
@@ -268,7 +349,7 @@ class TestAuthoringPrompts:
         prompt = server._prompt_manager.get_prompt("guided_dashboard_authoring")
         assert prompt is not None
 
-    def test_guided_dashboard_authoring_prompt_references_all_confirmation_gates(self):
+    def test_guided_dashboard_authoring_prompt_requires_analysis_choice_gate(self):
         messages = asyncio.run(
             server._prompt_manager.render_prompt(
                 "guided_dashboard_authoring",
@@ -287,24 +368,34 @@ class TestAuthoringPrompts:
         assert "stage='analysis'" in text
         assert "stage='contract'" in text
         assert "stage='wireframe'" in text
-        assert "stage='execution_plan'" in text
+        assert "choose one before you proceed" in text
+        assert "Do not collapse to a single recommendation silently." in text
+        assert "Keep schema summaries short" in text
+        assert "dashboard proposal" in text
+        assert "Do not ask the human to approve execution steps unless they explicitly ask to inspect the plan." in text
+        assert "stage='execution_plan'" not in text
         assert "Never directly edit files under tmp/agentic_run/{run_id}/." in text
         assert "generate_workbook_from_run" in text
 
-    def test_server_instructions_reference_all_guided_confirmation_calls(self):
+    def test_server_instructions_reference_analysis_choice_gate(self):
         text = server.instructions
         assert "interactive_stage_confirmation('schema')" in text
         assert "interactive_stage_confirmation('analysis')" in text
         assert "interactive_stage_confirmation('contract')" in text
         assert "interactive_stage_confirmation('wireframe')" in text
-        assert "interactive_stage_confirmation('execution_plan')" in text
         assert "confirm_authoring_stage('schema')" in text
         assert "confirm_authoring_stage('analysis')" in text
         assert "confirm_authoring_stage('contract')" in text
         assert "confirm_authoring_stage('wireframe')" in text
-        assert "confirm_authoring_stage('execution_plan')" in text
+        assert "show those options to the human" in text
+        assert "asks the human to confirm schema, analysis, contract, and wireframe" in text
+        assert "execution-plan approval gate" in text
+        assert "interactive_stage_confirmation('execution_plan')" not in text
         assert "get_client_interaction_capabilities" in text
         assert "Do not switch to low-level workbook tools" in text
+
+    def test_contract_stage_uses_dashboard_proposal_label(self):
+        assert _STAGE_LABELS["contract"] == "dashboard proposal review"
 
     def test_dashboard_brief_to_contract_prompt_uses_schema_summary(self):
         schema_summary = {
@@ -358,7 +449,8 @@ class TestAuthoringPrompts:
         )
         text = messages[0].content.text
         assert "wireframe" in text
-        assert "read-only" in text
+        assert "internal read-only artifact" in text
+        assert "Do not introduce a new human approval gate" in text
 
 
 class TestAuthoringRunLifecycle:
@@ -501,42 +593,40 @@ class TestAuthoringRunLifecycle:
         assert "ACTION REQUIRED" in review_text
         assert "No candidate directions have been authored yet." in review_text
 
-        direction_payload = {
-            "directions": [
-                {
-                    "id": "executive_overview",
-                    "title": "Executive Overview",
-                    "business_question": "Which states and sub-categories drive sales?",
-                    "why_it_matters": "Gives leaders a fast read on geography and mix.",
-                    "recommended_kpis": ["Sales", "Profit", "Quantity", "Profit Ratio"],
-                    "primary_view": {
-                        "name": "Regional Sales",
-                        "question": "Which State/Province is driving Sales?",
-                        "mark_type": "Map",
+        direction_payload = _agent_first_direction_payload(
+            {
+                "id": "executive_overview",
+                "title": "Executive Overview",
+                "business_question": "Which states and sub-categories drive sales?",
+                "why_it_matters": "Gives leaders a fast read on geography and mix.",
+                "recommended_kpis": ["Sales", "Profit", "Quantity", "Profit Ratio"],
+                "primary_view": {
+                    "name": "Regional Sales",
+                    "question": "Which State/Province is driving Sales?",
+                    "mark_type": "Map",
+                },
+                "detail_view": {
+                    "name": "Sales Trend",
+                    "question": "How is Sales changing over Order Date?",
+                    "mark_type": "Line",
+                },
+                "recommended_filters": ["Order Date", "State/Province", "Sub-Category"],
+                "interaction_pattern": "Click the map to filter the related detail views.",
+                "caveats": [],
+                "contract_seed": {
+                    "dashboard": {"name": "Executive Overview", "layout_pattern": "executive overview"},
+                    "constraints": {
+                        "kpis": ["Sales", "Profit", "Quantity", "Profit Ratio"],
+                        "filters": ["Order Date", "State/Province", "Sub-Category"],
+                        "interaction_pattern": "Click the map to filter related views.",
+                        "layout_pattern": "executive overview",
                     },
-                    "detail_view": {
-                        "name": "Sales Trend",
-                        "question": "How is Sales changing over Order Date?",
-                        "mark_type": "Line",
-                    },
-                    "recommended_filters": ["Order Date", "State/Province", "Sub-Category"],
-                    "interaction_pattern": "Click the map to filter the related detail views.",
-                    "caveats": [],
-                    "contract_seed": {
-                        "dashboard": {"name": "Executive Overview", "layout_pattern": "executive overview"},
-                        "constraints": {
-                            "kpis": ["Sales", "Profit", "Quantity", "Profit Ratio"],
-                            "filters": ["Order Date", "State/Province", "Sub-Category"],
-                            "interaction_pattern": "Click the map to filter related views.",
-                            "layout_pattern": "executive overview",
-                        },
-                        "worksheets": [],
-                        "actions": [],
-                    },
-                }
-            ],
-            "selected_direction_id": "executive_overview",
-        }
+                    "worksheets": [],
+                    "actions": [],
+                },
+            },
+            "executive_overview",
+        )
         finalized = json.loads(
             finalize_analysis_brief(
                 run_id,
@@ -544,6 +634,46 @@ class TestAuthoringRunLifecycle:
             )
         )
         assert finalized["selected_direction_id"] == "executive_overview"
+
+    def test_agent_first_finalize_analysis_brief_requires_multiple_directions(self):
+        run = _start_run(authoring_mode="agent_first")
+        run_id = run["run_id"]
+        _approve_schema(run_id)
+        build_analysis_brief(run_id)
+
+        with pytest.raises(RuntimeError, match="2-4 explicit candidate directions"):
+            finalize_analysis_brief(
+                run_id,
+                user_answers_json=json.dumps(
+                    {
+                        "directions": [
+                            {
+                                "id": "executive_overview",
+                                "title": "Executive Overview",
+                                "business_question": "Which states and sub-categories drive sales?",
+                                "why_it_matters": "Gives leaders a fast read on geography and mix.",
+                                "recommended_kpis": ["Sales", "Profit", "Quantity", "Profit Ratio"],
+                                "primary_view": {
+                                    "name": "Regional Sales",
+                                    "question": "Which State/Province is driving Sales?",
+                                    "mark_type": "Map",
+                                },
+                                "detail_view": {
+                                    "name": "Sales Trend",
+                                    "question": "How is Sales changing over Order Date?",
+                                    "mark_type": "Line",
+                                },
+                                "recommended_filters": ["Order Date", "State/Province", "Sub-Category"],
+                                "interaction_pattern": "Click the map to filter the related detail views.",
+                                "caveats": [],
+                                "contract_seed": {},
+                            }
+                        ],
+                        "selected_direction_id": "executive_overview",
+                    },
+                    ensure_ascii=False,
+                ),
+            )
 
     def test_agent_first_finalize_contract_fails_closed_without_executable_specs(self):
         run = _start_run(authoring_mode="agent_first")
@@ -553,24 +683,22 @@ class TestAuthoringRunLifecycle:
         finalize_analysis_brief(
             run_id,
             user_answers_json=json.dumps(
-                {
-                    "directions": [
-                        {
-                            "id": "executive_overview",
-                            "title": "Executive Overview",
-                            "business_question": "Which states drive sales?",
-                            "why_it_matters": "Quick leadership view.",
-                            "recommended_kpis": ["Sales"],
-                            "primary_view": {"name": "Primary View", "question": "Which states drive sales?", "mark_type": "Map"},
-                            "detail_view": {"name": "Detail View", "question": "How is sales changing?", "mark_type": "Line"},
-                            "recommended_filters": ["Order Date", "State/Province"],
-                            "interaction_pattern": "Map filters detail.",
-                            "caveats": [],
-                            "contract_seed": {},
-                        }
-                    ],
-                    "selected_direction_id": "executive_overview",
-                },
+                _agent_first_direction_payload(
+                    {
+                        "id": "executive_overview",
+                        "title": "Executive Overview",
+                        "business_question": "Which states drive sales?",
+                        "why_it_matters": "Quick leadership view.",
+                        "recommended_kpis": ["Sales"],
+                        "primary_view": {"name": "Primary View", "question": "Which states drive sales?", "mark_type": "Map"},
+                        "detail_view": {"name": "Detail View", "question": "How is sales changing?", "mark_type": "Line"},
+                        "recommended_filters": ["Order Date", "State/Province"],
+                        "interaction_pattern": "Map filters detail.",
+                        "caveats": [],
+                        "contract_seed": {},
+                    },
+                    "executive_overview",
+                ),
                 ensure_ascii=False,
             ),
         )
@@ -590,24 +718,22 @@ class TestAuthoringRunLifecycle:
         finalize_analysis_brief(
             run_id,
             user_answers_json=json.dumps(
-                {
-                    "directions": [
-                        {
-                            "id": "exec",
-                            "title": "Executive Overview",
-                            "business_question": "Which states need attention first?",
-                            "why_it_matters": "Leadership summary.",
-                            "recommended_kpis": ["Sales", "YoY Growth"],
-                            "primary_view": {"name": "Regional Sales", "question": "Which State/Province is driving Sales?", "mark_type": "Map"},
-                            "detail_view": {"name": "Sales Trend", "question": "How is Sales trending over Order Date?", "mark_type": "Line"},
-                            "recommended_filters": ["Order Date", "State/Province"],
-                            "interaction_pattern": "Map filters detail.",
-                            "caveats": [],
-                            "contract_seed": {},
-                        }
-                    ],
-                    "selected_direction_id": "exec",
-                },
+                _agent_first_direction_payload(
+                    {
+                        "id": "exec",
+                        "title": "Executive Overview",
+                        "business_question": "Which states need attention first?",
+                        "why_it_matters": "Leadership summary.",
+                        "recommended_kpis": ["Sales", "YoY Growth"],
+                        "primary_view": {"name": "Regional Sales", "question": "Which State/Province is driving Sales?", "mark_type": "Map"},
+                        "detail_view": {"name": "Sales Trend", "question": "How is Sales trending over Order Date?", "mark_type": "Line"},
+                        "recommended_filters": ["Order Date", "State/Province"],
+                        "interaction_pattern": "Map filters detail.",
+                        "caveats": [],
+                        "contract_seed": {},
+                    },
+                    "exec",
+                ),
                 ensure_ascii=False,
             ),
         )
@@ -647,24 +773,22 @@ class TestAuthoringRunLifecycle:
         finalize_analysis_brief(
             run_id,
             user_answers_json=json.dumps(
-                {
-                    "directions": [
-                        {
-                            "id": "exec",
-                            "title": "Executive Overview",
-                            "business_question": "Which states need attention first?",
-                            "why_it_matters": "Leadership summary.",
-                            "recommended_kpis": ["Sales", "YoY Growth"],
-                            "primary_view": {"name": "Regional Sales", "question": "Which State/Province is driving Sales?", "mark_type": "Map"},
-                            "detail_view": {"name": "Sales Trend", "question": "How is Sales trending over Order Date?", "mark_type": "Line"},
-                            "recommended_filters": ["Order Date", "State/Province"],
-                            "interaction_pattern": "Map filters detail.",
-                            "caveats": [],
-                            "contract_seed": {},
-                        }
-                    ],
-                    "selected_direction_id": "exec",
-                },
+                _agent_first_direction_payload(
+                    {
+                        "id": "exec",
+                        "title": "Executive Overview",
+                        "business_question": "Which states need attention first?",
+                        "why_it_matters": "Leadership summary.",
+                        "recommended_kpis": ["Sales", "YoY Growth"],
+                        "primary_view": {"name": "Regional Sales", "question": "Which State/Province is driving Sales?", "mark_type": "Map"},
+                        "detail_view": {"name": "Sales Trend", "question": "How is Sales trending over Order Date?", "mark_type": "Line"},
+                        "recommended_filters": ["Order Date", "State/Province"],
+                        "interaction_pattern": "Map filters detail.",
+                        "caveats": [],
+                        "contract_seed": {},
+                    },
+                    "exec",
+                ),
                 ensure_ascii=False,
             ),
         )
@@ -874,9 +998,98 @@ class TestAuthoringRunLifecycle:
         review_text = Path(RUN_ROOT / run_id / review_artifact).read_text(encoding="utf-8")
         assert "ascii_wireframe" in wireframe
         assert "layout_description" in wireframe
-        assert "KPI Zone" in wireframe["ascii_wireframe"]
+        assert "layout_tree" in wireframe
+        assert wireframe["layout_tree"]["type"] == "container"
+        assert "layout_json_artifact" in wireframe
+        assert Path(RUN_ROOT / run_id / wireframe["layout_json_artifact"]).exists()
+        assert "WORKSHEET [fixed 88]" in wireframe["ascii_wireframe"]
         assert any(action["support_level"] in {"supported", "workaround"} for action in wireframe["actions"])
         assert "```text" in review_text
+        assert "## Layout Schema" in review_text
+
+    def test_wireframe_treats_row_based_exec_layout_alias_as_executive_overview(self):
+        run = _start_run()
+        run_id = run["run_id"]
+        _approve_schema(run_id)
+        _approve_analysis(run_id)
+        _draft_contract(run_id, _full_brief())
+        _finalize_contract(
+            run_id,
+            user_answers={
+                "audience": "Executives",
+                "primary_question": "How is the business performing across sales, profit, regions, and categories?",
+                "require_interaction": True,
+                "dashboard": {
+                    "name": "Executive Overview",
+                    "layout_pattern": "top-kpis + trend-row + breakdown-row",
+                },
+                "constraints": {
+                    "layout_pattern": "top-kpis + trend-row + breakdown-row",
+                    "filters": ["Order Date", "Region", "Category"],
+                },
+                "worksheets": [
+                    {
+                        "name": "KPI Scorecards",
+                        "mark_type": "Text",
+                        "priority": "summary",
+                        "kpi_fields": ["Sales", "Profit", "Quantity"],
+                    },
+                    {
+                        "name": "Sales & Profit Trend",
+                        "mark_type": "Line",
+                        "priority": "primary",
+                        "dimensions": ["Order Date"],
+                        "measures": ["Sales", "Profit"],
+                        "columns": ["YEAR(Order Date)"],
+                        "rows": ["SUM(Sales)", "SUM(Profit)"],
+                    },
+                    {
+                        "name": "Sales by Region",
+                        "mark_type": "Bar",
+                        "priority": "detail",
+                        "dimensions": ["Region"],
+                        "measures": ["Sales", "Profit"],
+                        "rows": ["Region"],
+                        "columns": ["SUM(Sales)"],
+                        "color": "SUM(Profit)",
+                    },
+                    {
+                        "name": "Category Mix",
+                        "mark_type": "Pie",
+                        "dimensions": ["Category"],
+                        "measures": ["Sales"],
+                        "color": "Category",
+                        "wedge_size": "SUM(Sales)",
+                    },
+                    {
+                        "name": "Sub-Category Performance",
+                        "mark_type": "Bar",
+                        "dimensions": ["Sub-Category"],
+                        "measures": ["Sales", "Profit"],
+                        "rows": ["Sub-Category"],
+                        "columns": ["SUM(Sales)"],
+                        "color": "SUM(Profit)",
+                    },
+                ],
+            },
+        )
+
+        wireframe = _approve_wireframe(run_id)
+        children = wireframe["layout_tree"]["children"]
+        assert children[0]["type"] == "worksheet"
+        assert children[0]["name"] == "KPI Scorecards"
+        assert children[1]["type"] == "container"
+        assert children[1]["direction"] == "horizontal"
+        assert [child["type"] for child in children[1]["children"]] == ["worksheet", "container"]
+        assert children[1]["children"][0]["name"] == "Sales & Profit Trend"
+        assert children[2]["type"] == "container"
+        assert children[2]["direction"] == "horizontal"
+        bottom_names = [
+            child.get("name", "")
+            for child in children[2]["children"]
+            if child.get("type") == "worksheet"
+        ]
+        assert "Sales by Region" in bottom_names
 
     def test_execution_plan_requires_wireframe_confirmation(self):
         run = _start_run()
@@ -927,6 +1140,90 @@ class TestAuthoringRunLifecycle:
         assert all(step["args"]["source_sheet"] == "Primary View" for step in action_steps)
         assert all(step["args"]["fields"] == ["State/Province"] for step in action_steps)
         assert "read-only" in review_text
+
+        dashboard_step = next(step for step in payload["steps"] if step["tool"] == "add_dashboard")
+        assert str(dashboard_step["args"]["layout"]).endswith(".layout.json")
+        assert Path(dashboard_step["args"]["layout"]).exists()
+
+    def test_execution_plan_uses_dual_axis_for_bar_line_time_series(self):
+        run = _start_run()
+        run_id = run["run_id"]
+        _approve_schema(run_id)
+        _approve_analysis(run_id, selected_direction_id="executive_overview")
+        _draft_contract(run_id, "Build an executive overview dashboard.")
+        _finalize_contract(
+            run_id,
+            user_answers={
+                "audience": "Executives",
+                "primary_question": "How are sales and profit trending over time?",
+                "require_interaction": True,
+                "dashboard": {"name": "Executive Overview"},
+                "worksheets": [
+                    {
+                        "name": "KPI Scorecard",
+                        "question": "What are the top-level KPIs?",
+                        "mark_type": "Text",
+                        "priority": "summary",
+                        "kpi_fields": ["Sales", "Profit"],
+                    },
+                    {
+                        "name": "Sales & Profit Trend",
+                        "question": "Sales bar + Profit line on a secondary axis over Order Date.",
+                        "mark_type": "Bar",
+                        "priority": "primary",
+                        "dimensions": ["Order Date"],
+                        "measures": ["Sales", "Profit"],
+                        "encodings": {
+                            "columns": ["MONTH(Order Date)"],
+                            "rows": ["SUM(Sales)", "SUM(Profit)"],
+                            "tooltip": ["Order Date", "SUM(Sales)", "SUM(Profit)"],
+                        },
+                    },
+                    {
+                        "name": "Sales by Region",
+                        "question": "Which regions drive sales?",
+                        "mark_type": "Bar",
+                        "priority": "detail",
+                        "dimensions": ["Region"],
+                        "measures": ["Sales"],
+                        "encodings": {
+                            "rows": ["Region"],
+                            "columns": ["SUM(Sales)"],
+                        },
+                    },
+                ],
+                "actions": [
+                    {
+                        "type": "highlight",
+                        "source": "Sales by Region",
+                        "targets": ["Sales & Profit Trend"],
+                        "fields": ["Region"],
+                    }
+                ],
+            },
+        )
+        _approve_wireframe(run_id)
+
+        plan = json.loads(build_execution_plan(run_id))
+        payload = json.loads(Path(plan["artifact"]).read_text(encoding="utf-8"))
+        trend_step = next(
+            step
+            for step in payload["steps"]
+            if step["tool"] == "configure_dual_axis"
+            and step["args"].get("worksheet_name") == "Sales & Profit Trend"
+        )
+        assert trend_step["args"]["mark_type_1"] == "Bar"
+        assert trend_step["args"]["mark_type_2"] == "Line"
+        assert trend_step["args"]["dual_axis_shelf"] == "rows"
+        assert trend_step["args"]["rows"] == ["SUM(Sales)", "SUM(Profit)"]
+
+        _request_confirmation(run_id, "execution_plan")
+        confirm_authoring_stage(run_id, "execution_plan", True, "Execution plan approved.")
+        generated = json.loads(generate_workbook_from_run(run_id))
+        workbook_path = Path(generated["final_workbook"])
+        mark_classes = _worksheet_pane_mark_classes(workbook_path, "Sales & Profit Trend")
+        assert "Bar" in mark_classes
+        assert "Line" in mark_classes
 
     def test_execution_plan_uses_kpi_pie_specs_and_multi_target_contract_actions(self):
         run = _start_run()
@@ -1022,6 +1319,93 @@ class TestAuthoringRunLifecycle:
             "Sub-Category Mix",
         }
 
+    def test_agent_first_execution_plan_requires_confirmed_layout_tree(self):
+        run = _start_run(authoring_mode="agent_first")
+        run_id = run["run_id"]
+        _approve_schema(run_id)
+        build_analysis_brief(run_id)
+        finalize_analysis_brief(
+            run_id,
+            user_answers_json=json.dumps(
+                _agent_first_direction_payload(
+                    {
+                        "id": "executive_overview",
+                        "title": "Executive Overview",
+                        "business_question": "Which states drive sales?",
+                        "why_it_matters": "Quick leadership view.",
+                        "recommended_kpis": ["Sales", "Profit"],
+                        "primary_view": {"name": "Regional Sales", "question": "Which State/Province is driving Sales?", "mark_type": "Map"},
+                        "detail_view": {"name": "Sales Trend", "question": "How is Sales trending over Order Date?", "mark_type": "Line"},
+                        "recommended_filters": ["Order Date", "State/Province"],
+                        "interaction_pattern": "Map filters detail.",
+                        "caveats": [],
+                        "contract_seed": {},
+                    },
+                    "executive_overview",
+                ),
+                ensure_ascii=False,
+            ),
+        )
+        _request_confirmation(run_id, "analysis")
+        confirm_authoring_stage(run_id, "analysis", True, "Analysis approved.")
+        draft_authoring_contract(run_id, "Build an executive dashboard.")
+        _finalize_contract(
+            run_id,
+            user_answers={
+                "audience": "Executives",
+                "primary_question": "Which states drive sales?",
+                "require_interaction": True,
+                "dashboard": {"name": "Executive Overview"},
+                "constraints": {
+                    "kpis": ["Sales", "Profit"],
+                    "filters": ["Order Date", "State/Province"],
+                },
+                "worksheets": [
+                    {
+                        "name": "KPI Scorecard",
+                        "question": "What are the top-level KPIs?",
+                        "mark_type": "Text",
+                        "priority": "summary",
+                        "kpi_fields": ["Sales", "Profit"],
+                    },
+                    {
+                        "name": "Regional Sales",
+                        "question": "Which State/Province is driving Sales?",
+                        "mark_type": "Map",
+                        "priority": "primary",
+                        "dimensions": ["State/Province"],
+                        "measures": ["Sales"],
+                    },
+                    {
+                        "name": "Sales Trend",
+                        "question": "How is Sales trending over Order Date?",
+                        "mark_type": "Line",
+                        "priority": "detail",
+                        "dimensions": ["Order Date"],
+                        "measures": ["Sales"],
+                    },
+                ],
+                "actions": [
+                    {
+                        "type": "filter",
+                        "source": "Regional Sales",
+                        "targets": ["KPI Scorecard", "Sales Trend"],
+                        "fields": ["State/Province"],
+                    }
+                ],
+            },
+        )
+        built = json.loads(build_wireframe(run_id))
+        finalize_wireframe(
+            run_id,
+            user_answers_json=json.dumps({"layout_tree": None}, ensure_ascii=False),
+        )
+        _request_confirmation(run_id, "wireframe")
+        confirm_authoring_stage(run_id, "wireframe", True, "Wireframe approved without layout tree.")
+
+        with pytest.raises(RuntimeError, match="missing layout_tree"):
+            build_execution_plan(run_id)
+
     def test_agent_first_contract_finalize_requires_explicit_actions_when_interaction_is_requested(self):
         run = _start_run(authoring_mode="agent_first")
         run_id = run["run_id"]
@@ -1030,24 +1414,22 @@ class TestAuthoringRunLifecycle:
         finalize_analysis_brief(
             run_id,
             user_answers_json=json.dumps(
-                {
-                    "directions": [
-                        {
-                            "id": "executive_overview",
-                            "title": "Executive Overview",
-                            "business_question": "Which states drive sales?",
-                            "why_it_matters": "Quick leadership view.",
-                            "recommended_kpis": ["Sales", "Profit"],
-                            "primary_view": {"name": "Regional Sales", "question": "Which State/Province is driving Sales?", "mark_type": "Map"},
-                            "detail_view": {"name": "Sales Trend", "question": "How is Sales trending over Order Date?", "mark_type": "Line"},
-                            "recommended_filters": ["Order Date", "State/Province"],
-                            "interaction_pattern": "Map filters detail.",
-                            "caveats": [],
-                            "contract_seed": {},
-                        }
-                    ],
-                    "selected_direction_id": "executive_overview",
-                },
+                _agent_first_direction_payload(
+                    {
+                        "id": "executive_overview",
+                        "title": "Executive Overview",
+                        "business_question": "Which states drive sales?",
+                        "why_it_matters": "Quick leadership view.",
+                        "recommended_kpis": ["Sales", "Profit"],
+                        "primary_view": {"name": "Regional Sales", "question": "Which State/Province is driving Sales?", "mark_type": "Map"},
+                        "detail_view": {"name": "Sales Trend", "question": "How is Sales trending over Order Date?", "mark_type": "Line"},
+                        "recommended_filters": ["Order Date", "State/Province"],
+                        "interaction_pattern": "Map filters detail.",
+                        "caveats": [],
+                        "contract_seed": {},
+                    },
+                    "executive_overview",
+                ),
                 ensure_ascii=False,
             ),
         )
@@ -1304,6 +1686,19 @@ class TestAuthoringRunLifecycle:
             "Regional Sales",
         )
         assert set(action_targets) >= {"KPI Scorecard", "Sales Trend", "Sub-Category Mix"}
+
+        root = ET.parse(workbook_path).getroot()
+        dashboard = root.find(".//dashboards/dashboard[@name='Executive Overview']")
+        assert dashboard is not None
+        root_zone = dashboard.find("zones/zone")
+        assert root_zone is not None
+        assert root_zone.get("param") == "vert"
+        top_zone = root_zone.find("./zone")
+        assert top_zone is not None
+        assert top_zone.get("name") == "KPI Scorecard"
+        assert top_zone.get("fixed-size") == "88"
+        filter_zones = dashboard.findall(".//zone[@type-v2='filter']")
+        assert filter_zones
 
     def test_semantic_validator_detects_missing_confirmed_kpi(self):
         run = _start_run()

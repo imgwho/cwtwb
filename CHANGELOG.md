@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-03-21
+
 ### Added
 
 - **Guided MCP authoring runs**: added a datasource-first, human-in-the-loop workflow that starts from a real local Excel or Hyper file and writes versioned artifacts to `tmp/agentic_run/{run_id}/`.
@@ -19,17 +21,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Worksheet captions**: added `set_worksheet_caption` to the SDK/MCP surface for plain-text worksheet captions.
 - **Authoring contract template update**: added `workbook_template` to the contract schema so guided runs can carry a template decision from contract finalization into execution planning.
 - **Regression coverage for guided runs**: added `tests/test_agentic_authoring_v1.py` covering prompt registration, run lifecycle, Excel/Hyper schema intake, contract rewrite-after-rejection, end-to-end workbook generation, and failure-state handling.
+- **Agent-first analysis guardrails**: guided authoring now enforces 2-4 candidate analysis directions before contract authoring can proceed, and the human-chosen `selected_direction_id` must be confirmed as part of the default guided path.
+- **Regression coverage for agent-first contract execution**: added targeted tests for worksheet shorthand normalization, executive overview layout aliases, multi-direction analysis validation, and dual-axis execution planning for time-series combo charts.
 
 ### Changed
 
 - **Examples and docs**: replaced the old pre-baked `agentic_mcp_authoring` demo artifacts with a runtime-oriented walkthrough that starts from a datasource file and lets the MCP workflow generate artifacts dynamically.
-- **Skill guidance**: updated the skills documentation and authoring workflow skill to recommend a gated flow of `datasource -> schema -> contract -> execution plan -> generation`.
+- **Guided prompt defaults**: the default human-facing checkpoints are now `schema`, `analysis`, `contract`, and `wireframe`. `execution_plan` is still persisted, but it is treated as an internal read-only artifact unless the human explicitly asks to inspect it.
+- **Skill guidance**: updated the skills documentation and authoring workflow skill to recommend a gated flow of `datasource -> schema -> analysis -> contract -> wireframe -> generation`.
 - **Profile-aware contract review**: the contract review flow remains generic while using external dataset profiles as hints during normalization and defaulting.
 
 ### Fixed
 
 - **Hyper schema inspection robustness**: Hyper inspection now uses project `tmp/` paths, falls back more safely when temporary copies are unavailable, and raises clearer runtime errors when the local Hyper environment cannot inspect the datasource.
 - **Workbook generation failure visibility**: guided runs now record `workbook_generation_failed` with the failed tool step and last error in the manifest, making interrupted runs resumable and diagnosable.
+- **Worksheet shorthand loss during contract normalization**: top-level worksheet fields such as `rows`, `columns`, `measure_values`, `tooltip`, `color`, `label`, `detail`, `size`, `wedge_size`, and `geographic_field` are now promoted into canonical `encodings` so contract-finalized charts do not silently lose color, tooltip, or shelf mappings during execution.
+- **Executive overview layout alias fallback**: layout patterns such as `top-kpis + trend-row + breakdown-row` now resolve to the canonical executive overview layout instead of falling back to a plain vertical stack.
+- **Dual-axis combo planning for time-series trends**: `build_execution_plan(...)` now detects `Sales bar + Profit line`-style requests and emits `configure_dual_axis` instead of routing them through the single-mark `configure_chart` path; semantic validation was updated to assert both pane mark classes are present.
 
 ## [0.16.0] - 2026-03-19
 

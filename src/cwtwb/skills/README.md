@@ -22,7 +22,7 @@ Phase 4: formatting            -> Number formats, colors, sorting, tooltips
 3. interactive_stage_confirmation(..., stage="schema")
 4. confirm_authoring_stage(..., stage="schema")  # only if chat fallback was required
 5. build_analysis_brief(...)
-6. finalize_analysis_brief(...)
+6. finalize_analysis_brief(...)  # include 2-4 directions plus selected_direction_id
 7. interactive_stage_confirmation(..., stage="analysis")
 8. confirm_authoring_stage(..., stage="analysis")  # only if chat fallback was required
 9. read_resource("cwtwb://contracts/dashboard_authoring_v1")
@@ -37,14 +37,12 @@ Phase 4: formatting            -> Number formats, colors, sorting, tooltips
 18. interactive_stage_confirmation(..., stage="wireframe")
 19. confirm_authoring_stage(..., stage="wireframe")  # only if chat fallback was required
 20. build_execution_plan(...)
-21. interactive_stage_confirmation(..., stage="execution_plan")
-22. confirm_authoring_stage(..., stage="execution_plan")  # only if chat fallback was required
-23. read_resource("cwtwb://skills/authoring_workflow")
-24. read_resource("cwtwb://skills/calculation_builder")
-25. read_resource("cwtwb://skills/chart_builder")
-26. read_resource("cwtwb://skills/dashboard_designer")
-27. read_resource("cwtwb://skills/formatting")
-28. generate_workbook_from_run(...)
+21. read_resource("cwtwb://skills/authoring_workflow")
+22. read_resource("cwtwb://skills/calculation_builder")
+23. read_resource("cwtwb://skills/chart_builder")
+24. read_resource("cwtwb://skills/dashboard_designer")
+25. read_resource("cwtwb://skills/formatting")
+26. generate_workbook_from_run(...)
 ```
 
 ## Design Philosophy
@@ -53,4 +51,6 @@ Phase 4: formatting            -> Number formats, colors, sorting, tooltips
 - Load only the skill needed for the current phase.
 - Keep the workflow contract-first, skill-guided, and self-validating.
 - Use light elicitation: ask follow-up questions only when the contract misses critical intent.
-- Prefer MCP form elicitation for approval gates, with chat fallback when the client does not support it.
+- Prefer MCP form elicitation for the default approval gates (`schema`, `analysis`, `contract`, `wireframe`), with chat fallback when the client does not support it.
+- In `agent_first` mode, always present 2-4 candidate analysis directions and let the human choose before drafting the contract.
+- Treat `execution_plan` as internal-by-default unless the human explicitly wants to review it.

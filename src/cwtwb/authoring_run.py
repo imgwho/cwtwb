@@ -223,6 +223,14 @@ KNOWN_CALCULATED_FORMULA_LOOKUP = {
     " ".join(name.casefold().replace("_", " ").replace("-", " ").split()): name
     for name in KNOWN_CALCULATED_FORMULAS
 }
+EXECUTIVE_OVERVIEW_LAYOUT_ALIASES = (
+    "executive overview",
+    "top kpis + trend row + breakdown row",
+    "top-kpis + trend-row + breakdown-row",
+    "top kpis + trend-row + breakdown-row",
+    "top-kpis + trend row + breakdown row",
+    "top kpis trend row breakdown row",
+)
 EXPRESSION_FUNCTION_PREFIXES = (
     "sum(",
     "avg(",
@@ -430,9 +438,10 @@ def _write_versioned_artifact(
     payload: dict[str, Any],
     *,
     markdown_content: str | None = None,
+    filename_token: str | None = None,
 ) -> Path:
     run_dir = Path(manifest["run_dir"])
-    token = _now_token()
+    token = filename_token or _now_token()
     filename = f"{artifact_key}.{token}.json"
     path = run_dir / filename
     _write_json(path, payload)
@@ -1172,8 +1181,35 @@ def _combined_overrides(
         parsed = json.loads(user_answers_json)
         if not isinstance(parsed, dict):
             raise ValueError("user_answers_json must be a JSON object.")
-        overrides = _deep_merge(overrides, parsed)
+        overrides = _deep_merge(overrides, _normalize_override_aliases(parsed))
     return overrides
+
+
+def _normalize_override_aliases(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Accept common external alias keys used by MCP clients and agents."""
+
+    normalized = deepcopy(overrides)
+
+    alias_map = {
+        "primary_audience": "audience",
+        "primary_analytical_question": "primary_question",
+    }
+    for alias, canonical in alias_map.items():
+        if canonical not in normalized and alias in normalized:
+            normalized[canonical] = normalized[alias]
+
+    if "require_interaction" not in normalized and "interactive_actions" in normalized:
+        interactive_value = normalized["interactive_actions"]
+        if isinstance(interactive_value, bool):
+            normalized["require_interaction"] = interactive_value
+        elif isinstance(interactive_value, str):
+            lowered = interactive_value.strip().casefold()
+            if lowered in {"yes", "true", "y", "required"}:
+                normalized["require_interaction"] = True
+            elif lowered in {"no", "false", "n", "none"}:
+                normalized["require_interaction"] = False
+
+    return normalized
 
 
 def _choose_named_field(fields: list[str], preferred_names: list[str]) -> str:
@@ -1358,6 +1394,9 @@ def _worksheet_text(worksheet: dict[str, Any]) -> str:
             str(worksheet.get("question", "")),
             str(worksheet.get("priority", "")),
             str(worksheet.get("mark_type", "")),
+            str(worksheet.get("chart_type", "")),
+            str(worksheet.get("notes", "")),
+            str(worksheet.get("description", "")),
         ]
     ).casefold()
 
@@ -2244,6 +2283,23 @@ def _selected_analysis_direction(analysis_brief: dict[str, Any]) -> dict[str, An
     raise RuntimeError("The analysis brief does not have a valid selected_direction_id.")
 
 
+def _validate_analysis_brief_for_mode(
+    analysis_brief: dict[str, Any],
+    *,
+    require_multiple_choice: bool,
+) -> None:
+    directions = [
+        direction
+        for direction in analysis_brief.get("directions", [])
+        if isinstance(direction, dict) and str(direction.get("id", "")).strip()
+    ]
+    if require_multiple_choice and not 2 <= len(directions) <= 4:
+        raise RuntimeError(
+            "Agent-first analysis requires 2-4 explicit candidate directions before the human can choose one."
+        )
+    _selected_analysis_direction(analysis_brief)
+
+
 def _render_schema_summary_markdown(schema_summary: dict[str, Any]) -> str:
     field_candidates = schema_summary.get("field_candidates", {})
     selected_primary_object = schema_summary.get("selected_primary_object", "")
@@ -2541,54 +2597,243 @@ def _ascii_box(lines: list[str], width: int = 70) -> str:
     return "\n".join(rendered)
 
 
-def _layout_description(
+def _layout_size_hint(node: dict[str, Any]) -> str:
+    fixed_size = node.get("fixed_size")
+    if fixed_size not in ("", None):
+        return f"fixed {fixed_size}"
+    weight = node.get("weight")
+    if weight not in ("", None):
+        return f"weight {weight}"
+    return "auto"
+
+
+def _container_node(
+    direction: str,
+    children: list[dict[str, Any]],
+    *,
+    fixed_size: int | None = None,
+    weight: int | None = None,
+) -> dict[str, Any]:
+    node: dict[str, Any] = {
+        "type": "container",
+        "direction": direction,
+        "children": children,
+    }
+    if len(children) > 1:
+        node["layout_strategy"] = "distribute-evenly"
+    if fixed_size is not None:
+        node["fixed_size"] = fixed_size
+    elif weight is not None:
+        node["weight"] = weight
+    return node
+
+
+def _worksheet_layout_node(
+    name: str,
+    *,
+    fixed_size: int | None = None,
+    weight: int | None = None,
+    fit: str = "entire",
+) -> dict[str, Any]:
+    node: dict[str, Any] = {"type": "worksheet", "name": name, "fit": fit}
+    if fixed_size is not None:
+        node["fixed_size"] = fixed_size
+    elif weight is not None:
+        node["weight"] = weight
+    return node
+
+
+def _primary_color_field(primary_view: dict[str, Any]) -> str:
+    return str(_normalize_encoding_spec(primary_view.get("encodings", {})).get("color", "")).strip()
+
+
+def _filter_sidebar_layout(
+    *,
+    filter_fields: list[str],
+    worksheet_name: str,
+    color_field: str = "",
+) -> dict[str, Any] | None:
+    sidebar_children: list[dict[str, Any]] = []
+    for field_name in filter_fields:
+        sidebar_children.append(
+            {
+                "type": "filter",
+                "worksheet": worksheet_name,
+                "field": field_name,
+                "mode": "dropdown",
+                "show_title": False,
+            }
+        )
+    if color_field:
+        sidebar_children.append(
+            {
+                "type": "color",
+                "worksheet": worksheet_name,
+                "field": color_field,
+            }
+        )
+    if not sidebar_children:
+        return None
+    return _container_node("vertical", sidebar_children, fixed_size=160)
+
+
+def _secondary_layout_node(auxiliary_worksheets: list[str]) -> dict[str, Any] | None:
+    if not auxiliary_worksheets:
+        return None
+    if len(auxiliary_worksheets) == 1:
+        return _worksheet_layout_node(auxiliary_worksheets[0], weight=1)
+    return _container_node(
+        "horizontal",
+        [_worksheet_layout_node(name, weight=1) for name in auxiliary_worksheets],
+        weight=1,
+    )
+
+
+def _build_canonical_layout_tree(
     *,
     layout_pattern: str,
     summary_name: str,
     primary_name: str,
     detail_name: str,
     auxiliary_worksheets: list[str],
-) -> str:
-    secondary_text = ", ".join(auxiliary_worksheets) if auxiliary_worksheets else "no secondary views"
-    return (
-        f"Layout pattern '{layout_pattern}': title and KPI strip at the top, "
-        f"summary zone '{summary_name}', primary zone '{primary_name}', "
-        f"detail zone '{detail_name}', and {secondary_text} beneath them."
+    filters: list[str],
+    primary_view: dict[str, Any],
+) -> dict[str, Any]:
+    summary_node = _worksheet_layout_node(summary_name, fixed_size=88)
+    primary_node = _worksheet_layout_node(primary_name, weight=4)
+    detail_node = _worksheet_layout_node(detail_name, weight=2)
+    secondary_node = _secondary_layout_node(auxiliary_worksheets)
+    sidebar = _filter_sidebar_layout(
+        filter_fields=filters,
+        worksheet_name=primary_name,
+        color_field=_primary_color_field(primary_view),
     )
+
+    root_children: list[dict[str, Any]] = [summary_node]
+    normalized_pattern = " ".join(str(layout_pattern).casefold().split())
+    include_primary = primary_name != summary_name
+    include_detail = detail_name not in {summary_name, primary_name}
+
+    if "side by side" in normalized_pattern or normalized_pattern == "horizontal":
+        main_children: list[dict[str, Any]] = []
+        if include_primary:
+            main_children.append(primary_node)
+        if include_detail:
+            main_children.append(detail_node)
+        if sidebar is not None:
+            main_children.append(sidebar)
+        if main_children:
+            root_children.append(_container_node("horizontal", main_children, weight=3))
+        if secondary_node is not None:
+            root_children.append(_container_node("horizontal", [secondary_node], weight=2))
+    elif "top and detail" in normalized_pattern:
+        primary_row: list[dict[str, Any]] = []
+        if include_primary:
+            primary_row.append(primary_node)
+        if sidebar is not None:
+            primary_row.append(sidebar)
+        if primary_row:
+            root_children.append(_container_node("horizontal", primary_row, weight=3))
+        bottom_children = []
+        if include_detail:
+            bottom_children.append(detail_node)
+        if secondary_node is not None:
+            bottom_children.append(secondary_node)
+        if bottom_children:
+            root_children.append(_container_node("horizontal", bottom_children, weight=2))
+    elif normalized_pattern in EXECUTIVE_OVERVIEW_LAYOUT_ALIASES or normalized_pattern == "tiled":
+        main_row: list[dict[str, Any]] = []
+        if include_primary:
+            main_row.append(primary_node)
+        if sidebar is not None:
+            main_row.append(sidebar)
+        if main_row:
+            root_children.append(_container_node("horizontal", main_row, weight=3))
+        bottom_children = []
+        if include_detail:
+            bottom_children.append(detail_node)
+        if secondary_node is not None:
+            bottom_children.append(secondary_node)
+        if bottom_children:
+            root_children.append(_container_node("horizontal", bottom_children, weight=2))
+    else:
+        if include_primary:
+            root_children.append(primary_node)
+        if include_detail:
+            root_children.append(detail_node)
+        if secondary_node is not None:
+            root_children.append(secondary_node)
+        if sidebar is not None:
+            root_children.append(sidebar)
+
+    return _container_node("vertical", root_children)
+
+
+def _layout_tree_description(node: dict[str, Any]) -> str:
+    node_type = str(node.get("type", "")).strip()
+    if node_type == "container":
+        direction = str(node.get("direction", "vertical")).strip()
+        size_hint = _layout_size_hint(node)
+        children = node.get("children", []) or []
+        child_bits = [_layout_tree_description(child) for child in children[:3]]
+        suffix = ""
+        if len(children) > 3:
+            suffix = f", plus {len(children) - 3} more section(s)"
+        return f"{direction} container ({size_hint}) with " + ", ".join(child_bits) + suffix
+    if node_type == "worksheet":
+        return f"worksheet '{node.get('name', '')}' ({_layout_size_hint(node)})"
+    if node_type in {"filter", "color"}:
+        return (
+            f"{node_type} zone for '{node.get('worksheet', '')}' / "
+            f"'{node.get('field', '')}' ({_layout_size_hint(node)})"
+        )
+    if node_type == "paramctrl":
+        return f"parameter control '{node.get('parameter', '')}' ({_layout_size_hint(node)})"
+    if node_type == "text":
+        return f"text zone ({_layout_size_hint(node)})"
+    if node_type == "empty":
+        return f"empty spacer ({_layout_size_hint(node)})"
+    return f"{node_type or 'unknown'} ({_layout_size_hint(node)})"
+
+
+def _render_layout_tree_lines(node: dict[str, Any], depth: int = 0) -> list[str]:
+    indent = "  " * depth
+    node_type = str(node.get("type", "")).strip()
+    size_hint = _layout_size_hint(node)
+    if node_type == "container":
+        direction = str(node.get("direction", "vertical")).strip().upper()
+        lines = [f"{indent}{direction} [{size_hint}]"]
+        for child in node.get("children", []) or []:
+            lines.extend(_render_layout_tree_lines(child, depth + 1))
+        return lines
+    if node_type == "worksheet":
+        return [f"{indent}WORKSHEET [{size_hint}] {node.get('name', '')}"]
+    if node_type == "filter":
+        return [f"{indent}FILTER [{size_hint}] {node.get('field', '')} on {node.get('worksheet', '')}"]
+    if node_type == "color":
+        return [f"{indent}COLOR LEGEND [{size_hint}] {node.get('field', '')} on {node.get('worksheet', '')}"]
+    if node_type == "paramctrl":
+        return [f"{indent}PARAM [{size_hint}] {node.get('parameter', '')}"]
+    if node_type == "text":
+        return [f"{indent}TEXT [{size_hint}] {node.get('text', '')}"]
+    if node_type == "empty":
+        return [f"{indent}EMPTY [{size_hint}]"]
+    return [f"{indent}{node_type or 'UNKNOWN'} [{size_hint}]"]
 
 
 def _render_wireframe_ascii(
     *,
     dashboard_name: str,
     layout_pattern: str,
-    kpis: list[str],
-    summary_name: str,
-    primary_name: str,
-    primary_question: str,
-    detail_name: str,
-    detail_question: str,
-    auxiliary_worksheets: list[str],
-    filters: list[str],
+    layout_tree: dict[str, Any],
     actions: list[dict[str, Any]],
     support_notes: list[str],
 ) -> str:
-    ascii_lines = [
-        f"{dashboard_name} [{layout_pattern}]",
-        "",
-        "KPI Zone: " + " | ".join(kpis or ["(define KPIs)"]),
-        "",
-        f"Summary Zone: {summary_name}",
-        f"Primary Zone: {primary_name}",
-        primary_question or "(question not provided)",
-        f"Detail Zone: {detail_name}",
-        detail_question or "(question not provided)",
-    ]
-    if auxiliary_worksheets:
-        ascii_lines.extend(["", "Secondary Zones: " + " | ".join(auxiliary_worksheets)])
+    ascii_lines = [f"{dashboard_name} [{layout_pattern}]", ""]
+    ascii_lines.extend(_render_layout_tree_lines(layout_tree))
     ascii_lines.extend(
         [
             "",
-            "Filters: " + " | ".join(filters or ["(none)"]),
             "Actions: "
             + " ; ".join(
                 [
@@ -2601,6 +2846,51 @@ def _render_wireframe_ascii(
         ]
     )
     return _ascii_box(ascii_lines)
+
+
+def _wireframe_layout_json_payload(wireframe: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "_ascii_layout_preview": str(wireframe.get("ascii_wireframe", "")).splitlines(),
+        "layout_schema": deepcopy(wireframe.get("layout_tree", {})),
+    }
+
+
+def _layout_json_filename(artifact_filename: str) -> str:
+    path = Path(artifact_filename)
+    if path.suffix:
+        return f"{path.stem}.layout.json"
+    return f"{artifact_filename}.layout.json"
+
+
+def _write_wireframe_layout_json(
+    manifest: dict[str, Any],
+    *,
+    artifact_filename: str,
+    wireframe: dict[str, Any],
+) -> str:
+    layout_filename = _layout_json_filename(artifact_filename)
+    layout_path = Path(manifest["run_dir"]) / layout_filename
+    _write_json(layout_path, _wireframe_layout_json_payload(wireframe))
+    return layout_filename
+
+
+def _canonicalize_wireframe_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    from .dashboard_layouts import extract_layout_worksheets, validate_layout_worksheets
+
+    canonical = deepcopy(payload)
+    layout_tree = canonical.get("layout_tree")
+    if isinstance(layout_tree, dict) and layout_tree:
+        validate_layout_worksheets(layout_tree)
+        canonical["worksheet_names"] = extract_layout_worksheets(layout_tree)
+        canonical["layout_description"] = _layout_tree_description(layout_tree)
+        canonical["ascii_wireframe"] = _render_wireframe_ascii(
+            dashboard_name=canonical.get("dashboard_name", "Analytical Dashboard"),
+            layout_pattern=canonical.get("layout_pattern", "custom"),
+            layout_tree=layout_tree,
+            actions=canonical.get("actions", []),
+            support_notes=canonical.get("support_notes", []),
+        )
+    return canonical
 
 
 def _build_wireframe_payload(
@@ -2656,18 +2946,23 @@ def _build_wireframe_payload(
     support_notes = [action["note"] for action in actions if action.get("note")]
     if not support_notes:
         support_notes = ["No extra workaround notes were needed for the current interaction design."]
+    layout_tree = _build_canonical_layout_tree(
+        layout_pattern=layout_pattern,
+        summary_name=str(summary_name),
+        primary_name=str(primary_name),
+        detail_name=str(detail_name),
+        auxiliary_worksheets=auxiliary_worksheets,
+        filters=filters,
+        primary_view=primary_view if isinstance(primary_view, dict) else {},
+    )
 
-    return {
+    return _canonicalize_wireframe_payload(
+        {
         "run_id": run_id,
         "dashboard_name": contract.get("dashboard", {}).get("name", "Analytical Dashboard"),
+        "layout_pattern": layout_pattern,
         "worksheet_names": worksheet_names,
-        "layout_description": _layout_description(
-            layout_pattern=layout_pattern,
-            summary_name=str(summary_name),
-            primary_name=str(primary_name),
-            detail_name=str(detail_name),
-            auxiliary_worksheets=auxiliary_worksheets,
-        ),
+        "layout_description": "",
         "zones": {
             "title_zone": contract.get("dashboard", {}).get("name", "Analytical Dashboard"),
             "summary_zone": summary_name,
@@ -2676,23 +2971,13 @@ def _build_wireframe_payload(
             "secondary_zones": auxiliary_worksheets,
             "filter_zone": filters,
         },
+        "layout_tree": layout_tree,
+        "layout_json_artifact": "",
         "actions": actions,
         "support_notes": support_notes,
-        "ascii_wireframe": _render_wireframe_ascii(
-            dashboard_name=contract.get("dashboard", {}).get("name", "Analytical Dashboard"),
-            layout_pattern=layout_pattern,
-            kpis=constraints.get("kpis", []) or [],
-            summary_name=str(summary_name),
-            primary_name=str(primary_name),
-            primary_question=str(primary_view.get("question", "")),
-            detail_name=str(detail_name),
-            detail_question=str(detail_view.get("question", "")),
-            auxiliary_worksheets=auxiliary_worksheets,
-            filters=filters,
-            actions=actions,
-            support_notes=support_notes,
-        ),
+        "ascii_wireframe": "",
     }
+    )
 
 
 def _render_wireframe_markdown(wireframe: dict[str, Any]) -> str:
@@ -2707,6 +2992,7 @@ def _render_wireframe_markdown(wireframe: dict[str, Any]) -> str:
         f"- Primary zone: `{wireframe.get('zones', {}).get('primary_zone', '')}`",
         f"- Detail zone: `{wireframe.get('zones', {}).get('detail_zone', '')}`",
         f"- Secondary zones: {', '.join(wireframe.get('zones', {}).get('secondary_zones', []) or ['(none)'])}",
+        f"- Layout JSON artifact: `{wireframe.get('layout_json_artifact', '') or '(pending write)'}`",
     ]
     action_lines = [
         f"- `{action.get('type', '')}` `{action.get('source', '')}` -> "
@@ -2723,6 +3009,8 @@ def _render_wireframe_markdown(wireframe: dict[str, Any]) -> str:
         + "\n```\n\n"
         "## Zones\n"
         + "\n".join(zone_lines)
+        + "\n\n## Layout Schema\n"
+        + _json_code_fence(_wireframe_layout_json_payload(wireframe))
         + "\n\n## Actions\n"
         + ("\n".join(action_lines) if action_lines else "- (none)")
         + "\n\n"
@@ -2747,6 +3035,17 @@ def _render_execution_plan_markdown(plan: dict[str, Any]) -> str:
                 if value:
                     summary_parts.append(f"{key}={value}")
             return f"{index}. `{tool}` " + " | ".join(summary_parts)
+        if tool == "configure_dual_axis":
+            summary_parts = [
+                f"worksheet=`{args.get('worksheet_name', '')}`",
+                f"marks=`{args.get('mark_type_1', '')}+{args.get('mark_type_2', '')}`",
+                f"shelf=`{args.get('dual_axis_shelf', '')}`",
+            ]
+            for key in ("columns", "rows", "color_1", "color_2"):
+                value = args.get(key)
+                if value:
+                    summary_parts.append(f"{key}={value}")
+            return f"{index}. `{tool}` " + " | ".join(summary_parts)
         if tool == "add_dashboard_action":
             target = args.get("target_sheet", "") or args.get("url", "")
             return (
@@ -2754,9 +3053,16 @@ def _render_execution_plan_markdown(plan: dict[str, Any]) -> str:
                 f"target=`{target}` type=`{args.get('action_type', '')}` fields={args.get('fields', [])}"
             )
         if tool == "add_dashboard":
+            layout_value = args.get("layout", "")
+            if isinstance(layout_value, str) and layout_value:
+                layout_summary = Path(layout_value).name
+            elif isinstance(layout_value, dict):
+                layout_summary = "inline layout_schema"
+            else:
+                layout_summary = "(default)"
             return (
                 f"{index}. `{tool}` dashboard=`{args.get('dashboard_name', '')}` "
-                f"worksheets={args.get('worksheet_names', [])}"
+                f"worksheets={args.get('worksheet_names', [])} layout=`{layout_summary}`"
             )
         if tool in {"add_worksheet", "set_worksheet_caption"}:
             return f"{index}. `{tool}` worksheet=`{args.get('worksheet_name', '')}`"
@@ -3032,6 +3338,10 @@ def finalize_analysis_brief(
         user_answers_json=user_answers_json,
     )
     merged = _deep_merge(analysis_brief, overrides)
+    _validate_analysis_brief_for_mode(
+        merged,
+        require_multiple_choice=not _allow_legacy_inference(manifest),
+    )
     direction = _selected_analysis_direction(merged)
     merged["selected_direction_title"] = direction.get("title", "")
     artifact_path = _write_versioned_artifact(
@@ -3241,12 +3551,21 @@ def build_wireframe(run_id: str) -> str:
         schema_summary=schema_summary,
         allow_inference=_allow_legacy_inference(manifest),
     )
+    artifact_token = _now_token()
     artifact_path = _write_versioned_artifact(
         manifest,
         ARTIFACT_WIREFRAME,
         payload,
         markdown_content=_render_wireframe_markdown(payload),
+        filename_token=artifact_token,
     )
+    payload["layout_json_artifact"] = _write_wireframe_layout_json(
+        manifest,
+        artifact_filename=artifact_path.name,
+        wireframe=payload,
+    )
+    _write_json(artifact_path, payload)
+    _write_text(_current_review_artifact_path(manifest, ARTIFACT_WIREFRAME), _render_wireframe_markdown(payload))
     _update_manifest(manifest, status=STATUS_WIREFRAME_BUILT, last_error={})
     return _json_response(
         run_id=run_id,
@@ -3274,13 +3593,22 @@ def finalize_wireframe(
         markdown_path=markdown_path,
         user_answers_json=user_answers_json,
     )
-    merged = _deep_merge(wireframe, overrides)
+    merged = _canonicalize_wireframe_payload(_deep_merge(wireframe, overrides))
+    artifact_token = _now_token()
     artifact_path = _write_versioned_artifact(
         manifest,
         ARTIFACT_WIREFRAME,
         merged,
         markdown_content=_render_wireframe_markdown(merged),
+        filename_token=artifact_token,
     )
+    merged["layout_json_artifact"] = _write_wireframe_layout_json(
+        manifest,
+        artifact_filename=artifact_path.name,
+        wireframe=merged,
+    )
+    _write_json(artifact_path, merged)
+    _write_text(_current_review_artifact_path(manifest, ARTIFACT_WIREFRAME), _render_wireframe_markdown(merged))
     _update_manifest(manifest, status=STATUS_WIREFRAME_FINALIZED, last_error={})
     return _json_response(
         run_id=run_id,
@@ -3317,7 +3645,10 @@ def confirm_authoring_stage(run_id: str, stage: str, approved: bool, notes: str 
         _require_status(manifest, (STATUS_ANALYSIS_FINALIZED,), "confirm analysis brief")
         analysis_payload = _load_current_artifact(manifest, ARTIFACT_ANALYSIS_BRIEF)
         if approved:
-            _selected_analysis_direction(analysis_payload)
+            _validate_analysis_brief_for_mode(
+                analysis_payload,
+                require_multiple_choice=not _allow_legacy_inference(manifest),
+            )
             next_status = STATUS_ANALYSIS_CONFIRMED
         else:
             next_status = STATUS_ANALYSIS_BUILT
@@ -3665,6 +3996,76 @@ def _build_chart_step(
     return {"tool": "configure_chart", "args": args}
 
 
+def _looks_temporal_expression(expression: str) -> bool:
+    normalized = str(expression).strip().casefold()
+    if not normalized:
+        return False
+    return any(token in normalized for token in ("date", "month(", "quarter(", "year(", "week(", "day("))
+
+
+def _build_dual_axis_step(worksheet: dict[str, Any]) -> dict[str, Any] | None:
+    encodings = _normalize_encoding_spec(worksheet.get("encodings", {}))
+    dual_axis = worksheet.get("dual_axis", {})
+    if dual_axis is not None and not isinstance(dual_axis, dict):
+        dual_axis = {}
+
+    text = _worksheet_text(worksheet)
+    rows = encodings.get("rows", [])
+    columns = encodings.get("columns", [])
+    explicit_mark_type_1 = str(worksheet.get("mark_type_1", "")).strip() or str(dual_axis.get("mark_type_1", "")).strip()
+    explicit_mark_type_2 = str(worksheet.get("mark_type_2", "")).strip() or str(dual_axis.get("mark_type_2", "")).strip()
+    dual_axis_shelf = str(worksheet.get("dual_axis_shelf", "")).strip() or str(dual_axis.get("shelf", "")).strip() or "rows"
+    wants_dual_axis = bool(explicit_mark_type_1 or explicit_mark_type_2 or dual_axis)
+
+    if not wants_dual_axis:
+        combo_text = any(token in text for token in ("dual axis", "dual-axis", "secondary axis", "bar + line", "bar+line", "combo"))
+        temporal_combo = (
+            str(worksheet.get("mark_type", "")).strip() == "Bar"
+            and len(rows) == 2
+            and bool(columns)
+            and any(_looks_temporal_expression(expr) for expr in columns)
+        )
+        wants_dual_axis = combo_text or temporal_combo
+
+    if not wants_dual_axis:
+        return None
+
+    if dual_axis_shelf == "rows":
+        if len(rows) < 2:
+            return None
+    elif dual_axis_shelf in {"columns", "cols"}:
+        if len(columns) < 2:
+            return None
+        dual_axis_shelf = "columns"
+    else:
+        return None
+
+    mark_type = str(worksheet.get("mark_type", "")).strip() or "Bar"
+    mark_type_1 = explicit_mark_type_1 or mark_type or "Bar"
+    mark_type_2 = explicit_mark_type_2
+    if not mark_type_2:
+        if "bar + line" in text or "bar+line" in text or "combo" in text or mark_type_1 == "Bar":
+            mark_type_2 = "Line"
+        else:
+            mark_type_2 = "Bar"
+
+    args: dict[str, Any] = {
+        "worksheet_name": worksheet.get("name", "Worksheet"),
+        "mark_type_1": mark_type_1,
+        "mark_type_2": mark_type_2,
+        "dual_axis_shelf": dual_axis_shelf,
+    }
+    if columns:
+        args["columns"] = columns
+    if rows:
+        args["rows"] = rows
+    if encodings.get("color"):
+        args["color_1"] = encodings["color"]
+    if worksheet.get("sort_descending"):
+        args["sort_descending"] = worksheet["sort_descending"]
+    return {"tool": "configure_dual_axis", "args": args}
+
+
 def _choose_default_action_sheets(
     worksheets: list[dict[str, Any]],
     worksheet_names: list[str],
@@ -3743,18 +4144,68 @@ def _wireframe_mentions_new_scope(wireframe: dict[str, Any]) -> list[str]:
     return flagged
 
 
-def _validate_execution_scope(contract: dict[str, Any], wireframe: dict[str, Any]) -> list[str]:
+def _validate_layout_tree_contract_scope(
+    node: dict[str, Any],
+    contract_name_set: set[str],
+    errors: list[str],
+    *,
+    path: str = "root",
+) -> None:
+    node_type = str(node.get("type", "")).strip()
+    if node_type == "worksheet":
+        name = str(node.get("name", "")).strip()
+        if name and name not in contract_name_set:
+            errors.append(f"Layout tree node '{path}' references worksheet '{name}', which is not in the confirmed contract.")
+    elif node_type in {"filter", "color"}:
+        worksheet_name = str(node.get("worksheet", "")).strip()
+        if worksheet_name and worksheet_name not in contract_name_set:
+            errors.append(
+                f"Layout tree node '{path}' references worksheet '{worksheet_name}', which is not in the confirmed contract."
+            )
+    for index, child in enumerate(node.get("children", []) or []):
+        if isinstance(child, dict):
+            _validate_layout_tree_contract_scope(
+                child,
+                contract_name_set,
+                errors,
+                path=f"{path}.{index}",
+            )
+
+
+def _validate_execution_scope(
+    contract: dict[str, Any],
+    wireframe: dict[str, Any],
+    *,
+    require_layout_tree: bool,
+) -> tuple[list[str], dict[str, Any] | None]:
     contract_names = _contract_worksheet_names(contract)
     contract_name_set = set(contract_names)
     errors: list[str] = []
+    layout_tree = wireframe.get("layout_tree") if isinstance(wireframe.get("layout_tree"), dict) else None
 
-    wireframe_names = _unique_strings(
-        [
-            str(name).strip()
-            for name in wireframe.get("worksheet_names", [])
-            if isinstance(name, str) and str(name).strip()
-        ]
-    )
+    wireframe_names: list[str] = []
+    if layout_tree:
+        from .dashboard_layouts import extract_layout_worksheets, validate_layout_worksheets
+
+        try:
+            validate_layout_worksheets(layout_tree)
+        except ValueError as exc:
+            errors.append(str(exc))
+        wireframe_names = extract_layout_worksheets(layout_tree)
+        _validate_layout_tree_contract_scope(layout_tree, contract_name_set, errors)
+    else:
+        wireframe_names = _unique_strings(
+            [
+                str(name).strip()
+                for name in wireframe.get("worksheet_names", [])
+                if isinstance(name, str) and str(name).strip()
+            ]
+        )
+        if require_layout_tree:
+            errors.append(
+                "The confirmed wireframe is missing layout_tree. Rebuild or finalize the wireframe with a canonical layout before planning."
+            )
+
     if wireframe_names:
         extras = [name for name in wireframe_names if name not in contract_name_set]
         missing = [name for name in contract_names if name not in set(wireframe_names)]
@@ -3853,7 +4304,7 @@ def _validate_execution_scope(contract: dict[str, Any], wireframe: dict[str, Any
             + " Reopen the contract stage and update the confirmed contract before rebuilding the wireframe or execution plan."
         )
 
-    return contract_names
+    return contract_names, layout_tree
 
 
 def build_execution_plan(run_id: str) -> str:
@@ -3869,10 +4320,31 @@ def build_execution_plan(run_id: str) -> str:
         allow_inference=_allow_legacy_inference(manifest),
     )
     wireframe = _load_current_artifact(manifest, ARTIFACT_WIREFRAME)
-    worksheet_names = _validate_execution_scope(contract, wireframe)
+    worksheet_names, layout_tree = _validate_execution_scope(
+        contract,
+        wireframe,
+        require_layout_tree=not _allow_legacy_inference(manifest),
+    )
     field_candidates = schema_summary.get("field_candidates", {})
     available_fields = [field["name"] for field in schema_summary.get("fields", [])]
     workbook_template = contract.get("workbook_template", "") or ""
+    layout_json_artifact = str(wireframe.get("layout_json_artifact", "")).strip()
+    layout_argument: str | dict[str, Any]
+    if layout_tree:
+        if layout_json_artifact:
+            layout_path = (Path(manifest["run_dir"]) / layout_json_artifact).resolve()
+            if not layout_path.exists():
+                raise RuntimeError(
+                    f"Confirmed wireframe layout artifact is missing: {layout_path}. Rebuild the wireframe and try again."
+                )
+            layout_argument = str(layout_path)
+        else:
+            layout_argument = layout_tree
+    else:
+        layout_argument = contract.get("dashboard", {}).get("layout_pattern") or contract.get("constraints", {}).get(
+            "layout_pattern",
+            "vertical",
+        )
 
     steps: list[dict[str, Any]] = [
         {
@@ -3927,7 +4399,8 @@ def build_execution_plan(run_id: str) -> str:
         if not name:
             continue
         steps.append({"tool": "add_worksheet", "args": {"worksheet_name": name}})
-        steps.append(_build_chart_step(worksheet, field_candidates))
+        dual_axis_step = _build_dual_axis_step(worksheet)
+        steps.append(dual_axis_step or _build_chart_step(worksheet, field_candidates))
         caption = str(worksheet.get("question", "")).strip()
         if caption:
             steps.append(
@@ -3944,8 +4417,7 @@ def build_execution_plan(run_id: str) -> str:
             "args": {
                 "dashboard_name": dashboard_name,
                 "worksheet_names": worksheet_names,
-                "layout": contract.get("dashboard", {}).get("layout_pattern")
-                or contract.get("constraints", {}).get("layout_pattern", "vertical"),
+                "layout": layout_argument,
             },
         }
     )
@@ -4035,6 +4507,7 @@ def build_execution_plan(run_id: str) -> str:
         "run_id": run_id,
         "source_contract": _artifact_entry(manifest, ARTIFACT_CONTRACT_FINAL).get("current", ""),
         "source_wireframe": _artifact_entry(manifest, ARTIFACT_WIREFRAME).get("current", ""),
+        "source_layout": layout_json_artifact,
         "workbook_template": workbook_template,
         "resolution_warnings": _dedupe_resolution_warnings(
             contract.get("resolution_warnings", []) + calculated_field_warnings
@@ -4088,6 +4561,14 @@ def _worksheet_map(root: ET.Element) -> dict[str, ET.Element]:
 def _worksheet_mark_class(worksheet_el: ET.Element) -> str:
     mark = worksheet_el.find(".//pane/mark")
     return mark.get("class", "") if mark is not None else ""
+
+
+def _worksheet_mark_classes(worksheet_el: ET.Element) -> list[str]:
+    return [
+        mark.get("class", "")
+        for mark in worksheet_el.findall(".//pane/mark")
+        if mark.get("class")
+    ]
 
 
 def _worksheet_encoding_values(worksheet_el: ET.Element, encoding_name: str) -> list[str]:
@@ -4177,6 +4658,84 @@ def _dashboard_sheet_names(root: ET.Element, dashboard_name: str) -> list[str]:
     return sheets
 
 
+def _dashboard_element(root: ET.Element, dashboard_name: str) -> ET.Element | None:
+    return root.find(f".//dashboards/dashboard[@name='{dashboard_name}']")
+
+
+def _field_token_in_param(expected: str, actual: str) -> bool:
+    return _expression_field_token(expected) in _normalize_field_key(actual)
+
+
+def _validate_layout_zone_tree(
+    expected_node: dict[str, Any],
+    actual_zone: ET.Element | None,
+    errors: list[str],
+    *,
+    path: str = "root",
+) -> None:
+    if actual_zone is None:
+        errors.append(f"Dashboard layout is missing zone '{path}'.")
+        return
+
+    expected_type = str(expected_node.get("type", "")).strip()
+    actual_type = actual_zone.get("type-v2", "")
+    expected_fixed = expected_node.get("fixed_size")
+    if expected_fixed not in ("", None):
+        if actual_zone.get("is-fixed") != "true":
+            errors.append(f"Layout zone '{path}' should be fixed-size but is not marked fixed in the workbook.")
+        if str(actual_zone.get("fixed-size", "")).strip() != str(expected_fixed):
+            errors.append(
+                f"Layout zone '{path}' expected fixed-size '{expected_fixed}' but found '{actual_zone.get('fixed-size', '')}'."
+            )
+
+    if expected_type == "container":
+        if actual_type != "layout-flow":
+            errors.append(f"Layout zone '{path}' expected a container but found '{actual_type or '(worksheet)'}'.")
+        expected_direction = "horz" if str(expected_node.get("direction", "vertical")).strip() == "horizontal" else "vert"
+        if actual_zone.get("param", "") != expected_direction:
+            errors.append(
+                f"Layout zone '{path}' expected direction '{expected_direction}' but found '{actual_zone.get('param', '')}'."
+            )
+        expected_children = [child for child in expected_node.get("children", []) or [] if isinstance(child, dict)]
+        actual_children = [child for child in actual_zone.findall("./zone")]
+        if len(expected_children) != len(actual_children):
+            errors.append(
+                f"Layout zone '{path}' expected {len(expected_children)} child zone(s) but found {len(actual_children)}."
+            )
+        for index, child in enumerate(expected_children):
+            actual_child = actual_children[index] if index < len(actual_children) else None
+            _validate_layout_zone_tree(child, actual_child, errors, path=f"{path}.{index}")
+        return
+
+    if expected_type == "worksheet":
+        if actual_zone.get("name", "") != str(expected_node.get("name", "")).strip():
+            errors.append(
+                f"Layout zone '{path}' expected worksheet '{expected_node.get('name', '')}' but found '{actual_zone.get('name', '')}'."
+            )
+        return
+
+    if actual_type != expected_type:
+        errors.append(f"Layout zone '{path}' expected type '{expected_type}' but found '{actual_type or '(worksheet)'}'.")
+
+    if expected_type in {"filter", "color"}:
+        expected_sheet = str(expected_node.get("worksheet", "")).strip()
+        if expected_sheet and actual_zone.get("name", "") != expected_sheet:
+            errors.append(
+                f"Layout zone '{path}' expected worksheet '{expected_sheet}' but found '{actual_zone.get('name', '')}'."
+            )
+        expected_field = str(expected_node.get("field", "")).strip()
+        if expected_field and not _field_token_in_param(expected_field, actual_zone.get("param", "")):
+            errors.append(
+                f"Layout zone '{path}' expected field '{expected_field}' but found '{actual_zone.get('param', '')}'."
+            )
+    elif expected_type == "paramctrl":
+        expected_param = str(expected_node.get("parameter", "")).strip()
+        if expected_param and _normalize_field_key(expected_param) not in _normalize_field_key(actual_zone.get("param", "")):
+            errors.append(
+                f"Layout zone '{path}' expected parameter '{expected_param}' but found '{actual_zone.get('param', '')}'."
+            )
+
+
 def _collect_dashboard_actions(root: ET.Element, dashboard_name: str) -> list[dict[str, Any]]:
     dashboard_sheets = _dashboard_sheet_names(root, dashboard_name)
     actions: list[dict[str, Any]] = []
@@ -4259,6 +4818,7 @@ def validate_generated_workbook_semantics(run_id: str, workbook_path: str) -> di
         fail_on_unresolved=not _allow_legacy_inference(manifest),
         allow_inference=_allow_legacy_inference(manifest),
     )
+    wireframe = _safe_current_artifact_payload(manifest, ARTIFACT_WIREFRAME)
     root = _workbook_root(workbook_path)
     worksheets = _worksheet_map(root)
     errors: list[str] = []
@@ -4268,6 +4828,15 @@ def validate_generated_workbook_semantics(run_id: str, workbook_path: str) -> di
     for sheet_name in expected_sheets:
         if sheet_name not in actual_sheets:
             errors.append(f"Dashboard '{dashboard_name}' is missing worksheet '{sheet_name}'.")
+
+    layout_tree = wireframe.get("layout_tree") if isinstance(wireframe.get("layout_tree"), dict) else None
+    if layout_tree:
+        dashboard = _dashboard_element(root, dashboard_name)
+        if dashboard is None:
+            errors.append(f"Dashboard '{dashboard_name}' was not found in the generated workbook.")
+        else:
+            root_zone = dashboard.find("zones/zone")
+            _validate_layout_zone_tree(layout_tree, root_zone, errors, path="layout")
 
     for worksheet in contract.get("worksheets", []):
         if not isinstance(worksheet, dict):
@@ -4280,13 +4849,26 @@ def validate_generated_workbook_semantics(run_id: str, workbook_path: str) -> di
             errors.append(f"Configured worksheet '{worksheet_name}' was not found in the generated workbook.")
             continue
 
+        dual_axis_step = _build_dual_axis_step(worksheet)
         mark_type = str(worksheet.get("mark_type", "")).strip()
-        actual_mark = _worksheet_mark_class(worksheet_el)
-        expected_mark = "Multipolygon" if mark_type == "Map" else mark_type
-        if expected_mark and actual_mark != expected_mark:
-            errors.append(
-                f"Worksheet '{worksheet_name}' expected mark '{expected_mark}' but found '{actual_mark or '(none)'}'."
-            )
+        if dual_axis_step is not None:
+            actual_marks = _worksheet_mark_classes(worksheet_el)
+            expected_marks = [
+                dual_axis_step["args"].get("mark_type_1", ""),
+                dual_axis_step["args"].get("mark_type_2", ""),
+            ]
+            for expected_mark in expected_marks:
+                if expected_mark and expected_mark not in actual_marks:
+                    errors.append(
+                        f"Worksheet '{worksheet_name}' expected dual-axis mark '{expected_mark}' but found '{', '.join(actual_marks) or '(none)'}'."
+                    )
+        else:
+            actual_mark = _worksheet_mark_class(worksheet_el)
+            expected_mark = "Multipolygon" if mark_type == "Map" else mark_type
+            if expected_mark and actual_mark != expected_mark:
+                errors.append(
+                    f"Worksheet '{worksheet_name}' expected mark '{expected_mark}' but found '{actual_mark or '(none)'}'."
+                )
 
         if mark_type == "Text":
             members = _worksheet_measure_value_labels(worksheet_el)
