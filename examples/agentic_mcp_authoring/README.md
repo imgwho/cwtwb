@@ -74,22 +74,21 @@ Recommended live sequence:
 16. Show the wireframe and support/workaround notes, then confirm it.
 17. Prefer `interactive_stage_confirmation(..., stage="wireframe")`.
 18. If the client reports `chat_fallback`, answer in chat and then make sure it calls `confirm_authoring_stage(..., stage="wireframe")`.
-19. Let it build the execution plan.
-20. Show the execution plan and confirm it.
-21. Prefer `interactive_stage_confirmation(..., stage="execution_plan")`.
-22. If the client reports `chat_fallback`, answer in chat and then make sure it calls `confirm_authoring_stage(..., stage="execution_plan")`.
-23. Let it call `generate_workbook_from_run(...)`.
-24. End by showing the final workbook path plus validation and analysis artifacts.
+19. Let it build the execution plan as an internal artifact.
+20. Do not ask the human to approve the execution plan unless they explicitly want to inspect the step-by-step build.
+21. Let it call `generate_workbook_from_run(...)`.
+22. End by showing the final workbook path plus validation and analysis artifacts.
 
 What to emphasize while speaking:
 
 - The system starts from a real Excel file, not a baked demo JSON.
-- The agent pauses at `schema`, `analysis`, `contract`, `wireframe`, and `execution_plan`.
+- The agent pauses at `schema`, `analysis`, `contract`, and `wireframe` by default.
 - When the client supports MCP elicitation, the preferred gate is `interactive_stage_confirmation(...)`.
 - When the client does not support elicitation, the workflow degrades cleanly to chat confirmation plus `confirm_authoring_stage(...)`.
 - The prompts guide; the tools write files and move run state.
 - The run is resumable because artifacts live under `tmp/agentic_run/{run_id}/`.
 - The human-facing review surface is now paired Markdown artifacts, not just JSON.
+- `execution_plan` is still written, but it is an internal read-only artifact unless the human explicitly asks to review it.
 
 ## Demo Mode 2: Deterministic Real MCP Client Script
 

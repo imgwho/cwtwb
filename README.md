@@ -22,10 +22,11 @@ that starts from a real datasource file instead of a hand-written contract:
 
 1. Start an authoring run from a local Excel or Hyper file
 2. Inspect the datasource schema and pause for human confirmation
-3. Draft, review, and finalize a structured authoring contract
-4. Pause for human confirmation again before planning and generation
-5. Build a mechanical execution plan and generate the final workbook
-6. Persist every intermediate artifact under `tmp/agentic_run/{run_id}/`
+3. Build an analysis brief, present 2-4 candidate dashboard directions, and confirm the chosen direction
+4. Draft, review, and finalize a structured authoring contract
+5. Build and confirm a human-facing wireframe
+6. Build a mechanical execution plan internally and generate the final workbook
+7. Persist every intermediate artifact under `tmp/agentic_run/{run_id}/`
 
 ```
                             Interfaces
@@ -235,10 +236,16 @@ editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .t
 | `get_run_status` | Inspect one authoring run, including confirmation gates, current artifact versions, and failure details |
 | `resume_authoring_run` | Re-open a previous authoring run after a client or server restart |
 | `intake_datasource_schema` | Read the run datasource from the manifest and persist a structured schema summary for Excel or Hyper |
+| `build_analysis_brief` | Create the analysis brief scaffold from the current schema summary |
+| `finalize_analysis_brief` | Finalize 2-4 candidate directions plus the selected direction for the run |
 | `draft_authoring_contract` | Create a contract draft from the schema summary plus a human brief |
 | `review_authoring_contract_for_run` | Review the current draft, apply profile-aware defaults, and produce clarification guidance |
 | `finalize_authoring_contract` | Merge review output with human answers and persist the finalized contract |
-| `confirm_authoring_stage` | Approve or reject the `schema`, `contract`, or `execution_plan` checkpoint |
+| `interactive_stage_confirmation` | Prefer MCP elicitation for schema, analysis, contract, and wireframe confirmation, with chat fallback when unsupported |
+| `confirm_authoring_stage` | Persist an approval or rejection for `schema`, `analysis`, `contract`, `wireframe`, or `execution_plan` after a fresh confirmation request |
+| `build_wireframe` | Build a reviewable wireframe artifact from the confirmed contract |
+| `finalize_wireframe` | Finalize the wireframe review, including layout notes and supported actions |
+| `reopen_authoring_stage` | Reopen `analysis`, `contract`, `wireframe`, or `execution_plan` after a rejection or downstream scope change |
 | `build_execution_plan` | Convert the finalized contract into a mechanical MCP tool-call plan |
 | `generate_workbook_from_run` | Execute the confirmed plan, save the workbook, and persist validation and analysis reports |
 | `create_workbook` | Load a `.twb` or `.twbx` template and initialize a rebuild-from-template workspace |
@@ -276,10 +283,10 @@ The MCP server also exposes prompts that guide a datasource-first, human-in-the-
 
 | Prompt | Purpose |
 |---|---|
-| `guided_dashboard_authoring` | Top-level orchestration prompt for `datasource -> schema -> contract -> execution -> workbook` |
+| `guided_dashboard_authoring` | Top-level orchestration prompt for `datasource -> schema -> analysis -> contract -> wireframe -> workbook` |
 | `dashboard_brief_to_contract` | Convert a human brief plus schema summary into a strict contract draft |
 | `light_elicitation` | Ask only the minimum missing business questions from a contract review |
-| `authoring_execution_plan` | Turn a finalized contract into an execution-oriented MCP build plan |
+| `authoring_execution_plan` | Turn a finalized contract into an execution-oriented internal MCP build plan |
 
 ## Guided MCP Authoring Runs
 
@@ -289,14 +296,23 @@ High-level flow:
 
 1. `start_authoring_run(datasource_path=...)`
 2. `intake_datasource_schema(run_id)`
-3. Human confirms the schema with `confirm_authoring_stage(..., stage="schema")`
-4. `draft_authoring_contract(...)`
-5. `review_authoring_contract_for_run(...)`
-6. `finalize_authoring_contract(...)`
-7. Human confirms the contract with `confirm_authoring_stage(..., stage="contract")`
-8. `build_execution_plan(...)`
-9. Human confirms the plan with `confirm_authoring_stage(..., stage="execution_plan")`
-10. `generate_workbook_from_run(...)`
+3. Human confirms the schema, preferably with `interactive_stage_confirmation(..., stage="schema")`
+4. `build_analysis_brief(...)`
+5. In `agent_first` mode, author and present 2-4 candidate directions, then `finalize_analysis_brief(...)`
+6. Human confirms the selected direction, preferably with `interactive_stage_confirmation(..., stage="analysis")`
+7. `draft_authoring_contract(...)`
+8. `review_authoring_contract_for_run(...)`
+9. `finalize_authoring_contract(...)`
+10. Human confirms the contract, preferably with `interactive_stage_confirmation(..., stage="contract")`
+11. `build_wireframe(...)`
+12. `finalize_wireframe(...)`
+13. Human confirms the wireframe, preferably with `interactive_stage_confirmation(..., stage="wireframe")`
+14. `build_execution_plan(...)`
+15. `generate_workbook_from_run(...)`
+
+`confirm_authoring_stage(...)` is still the persistence step when a client falls
+back to chat or when replaying an already-explicit human decision. By default,
+`execution_plan` remains an internal artifact and is not a human approval gate.
 
 Every run writes versioned artifacts, for example:
 

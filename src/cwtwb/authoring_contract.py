@@ -206,7 +206,23 @@ def _normalize_worksheet_spec(value: Any) -> dict[str, Any] | None:
     worksheet = deepcopy(value)
     for key in ("dimensions", "measures", "kpi_fields", "filters"):
         worksheet[key] = _normalize_string_list(worksheet.get(key))
-    worksheet["encodings"] = _normalize_encoding_spec(worksheet.get("encodings"))
+    encodings = _normalize_encoding_spec(worksheet.get("encodings"))
+
+    # Accept lightweight worksheet shorthands from agent/user overrides and
+    # promote them into the canonical encodings block used by execution.
+    for key in ("columns", "rows", "measure_values", "tooltip"):
+        if encodings.get(key):
+            continue
+        promoted = worksheet.get(key)
+        if isinstance(promoted, str):
+            promoted = [promoted]
+        encodings[key] = _normalize_string_list(promoted)
+    for key in ("color", "label", "detail", "size", "wedge_size", "geographic_field"):
+        if encodings.get(key):
+            continue
+        encodings[key] = str(worksheet.get(key, "")).strip()
+
+    worksheet["encodings"] = encodings
     worksheet["sort_descending"] = str(worksheet.get("sort_descending", "")).strip()
     return worksheet
 
