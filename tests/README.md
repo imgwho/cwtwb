@@ -203,7 +203,7 @@ The table below maps each SDK/MCP public function to its primary test file.
 ## Known Gaps & Out-of-Scope
 
 - **`intake_datasource_schema` on real `.hyper` files**: covered in `test_agentic_authoring_v1.py`, but the test is skipped when the local `tableauhyperapi` runtime is unavailable or cannot inspect the sample extract in the current environment.
-- **Dedicated `set_excel_connection` unit test**: the Excel connection path is exercised indirectly by the guided authoring run generation flow, but there is not yet a standalone low-level XML verification test for `set_excel_connection`.
+- **`set_excel_connection` coverage**: low-level XML verification now lives in `test_connections.py`, but there is still no full guided-authoring end-to-end test that asserts an Excel-connected workbook opens cleanly in Tableau Desktop itself.
 - **`configure_chart` with `label_param`**: parameter-driven label content is not separately unit-tested (tested implicitly via `label_runs` with `param` key).
 - **`configure_chart` with `customized_label`** (raw string override): no dedicated test; simple text labels are covered by `test_label_runs.py`.
 - **Multi-table hyper connection** (`tables` parameter in `set_hyper_connection`): no unit test; requires a real multi-table `.hyper` file.

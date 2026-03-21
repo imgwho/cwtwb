@@ -14,10 +14,13 @@ from ..authoring_run import (
     ARTIFACT_CONTRACT_FINAL,
     ARTIFACT_EXECUTION_PLAN,
     ARTIFACT_SCHEMA,
+    ARTIFACT_SEMANTIC_VALIDATION,
     ARTIFACT_WIREFRAME,
     ARTIFACT_ANALYSIS,
     ARTIFACT_ANALYSIS_BRIEF,
     ARTIFACT_VALIDATION,
+    STATUS_GENERATION_FAILED,
+    STATUS_GENERATED,
     ANALYSIS_STAGE,
     CONTRACT_STAGE,
     EXECUTION_STEP_WHITELIST,
@@ -26,6 +29,7 @@ from ..authoring_run import (
     SCHEMA_STAGE,
     STATUS_ANALYZED,
     STATUS_VALIDATED,
+    SemanticValidationError,
     WIREFRAME_STAGE,
     _current_review_artifact_path,
     _load_manifest_by_id,
@@ -49,6 +53,7 @@ from ..authoring_run import (
     resume_authoring_run as resume_authoring_run_impl,
     review_authoring_contract_for_run as review_authoring_contract_for_run_impl,
     start_authoring_run as start_authoring_run_impl,
+    validate_generated_workbook_semantics,
     write_post_check_artifact,
 )
 from .app import server
@@ -158,6 +163,8 @@ def start_authoring_run(
     datasource_path: str,
     output_dir: str = "tmp/agentic_run",
     resume_if_exists: bool = False,
+    authoring_mode: str = "agent_first",
+    force_new: bool = False,
 ) -> str:
     """Initialize a new guided authoring run from an Excel or Hyper datasource."""
 
@@ -165,6 +172,8 @@ def start_authoring_run(
         datasource_path=datasource_path,
         output_dir=output_dir,
         resume_if_exists=resume_if_exists,
+        authoring_mode=authoring_mode,
+        force_new=force_new,
     )
 
 
@@ -205,7 +214,7 @@ def intake_datasource_schema(run_id: str, preferred_sheet: str = "") -> str:
 
 @server.tool()
 def build_analysis_brief(run_id: str) -> str:
-    """Build analysis_brief.json and .md with 2-4 candidate dashboard directions."""
+    """Build analysis_brief.json and .md. In agent_first mode this is a scaffold the agent must fill explicitly."""
 
     return build_analysis_brief_impl(run_id=run_id)
 
@@ -227,7 +236,7 @@ def finalize_analysis_brief(
 
 @server.tool()
 def draft_authoring_contract(run_id: str, human_brief: str, rewrite: bool = False) -> str:
-    """Create a contract draft from the current schema summary plus a human brief."""
+    """Create a contract draft scaffold from the current schema summary plus a human brief."""
 
     return draft_authoring_contract_impl(
         run_id=run_id,
@@ -470,7 +479,24 @@ def generate_workbook_from_run(run_id: str, output_twb_path: str = "") -> str:
             executed_steps.append(tool_name)
 
         tool_map["save_workbook"](final_output)
+        current_tool = "semantic_validation"
+        try:
+            semantic_validation = validate_generated_workbook_semantics(run_id, final_output)
+        except SemanticValidationError as exc:
+            write_post_check_artifact(
+                run_id,
+                ARTIFACT_SEMANTIC_VALIDATION,
+                exc.payload,
+                STATUS_GENERATION_FAILED,
+            )
+            raise
         mark_generation_success(run_id, final_output)
+        write_post_check_artifact(
+            run_id,
+            ARTIFACT_SEMANTIC_VALIDATION,
+            semantic_validation,
+            STATUS_GENERATED,
+        )
 
         for check in plan.get("post_checks", []):
             tool_name = str(check.get("tool", "")).strip()
@@ -500,6 +526,7 @@ def generate_workbook_from_run(run_id: str, output_twb_path: str = "") -> str:
                 "run_id": run_id,
                 "final_workbook": final_output,
                 "executed_steps": executed_steps,
+                "semantic_validation": semantic_validation,
                 "post_checks": list(POST_CHECK_WHITELIST),
                 "status": STATUS_ANALYZED,
             },
@@ -507,7 +534,8 @@ def generate_workbook_from_run(run_id: str, output_twb_path: str = "") -> str:
             indent=2,
         )
     except Exception as exc:
-        mark_generation_failed(run_id, current_tool, str(exc))
+        details = getattr(exc, "payload", None)
+        mark_generation_failed(run_id, current_tool, str(exc), details=details)
         raise RuntimeError(
             f"generate_workbook_from_run failed after steps {executed_steps or ['(none)']}: {exc}"
         ) from exc

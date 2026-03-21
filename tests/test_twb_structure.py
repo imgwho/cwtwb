@@ -263,6 +263,43 @@ class TestDashboard:
             .dashboard_exists("FilterDB")
             .dashboard_has_zone_type("FilterDB", "filter"))
 
+    def test_add_dashboard_replaces_existing_dashboard_name(self, editor):
+        editor.add_worksheet("Sheet A")
+        editor.configure_chart("Sheet A", mark_type="Bar",
+                              rows=["Category"], columns=["SUM(Sales)"])
+        editor.add_worksheet("Sheet B")
+        editor.configure_chart("Sheet B", mark_type="Pie",
+                              color="Segment", wedge_size="SUM(Sales)")
+        editor.add_worksheet("Sheet C")
+        editor.configure_chart("Sheet C", mark_type="Line",
+                              columns=["MONTH(Order Date)"], rows=["SUM(Sales)"])
+
+        editor.add_dashboard(
+            "Overview",
+            worksheet_names=["Sheet A", "Sheet B"],
+            layout="horizontal",
+        )
+        editor.add_dashboard(
+            "Overview",
+            worksheet_names=["Sheet A", "Sheet C"],
+            layout="vertical",
+        )
+
+        dashboards = editor.root.findall(".//dashboards/dashboard[@name='Overview']")
+        windows = editor.root.findall(".//windows/window[@class='dashboard'][@name='Overview']")
+
+        assert len(dashboards) == 1
+        assert len(windows) == 1
+
+        zone_names = [
+            zone.get("name")
+            for zone in dashboards[0].findall(".//zone[@name]")
+            if zone.get("name")
+        ]
+        assert "Sheet A" in zone_names
+        assert "Sheet C" in zone_names
+        assert "Sheet B" not in zone_names
+
 
 class TestFilters:
     """Filter structure validation."""

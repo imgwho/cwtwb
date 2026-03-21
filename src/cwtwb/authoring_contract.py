@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import CONTRACTS_DIR, iter_profile_files
+from .connections import infer_tableau_semantic_role
 
 
 DEFAULT_CONTRACT_TEMPLATE = CONTRACTS_DIR / "dashboard_authoring_v1.json"
@@ -25,6 +26,40 @@ RECOMMENDED_SKILLS = [
     "formatting",
 ]
 
+WORKSHEET_EXECUTION_DEFAULTS = {
+    "dimensions": [],
+    "measures": [],
+    "kpi_fields": [],
+    "encodings": {
+        "columns": [],
+        "rows": [],
+        "color": "",
+        "label": "",
+        "detail": "",
+        "size": "",
+        "wedge_size": "",
+        "geographic_field": "",
+        "measure_values": [],
+        "tooltip": [],
+    },
+    "sort_descending": "",
+    "filters": [],
+}
+
+ACTION_EXECUTION_DEFAULTS = {
+    "type": "filter",
+    "source": "",
+    "target": "",
+    "targets": [],
+    "fields": [],
+    "url": "",
+    "caption": "",
+}
+CALCULATED_FIELD_DEFAULTS = {
+    "name": "",
+    "formula": "",
+    "datatype": "real",
+}
 
 @dataclass
 class ContractReviewResult:
@@ -137,6 +172,256 @@ def _merge_profile_defaults(
         _set_if_blank(contract, key, value, defaults_applied, path=path)
 
 
+def _normalize_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        text = str(item).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        normalized.append(text)
+    return normalized
+
+
+def _normalize_encoding_spec(value: Any) -> dict[str, Any]:
+    normalized = deepcopy(WORKSHEET_EXECUTION_DEFAULTS["encodings"])
+    if not isinstance(value, dict):
+        return normalized
+    for key in normalized:
+        if key not in value:
+            continue
+        if isinstance(normalized[key], list):
+            normalized[key] = _normalize_string_list(value.get(key))
+        else:
+            normalized[key] = str(value.get(key, "")).strip()
+    return normalized
+
+
+def _normalize_worksheet_spec(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    worksheet = deepcopy(value)
+    for key in ("dimensions", "measures", "kpi_fields", "filters"):
+        worksheet[key] = _normalize_string_list(worksheet.get(key))
+    worksheet["encodings"] = _normalize_encoding_spec(worksheet.get("encodings"))
+    worksheet["sort_descending"] = str(worksheet.get("sort_descending", "")).strip()
+    return worksheet
+
+
+def _normalize_action_spec(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    action = deepcopy(ACTION_EXECUTION_DEFAULTS)
+    action.update(deepcopy(value))
+    action["type"] = str(action.get("type", "filter")).strip() or "filter"
+    action["source"] = str(action.get("source", "")).strip()
+    action["target"] = str(action.get("target", "")).strip()
+    action["targets"] = _normalize_string_list(action.get("targets"))
+    if not action["targets"] and action["target"]:
+        action["targets"] = [action["target"]]
+    if not action["target"] and action["targets"]:
+        action["target"] = action["targets"][0]
+    action["fields"] = _normalize_string_list(action.get("fields"))
+    action["url"] = str(action.get("url", "")).strip()
+    action["caption"] = str(action.get("caption", "")).strip()
+    return action
+
+
+def _normalize_calculated_field_spec(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    field = deepcopy(CALCULATED_FIELD_DEFAULTS)
+    field.update(deepcopy(value))
+    field["name"] = str(field.get("name", "")).strip()
+    field["formula"] = str(field.get("formula", "")).strip()
+    field["datatype"] = str(field.get("datatype", "real")).strip() or "real"
+    return field
+
+
+def _normalize_contract_shapes(contract: dict[str, Any]) -> None:
+    worksheets = []
+    for item in contract.get("worksheets", []):
+        normalized = _normalize_worksheet_spec(item)
+        if normalized is not None:
+            worksheets.append(normalized)
+    contract["worksheets"] = worksheets
+
+    actions = []
+    for item in contract.get("actions", []):
+        normalized = _normalize_action_spec(item)
+        if normalized is not None:
+            actions.append(normalized)
+    contract["actions"] = actions
+
+    calculated_fields = []
+    for item in contract.get("calculated_fields", []):
+        normalized = _normalize_calculated_field_spec(item)
+        if normalized is not None:
+            calculated_fields.append(normalized)
+    contract["calculated_fields"] = calculated_fields
+
+
+def _field_exists(field_name: str, available_fields: list[str]) -> bool:
+    normalized = _normalize_token(field_name)
+    return any(_normalize_token(candidate) == normalized for candidate in available_fields)
+
+
+def _is_geo_field(field_name: str, available_fields: list[str]) -> bool:
+    return _field_exists(field_name, available_fields) and bool(
+        infer_tableau_semantic_role(field_name)
+    )
+
+
+def _looks_like_date_field(field_name: str, available_fields: list[str]) -> bool:
+    if not _field_exists(field_name, available_fields):
+        return False
+    normalized = _normalize_token(field_name)
+    return any(token in normalized for token in ("date", "time", "month", "year", "week", "day"))
+
+
+def _collect_execution_clarifications(contract: dict[str, Any]) -> tuple[list[str], list[str]]:
+    missing_required: list[str] = []
+    clarification_questions: list[str] = []
+    available_fields = _extract_available_fields(contract)
+    worksheets = contract.get("worksheets", [])
+
+    if not worksheets:
+        missing_required.append("worksheets")
+        clarification_questions.append(
+            "Which worksheets or views should this dashboard contain? Please list each worksheet with its chart type."
+        )
+        return missing_required, clarification_questions
+
+    for index, worksheet in enumerate(worksheets, start=1):
+        if not isinstance(worksheet, dict):
+            missing_required.append(f"worksheets[{index}]")
+            clarification_questions.append(
+                f"Worksheet #{index} is not structured correctly. Please rewrite it as a worksheet object."
+            )
+            continue
+
+        name = str(worksheet.get("name", "")).strip() or f"Worksheet {index}"
+        mark_type = str(worksheet.get("mark_type", "")).strip()
+        dimensions = _normalize_string_list(worksheet.get("dimensions"))
+        measures = _normalize_string_list(worksheet.get("measures"))
+        kpi_fields = _normalize_string_list(worksheet.get("kpi_fields"))
+        encodings = _normalize_encoding_spec(worksheet.get("encodings"))
+
+        if not mark_type:
+            missing_required.append(f"worksheets[{index}].mark_type")
+            clarification_questions.append(
+                f"What chart type should '{name}' use?"
+            )
+            continue
+
+        if mark_type == "Text":
+            if not (encodings.get("measure_values") or kpi_fields or contract.get("constraints", {}).get("kpis")):
+                missing_required.append(f"worksheets[{index}].kpi_fields")
+                clarification_questions.append(
+                    f"Which KPI fields should '{name}' display?"
+                )
+        elif mark_type == "Pie":
+            if not (encodings.get("color") or dimensions):
+                missing_required.append(f"worksheets[{index}].dimensions")
+                clarification_questions.append(
+                    f"Which categorical field should '{name}' use to split the pie?"
+                )
+            if not (encodings.get("wedge_size") or measures):
+                missing_required.append(f"worksheets[{index}].measures")
+                clarification_questions.append(
+                    f"Which measure should '{name}' use for wedge size?"
+                )
+        elif mark_type == "Map":
+            explicit_geo = encodings.get("geographic_field", "")
+            if not explicit_geo and not any(_is_geo_field(field, available_fields) for field in dimensions):
+                missing_required.append(f"worksheets[{index}].encodings.geographic_field")
+                clarification_questions.append(
+                    f"Which geographic field should '{name}' plot on the map?"
+                )
+        elif mark_type == "Line":
+            if not encodings.get("columns") and not any(
+                _looks_like_date_field(field, available_fields) for field in dimensions
+            ):
+                missing_required.append(f"worksheets[{index}].dimensions")
+                clarification_questions.append(
+                    f"Which date or time field should '{name}' use on the x-axis?"
+                )
+            if not encodings.get("rows") and not measures:
+                missing_required.append(f"worksheets[{index}].measures")
+                clarification_questions.append(
+                    f"Which measure should '{name}' plot over time?"
+                )
+        else:
+            if not encodings.get("rows") and not dimensions:
+                missing_required.append(f"worksheets[{index}].dimensions")
+                clarification_questions.append(
+                    f"Which categorical field should '{name}' use on its row axis?"
+                )
+            if not encodings.get("columns") and not measures:
+                missing_required.append(f"worksheets[{index}].measures")
+                clarification_questions.append(
+                    f"Which measure should '{name}' use on its column axis?"
+                )
+
+    for index, calculated_field in enumerate(contract.get("calculated_fields", []), start=1):
+        if not isinstance(calculated_field, dict):
+            missing_required.append(f"calculated_fields[{index}]")
+            clarification_questions.append(
+                f"Calculated field #{index} is not structured correctly. Please rewrite it as a calculated field object."
+            )
+            continue
+        if not str(calculated_field.get("name", "")).strip():
+            missing_required.append(f"calculated_fields[{index}].name")
+            clarification_questions.append(
+                f"What name should calculated field #{index} use?"
+            )
+        if not str(calculated_field.get("formula", "")).strip():
+            missing_required.append(f"calculated_fields[{index}].formula")
+            clarification_questions.append(
+                f"What Tableau formula should calculated field '{calculated_field.get('name', f'#{index}')}' use?"
+            )
+
+    actions = contract.get("actions", [])
+    require_interaction = contract.get("require_interaction")
+    if require_interaction is True and not actions:
+        missing_required.append("actions")
+        clarification_questions.append(
+            "You asked for interaction. What dashboard action should be configured, and which source and target worksheets should it connect?"
+        )
+
+    for index, action in enumerate(actions, start=1):
+        if not isinstance(action, dict):
+            missing_required.append(f"actions[{index}]")
+            clarification_questions.append(
+                f"Action #{index} is not structured correctly. Please rewrite it as an action object."
+            )
+            continue
+        action_type = str(action.get("type", "filter")).strip() or "filter"
+        if not str(action.get("source", "")).strip():
+            missing_required.append(f"actions[{index}].source")
+            clarification_questions.append(
+                f"Which worksheet should trigger action #{index}?"
+            )
+        if action_type == "url":
+            if not str(action.get("url", "")).strip():
+                missing_required.append(f"actions[{index}].url")
+                clarification_questions.append(
+                    f"What URL should action #{index} open?"
+                )
+        else:
+            targets = _normalize_string_list(action.get("targets"))
+            if not targets and not str(action.get("target", "")).strip():
+                missing_required.append(f"actions[{index}].targets")
+                clarification_questions.append(
+                    f"Which worksheet targets should action #{index} affect?"
+                )
+
+    return missing_required, clarification_questions
+
+
 def _extract_available_fields(contract: dict[str, Any]) -> list[str]:
     raw_fields = contract.get("available_fields", [])
     if not isinstance(raw_fields, list):
@@ -217,7 +502,12 @@ def _build_execution_outline(contract: dict[str, Any], profile_label: str | None
     ]
 
 
-def review_authoring_contract_payload(contract_json: str) -> ContractReviewResult:
+def review_authoring_contract_payload(
+    contract_json: str,
+    *,
+    allow_profile_defaults: bool = True,
+    strict_execution: bool = False,
+) -> ContractReviewResult:
     """Review a contract JSON string and return a normalized, defaulted result."""
 
     try:
@@ -258,6 +548,7 @@ def review_authoring_contract_payload(contract_json: str) -> ContractReviewResul
     _set_if_blank(contract, "dataset_profile", "", defaults_applied, path="dataset_profile")
     _set_if_blank(contract, "workbook_template", "", defaults_applied, path="workbook_template")
     _set_if_blank(contract, "available_fields", [], defaults_applied, path="available_fields")
+    _set_if_blank(contract, "calculated_fields", [], defaults_applied, path="calculated_fields")
     _set_if_blank(contract, "worksheets", [], defaults_applied, path="worksheets")
     _set_if_blank(contract, "actions", [], defaults_applied, path="actions")
 
@@ -266,7 +557,7 @@ def review_authoring_contract_payload(contract_json: str) -> ContractReviewResul
     if profile is not None:
         detected_profile = str(profile.get("id", "")).strip() or None
         profile_defaults = profile.get("defaults", {})
-        if isinstance(profile_defaults, dict):
+        if allow_profile_defaults and isinstance(profile_defaults, dict):
             _merge_profile_defaults(contract, profile_defaults, defaults_applied)
 
     constraints = _ensure_dict(contract, "constraints", defaults_applied)
@@ -311,6 +602,8 @@ def review_authoring_contract_payload(contract_json: str) -> ContractReviewResul
         path="dashboard.layout_pattern",
     )
 
+    _normalize_contract_shapes(contract)
+
     missing_required: list[str] = []
     clarification_questions: list[str] = []
 
@@ -327,7 +620,13 @@ def review_authoring_contract_payload(contract_json: str) -> ContractReviewResul
         missing_required.append("require_interaction")
         clarification_questions.append("Do you want interactive drill-down or filtering actions in the dashboard?")
 
-    clarification_questions = clarification_questions[:3]
+    if strict_execution:
+        execution_missing, execution_questions = _collect_execution_clarifications(contract)
+        missing_required.extend(execution_missing)
+        clarification_questions.extend(execution_questions)
+
+    missing_required = _normalize_string_list(missing_required)
+    clarification_questions = _normalize_string_list(clarification_questions)[:3]
     valid = not clarification_questions
 
     profile_label = None
@@ -339,7 +638,7 @@ def review_authoring_contract_payload(contract_json: str) -> ContractReviewResul
             "Contract is ready for execution. "
             + (
                 f"Profile '{profile_label}' was applied to enrich defaults."
-                if profile_label
+                if profile_label and allow_profile_defaults
                 else "No dataset profile was applied; generic defaults were kept."
             )
         )
@@ -348,7 +647,7 @@ def review_authoring_contract_payload(contract_json: str) -> ContractReviewResul
             "Contract needs lightweight clarification before execution. "
             + (
                 f"Profile '{profile_label}' supplied dataset-aware defaults."
-                if profile_label
+                if profile_label and allow_profile_defaults
                 else "Generic defaults were applied because no dataset profile matched yet."
             )
         )

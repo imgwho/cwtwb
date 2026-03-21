@@ -18,6 +18,7 @@ itself generates workbooks that occasionally deviate from the schema.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -78,6 +79,16 @@ _IMPORT_PATCHES: list[tuple[bytes, bytes]] = [
 # Cached parsed schema (loaded once on first use)
 _xsd_schema: etree.XMLSchema | None = None
 _xsd_load_error: str | None = None
+_WORKBOOK_TAIL_COMPATIBILITY_RE = re.compile(
+    r"Element 'workbook': Missing child element\(s\)\. Expected is one of \((?P<expected>[^)]+)\)\."
+)
+_KNOWN_WORKBOOK_TAIL_CHILDREN = {
+    "datagraph",
+    "thumbnails",
+    "external",
+    "referenced-extensions",
+    "explain-data",
+}
 
 
 def _ensure_stubs() -> None:
@@ -126,7 +137,12 @@ class SchemaValidationResult:
 
     valid: bool
     errors: list[str] = field(default_factory=list)
+    compatibility_warnings: list[str] = field(default_factory=list)
     schema_available: bool = True
+
+    @property
+    def compatibility_only(self) -> bool:
+        return not self.errors and bool(self.compatibility_warnings)
 
     def to_text(self) -> str:
         """Render a user-facing PASS/FAIL summary string for MCP responses."""
@@ -137,10 +153,34 @@ class SchemaValidationResult:
             )
         if self.valid:
             return "PASS  Workbook is valid against Tableau TWB XSD schema (2026.1)"
-        lines = [f"FAIL  Schema validation failed ({len(self.errors)} error(s)):"]
+        if self.compatibility_only:
+            lines = [
+                "WARN  Workbook only failed strict XSD checks on known Tableau-compatibility issues:"
+            ]
+            for warning in self.compatibility_warnings:
+                lines.append(f"  * {warning}")
+            lines.append("  * Tableau Desktop often opens these workbooks despite the strict schema mismatch.")
+            return "\n".join(lines)
+
+        issue_count = len(self.errors) + len(self.compatibility_warnings)
+        lines = [f"FAIL  Schema validation failed ({issue_count} issue(s)):"]
         for err in self.errors:
             lines.append(f"  * {err}")
+        for warning in self.compatibility_warnings:
+            lines.append(f"  * Known compatibility issue: {warning}")
         return "\n".join(lines)
+
+
+def _is_known_workbook_tail_compatibility_issue(error: str) -> bool:
+    match = _WORKBOOK_TAIL_COMPATIBILITY_RE.search(error)
+    if match is None:
+        return False
+    expected = {
+        token.strip()
+        for token in match.group("expected").split(",")
+        if token.strip()
+    }
+    return bool(expected) and expected.issubset(_KNOWN_WORKBOOK_TAIL_CHILDREN)
 
 
 def validate_against_schema(root: etree._Element) -> SchemaValidationResult:
@@ -158,8 +198,19 @@ def validate_against_schema(root: etree._Element) -> SchemaValidationResult:
 
     tree = root.getroottree()
     is_valid = schema.validate(tree)
-    errors = [str(e) for e in schema.error_log]
-    return SchemaValidationResult(valid=is_valid, errors=errors)
+    strict_errors: list[str] = []
+    compatibility_warnings: list[str] = []
+    for raw_error in schema.error_log:
+        error = str(raw_error)
+        if _is_known_workbook_tail_compatibility_issue(error):
+            compatibility_warnings.append(error)
+        else:
+            strict_errors.append(error)
+    return SchemaValidationResult(
+        valid=is_valid,
+        errors=strict_errors,
+        compatibility_warnings=compatibility_warnings,
+    )
 
 
 class TWBValidationError(Exception):

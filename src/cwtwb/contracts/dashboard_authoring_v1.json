@@ -5,6 +5,7 @@
   "dataset_profile": "",
   "workbook_template": "",
   "available_fields": [],
+  "calculated_fields": [],
   "primary_question": "",
   "require_interaction": null,
   "constraints": {
@@ -18,26 +19,7 @@
     "filters": [],
     "interaction_pattern": ""
   },
-  "worksheets": [
-    {
-      "name": "Summary View",
-      "question": "What summary should this dashboard show first?",
-      "mark_type": "",
-      "priority": "summary"
-    },
-    {
-      "name": "Primary View",
-      "question": "What is the primary analytical view?",
-      "mark_type": "",
-      "priority": "primary"
-    },
-    {
-      "name": "Detail View",
-      "question": "What follow-up detail should the user inspect?",
-      "mark_type": "",
-      "priority": "detail"
-    }
-  ],
+  "worksheets": [],
   "dashboard": {
     "name": "",
     "layout_pattern": "executive overview"
