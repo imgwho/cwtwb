@@ -7,9 +7,9 @@ Core capabilities:
 - Create dashboards with layout-flow zone structure
 - Serialize and save TWB files
 """
-__author__ = "Cooper Wenhua <imgwho@gmail.com>"
-
 from __future__ import annotations
+
+__author__ = "Cooper Wenhua <imgwho@gmail.com>"
 
 import copy
 import io
