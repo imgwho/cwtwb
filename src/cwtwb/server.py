@@ -1,4 +1,5 @@
 """Compatibility entrypoint for cwtwb's MCP server."""
+__author__ = "Cooper Wenhua <imgwho@gmail.com>"
 
 from .mcp.app import server
 from .mcp.prompts import (

@@ -25,6 +25,7 @@ Internal architecture (hidden from callers):
 The public mixin stays stable; routing, pattern mapping, and builder helpers
 live in focused internal modules and can change without breaking callers.
 """
+__author__ = "Cooper Wenhua <imgwho@gmail.com>"
 
 from typing import Optional, Union
 
