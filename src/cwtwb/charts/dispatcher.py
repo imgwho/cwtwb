@@ -21,6 +21,7 @@ Call chain (for a standard chart):
 For dual-axis charts the chain ends at DualAxisChartBuilder instead.
 No business logic lives here — all XML mutation is in the builder classes.
 """
+__author__ = "Cooper Wenhua <imgwho@gmail.com>"
 
 from __future__ import annotations
 
