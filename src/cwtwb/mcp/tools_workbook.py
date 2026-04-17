@@ -241,6 +241,14 @@ def set_worksheet_caption(worksheet_name: str, caption: str) -> str:
 
 
 @server.tool()
+def set_worksheet_hidden(worksheet_name: str, hidden: bool = True) -> str:
+    """Hide or unhide a worksheet tab by updating worksheet window metadata."""
+
+    editor = get_editor()
+    return editor.set_worksheet_hidden(worksheet_name, hidden=hidden)
+
+
+@server.tool()
 def configure_chart(
     worksheet_name: str,
     mark_type: str = "Automatic",

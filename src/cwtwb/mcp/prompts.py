@@ -182,3 +182,48 @@ def authoring_execution_plan(contract_final_json: str) -> list[dict[str, str]]:
             ),
         }
     ]
+
+
+@server.prompt(
+    name="worksheet_clone_refactor",
+    title="Worksheet Clone Refactor",
+    description="Clone an existing worksheet and refactor only the cloned worksheet to new core fields.",
+)
+def worksheet_clone_refactor(
+    workbook_path: str,
+    source_worksheet: str,
+    target_worksheet: str,
+    replacements_json: str,
+    output_path: str,
+) -> list[dict[str, str]]:
+    """Guide a worksheet clone + local refactor workflow through workbook tools."""
+
+    replacements = json.loads(replacements_json)
+
+    return [
+        {
+            "role": "user",
+            "content": (
+                "Use cwtwb workbook tools to clone one existing worksheet and refactor only the cloned worksheet.\n\n"
+                "Required tool order:\n"
+                "1. Call open_workbook with the workbook path.\n"
+                "2. Call clone_worksheet with the source and target worksheet names.\n"
+                "3. Call preview_worksheet_refactor with the target worksheet name and replacements.\n"
+                "4. Summarize the preview briefly, focusing on rewritten formulas and cloned calculated fields.\n"
+                "5. Call apply_worksheet_refactor with the same worksheet name and replacements.\n"
+                "6. Call set_worksheet_hidden with hidden=false for the cloned worksheet so it is visible in Tableau sheet tabs.\n"
+                "7. Call save_workbook with the output path.\n"
+                "8. Finish by summarizing the source worksheet, target worksheet, replacement map, and saved workbook path.\n\n"
+                "Hard rules:\n"
+                "- Do not modify the original worksheet in place.\n"
+                "- Do not skip the preview step.\n"
+                "- Keep the refactor worksheet-scoped; do not describe it as a workbook-wide replace-references action.\n"
+                "- If the target worksheet already exists, stop and report the naming conflict instead of overwriting it.\n\n"
+                f"Workbook path: {workbook_path}\n"
+                f"Source worksheet: {source_worksheet}\n"
+                f"Target worksheet: {target_worksheet}\n"
+                f"Replacements: {json.dumps(replacements, ensure_ascii=False)}\n"
+                f"Output path: {output_path}"
+            ),
+        }
+    ]

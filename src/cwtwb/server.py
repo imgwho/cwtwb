@@ -7,6 +7,7 @@ from .mcp.prompts import (
     dashboard_brief_to_contract,
     guided_dashboard_authoring,
     light_elicitation,
+    worksheet_clone_refactor,
 )
 from .mcp.resources import (
     read_dataset_profile,
@@ -74,6 +75,7 @@ from .mcp.tools_workbook import (
     save_workbook,
     set_excel_connection,
     set_worksheet_caption,
+    set_worksheet_hidden,
     set_hyper_connection,
     set_mysql_connection,
     set_tableauserver_connection,

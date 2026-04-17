@@ -45,8 +45,9 @@ python examples/scripts/demo_all_supported_charts.py
 
 For the guided run workflow, prefer the MCP prompts exposed by the server:
 `guided_dashboard_authoring`, `dashboard_brief_to_contract`,
-`light_elicitation`, and `authoring_execution_plan`. The files in this section
-remain useful as direct prompt examples for one-shot workbook generation.
+`light_elicitation`, `authoring_execution_plan`, and
+`worksheet_clone_refactor`. The files in this section remain useful as direct
+prompt examples for one-shot workbook generation.
 
 Copy these into any LLM client (Claude, etc.) with the `cwtwb` MCP server configured.
 
@@ -62,6 +63,7 @@ Copy these into any LLM client (Claude, etc.) with the `cwtwb` MCP server config
 | 8 | `prompts/overview_business_demo.md` | ⭐⭐⭐ Advanced | Parameters + LOD fields + Map + Area charts + filter sidebar + dashboard actions. Business executive demo (English). |
 | 9 | `prompts/overview_natural_en.md` | ⭐⭐⭐ Advanced | Full Overview dashboard: parameters, 6 calculated fields, 4 charts, filter sidebar, 3 actions. (English) |
 | 10 | `prompts/overview_natural zh_cn.md` | ⭐⭐⭐ Advanced | Same as step 9 in Chinese — pure natural-language description. |
+| 11 | `prompts/demo_worksheet_refactor_kpi_profit_prompt.md` | ⭐⭐ Intermediate | Clone an existing KPI worksheet, preview and apply a worksheet-only Sales-to-Profit refactor, unhide the cloned sheet, and save a new workbook. |
 
 ---
 

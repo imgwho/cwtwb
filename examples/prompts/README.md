@@ -5,9 +5,9 @@ This directory contains prompt examples for interacting with the `cwtwb` MCP ser
 These files are intentionally different from the newer server-side MCP prompts.
 For the guided datasource-first workflow, prefer the built-in MCP prompts
 `guided_dashboard_authoring`, `dashboard_brief_to_contract`,
-`light_elicitation`, and `authoring_execution_plan`. The markdown files in
-this folder remain useful as direct examples for one-shot or layout-oriented
-requests.
+`light_elicitation`, `authoring_execution_plan`, and
+`worksheet_clone_refactor`. The markdown files in this folder remain useful as
+direct examples for one-shot or layout-oriented requests.
 
 The prompts span multiple support tiers. Prefer starting with the core-fit and advanced-fit prompts listed in `examples/README.md` before using the recipe-heavy or debugging prompts.
 
@@ -32,6 +32,10 @@ with `list_capabilities`, `describe_capability`, `analyze_twb`, or
 - **`overview_business_demo.md`**: Business-oriented prompt for an interactive overview dashboard
 - **`overview_natural_en.md`**: Detailed English prompt for a more technical overview reconstruction
 - **`overview_natural zh_cn.md`**: Chinese version of the detailed overview prompt
+
+### Existing workbook refactor examples
+
+- **`demo_worksheet_refactor_kpi_profit_prompt.md`**: Clone an existing KPI worksheet, preview a worksheet-scoped Sales-to-Profit refactor, apply it only to the cloned worksheet, unhide the result, and save a new workbook
 
 ### Debugging and narrow checks
 

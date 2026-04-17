@@ -319,6 +319,7 @@ The MCP server also exposes prompts that guide a datasource-first, human-in-the-
 | `dashboard_brief_to_contract` | Convert a human brief plus schema summary into a strict contract draft |
 | `light_elicitation` | Ask only the minimum missing business questions from a contract review |
 | `authoring_execution_plan` | Turn a finalized contract into an execution-oriented internal MCP build plan |
+| `worksheet_clone_refactor` | Guide a worksheet-scoped `open -> clone -> preview -> apply -> unhide -> save` refactor workflow for existing workbooks |
 
 ## Guided MCP Authoring Runs
 

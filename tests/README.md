@@ -113,9 +113,10 @@ most fundamental to most complex.
 | File | Coverage |
 |------|----------|
 | `test_e2e.py` | Full MCP workflow: create → list_fields → add_calculated_field → configure_chart → add_dashboard → save; clean output (no spurious top-level elements) |
-| `test_mcp_tools.py` | `remove_calculated_field` (add/remove/re-add cycle, XML verification); connection MCP wrappers; `inspect_target_schema` (non-hyper path); `list_capabilities`; `analyze_twb` |
+| `test_mcp_tools.py` | `remove_calculated_field` (add/remove/re-add cycle, XML verification); connection MCP wrappers; worksheet clone/refactor wrappers; worksheet visibility helper; `inspect_target_schema` (non-hyper path); `list_capabilities`; `analyze_twb` |
 | `test_mcp_showcase_workbook.py` | All supported chart types via MCP tools end-to-end |
 | `test_existing_workbook_editing.py` | `open_workbook`, reconfigure worksheets, parameter restore, dashboard zone ID continuity, thumbnail stripping |
+| `test_worksheet_refactor.py` | Real-workbook worksheet clone + Sales→Profit refactor through both `TWBEditor` and `server.py` wrappers |
 
 ### MCP Tool Layer — Guided Authoring Runs
 
@@ -180,6 +181,8 @@ The table below maps each SDK/MCP public function to its primary test file.
 | `add_dashboard_action` (filter) | `test_dashboard_actions.py` |
 | `add_dashboard_action` (highlight/url/go-to-sheet) | `test_dashboard_action_types.py` |
 | `set_worksheet_caption` | `test_agentic_authoring_v1.py` |
+| `clone_worksheet` / `preview_worksheet_refactor` / `apply_worksheet_refactor` | `test_worksheet_refactor.py`, `test_mcp_tools.py` |
+| `set_worksheet_hidden` | `test_mcp_tools.py` |
 | `generate_layout_json` | `test_layout_ascii.py` |
 | `set_mysql_connection` | `test_connections.py`, `test_mcp_tools.py` |
 | `set_tableauserver_connection` | `test_connections.py`, `test_mcp_tools.py` |

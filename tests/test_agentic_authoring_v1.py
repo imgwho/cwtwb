@@ -452,6 +452,27 @@ class TestAuthoringPrompts:
         assert "internal read-only artifact" in text
         assert "Do not introduce a new human approval gate" in text
 
+    def test_worksheet_clone_refactor_prompt_is_registered(self):
+        prompt = server._prompt_manager.get_prompt("worksheet_clone_refactor")
+        assert prompt is not None
+
+    def test_worksheet_clone_refactor_prompt_mentions_preview_and_visibility(self):
+        messages = asyncio.run(
+            server._prompt_manager.render_prompt(
+                "worksheet_clone_refactor",
+                {
+                    "workbook_path": "examples/worksheet_refactor_kpi_profit/5 KPI Design Ideas (2).twb",
+                    "source_worksheet": "1. KPI",
+                    "target_worksheet": "1. KPI Profit",
+                    "replacements_json": json.dumps({"Sales": "Profit"}),
+                    "output_path": "output/kpi_profit_clone.twb",
+                },
+            )
+        )
+        text = messages[0].content.text
+        assert "preview_worksheet_refactor" in text
+        assert "set_worksheet_hidden" in text
+
 
 class TestAuthoringRunLifecycle:
     def test_client_capabilities_without_context_prefer_chat_fallback(self):
