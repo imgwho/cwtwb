@@ -20,19 +20,25 @@ import pytest
 from cwtwb.server import (
     add_calculated_field,
     add_worksheet,
+    apply_worksheet_refactor,
+    clone_worksheet,
     create_workbook,
     list_capabilities,
     list_fields,
+    open_workbook,
+    preview_worksheet_refactor,
     remove_calculated_field,
     save_workbook,
     set_hyper_connection,
     set_mysql_connection,
+    set_worksheet_hidden,
     set_tableauserver_connection,
     analyze_twb,
     inspect_target_schema,
 )
 
 TEMPLATE = Path("templates/twb/superstore.twb")
+EXAMPLE_WORKBOOK = Path("examples/worksheet_refactor_kpi_profit/5 KPI Design Ideas (2).twb")
 
 
 @pytest.fixture(autouse=True)
@@ -146,6 +152,49 @@ class TestInspectTargetSchema:
     def test_non_hyper_path_does_not_raise(self):
         result = inspect_target_schema("some_file.xlsx")
         assert isinstance(result, str)
+
+
+# ── worksheet clone / refactor MCP wrappers ──────────────────────────────────
+
+class TestWorksheetCloneRefactorTools:
+    def test_clone_and_refactor_existing_kpi_sheet(self):
+        open_workbook(str(EXAMPLE_WORKBOOK))
+
+        clone_result = clone_worksheet("1. KPI", "1. KPI Profit MCP Tool")
+        assert "1. KPI Profit MCP Tool" in clone_result
+
+        preview_result = preview_worksheet_refactor(
+            "1. KPI Profit MCP Tool",
+            {"Sales": "Profit"},
+        )
+        preview_payload = json.loads(preview_result)
+        assert preview_payload["worksheet_name"] == "1. KPI Profit MCP Tool"
+        assert preview_payload["formulas_updated"]
+
+        apply_result = apply_worksheet_refactor(
+            "1. KPI Profit MCP Tool",
+            {"Sales": "Profit"},
+        )
+        apply_payload = json.loads(apply_result)
+        assert apply_payload["worksheet_name"] == "1. KPI Profit MCP Tool"
+        assert apply_payload["reference_rewrites"]
+
+    def test_set_worksheet_hidden_can_unhide_clone(self):
+        open_workbook(str(EXAMPLE_WORKBOOK))
+        clone_worksheet("1. KPI", "1. KPI Visible MCP Tool")
+
+        result = set_worksheet_hidden("1. KPI Visible MCP Tool", hidden=False)
+        assert "unhidden" in result
+
+        output = Path(".tmp_test_outputs")
+        output.mkdir(exist_ok=True)
+        workbook_path = output / "mcp_visible_kpi_clone.twb"
+        save_workbook(str(workbook_path))
+
+        root = ET.parse(workbook_path).getroot()
+        window = root.find(".//windows/window[@class='worksheet'][@name='1. KPI Visible MCP Tool']")
+        assert window is not None
+        assert window.get("hidden") is None
 
 
 # ── list_capabilities ─────────────────────────────────────────────────────────

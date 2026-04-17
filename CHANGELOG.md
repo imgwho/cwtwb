@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.18.0] - 2026-04-17
 
 ### Added
 
@@ -13,8 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New APIs and tools: `clone_worksheet`, `preview_worksheet_refactor`, and `apply_worksheet_refactor`
   - New worksheet visibility helper: `set_worksheet_hidden`
   - Worksheet refactor previews now report renamed local columns, rewritten formulas, cloned datasource-level calculations, and worksheet-local reference rewrites
+- **Worksheet clone/refactor MCP prompt**: added the built-in `worksheet_clone_refactor` prompt for guiding an `open -> clone -> preview -> apply -> unhide -> save` workflow through the workbook tool surface.
 - **Worksheet refactor example**: added `examples/worksheet_refactor_kpi_profit/` with a local source workbook copy, a runnable `generate_example.py`, and an output workbook containing a visible `1. KPI Profit` worksheet cloned from `1. KPI`.
+- **Prompt example for worksheet refactor**: added `examples/prompts/demo_worksheet_refactor_kpi_profit_prompt.md` in the same style as the existing natural-language MCP prompt examples.
 - **Regression coverage for worksheet clone/refactor**: added `tests/test_worksheet_refactor.py` covering both direct `TWBEditor` usage and `server.py` wrappers against the real `5 KPI Design Ideas (2).twb` workbook.
+- **Regression coverage for MCP wrappers and prompt registration**: added targeted tests for worksheet clone/refactor MCP wrappers, worksheet visibility updates, and `worksheet_clone_refactor` prompt registration.
 
 ### Fixed
 
