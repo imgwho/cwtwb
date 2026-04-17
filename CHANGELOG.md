@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Cloned hidden KPI sheets remained invisible in Tableau Desktop**: cloned worksheet windows can now be explicitly unhidden so the generated worksheet appears in visible sheet tabs when opened in Tableau.
+- **Worksheet refactor display labels could fall back to the old metric after clone + replace**: `apply_worksheet_refactor()` now performs a worksheet-local identity-normalization pass for generic `Calculation_*` fields, renames target-metric calculations to stable semantic names, rewrites worksheet references to those new identities, and returns `post_process` evidence (`renamed`, `rewrite_map`) through both the SDK and MCP layers.
 
 ## [0.18.0] - 2026-03-31
 

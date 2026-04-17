@@ -21,3 +21,9 @@ Expected result:
 - `1. KPI Profit` is a new worksheet whose local calculations and referenced
   top-level calculations are rewritten to use Profit.
 - `1. KPI Profit` is unhidden so it appears in Tableau's visible worksheet tabs.
+- Generic Tableau field identities such as `Calculation_*` are normalized to
+  semantic Profit-based names inside the cloned worksheet so Tableau Desktop
+  does not fall back to old Sales labels in pills or Measure Values regions.
+- The refactor result now includes `post_process` evidence showing which
+  generic calculation names were renamed and how worksheet-local references
+  were rewritten.
