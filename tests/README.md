@@ -116,7 +116,7 @@ most fundamental to most complex.
 | `test_mcp_tools.py` | `remove_calculated_field` (add/remove/re-add cycle, XML verification); connection MCP wrappers; worksheet clone/refactor wrappers; worksheet visibility helper; `inspect_target_schema` (non-hyper path); `list_capabilities`; `analyze_twb` |
 | `test_mcp_showcase_workbook.py` | All supported chart types via MCP tools end-to-end |
 | `test_existing_workbook_editing.py` | `open_workbook`, reconfigure worksheets, parameter restore, dashboard zone ID continuity, thumbnail stripping |
-| `test_worksheet_refactor.py` | Real-workbook worksheet clone + Sales→Profit refactor through both `TWBEditor` and `server.py` wrappers |
+| `test_worksheet_refactor.py` | Real-workbook worksheet clone + Sales→Profit refactor through both `TWBEditor` and `server.py` wrappers, including post-refactor `Calculation_*` identity normalization checks |
 
 ### MCP Tool Layer — Guided Authoring Runs
 

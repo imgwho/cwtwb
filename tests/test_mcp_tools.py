@@ -178,6 +178,15 @@ class TestWorksheetCloneRefactorTools:
         apply_payload = json.loads(apply_result)
         assert apply_payload["worksheet_name"] == "1. KPI Profit MCP Tool"
         assert apply_payload["reference_rewrites"]
+        assert apply_payload["post_process"]["renamed"]
+        assert any(
+            renamed["source_name"].startswith("[Calculation_")
+            for renamed in apply_payload["post_process"]["renamed"]
+        )
+        assert any(
+            source.startswith("[Calculation_")
+            for source in apply_payload["post_process"]["rewrite_map"]
+        )
 
     def test_set_worksheet_hidden_can_unhide_clone(self):
         open_workbook(str(EXAMPLE_WORKBOOK))

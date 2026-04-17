@@ -48,6 +48,7 @@ class WorksheetRefactorPreview:
     formulas_updated: list[dict[str, str]]
     cloned_datasource_fields: list[dict[str, str]]
     reference_rewrites: dict[str, str]
+    post_process: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize preview payload into JSON-friendly structures."""
@@ -648,6 +649,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         worksheet = self._find_worksheet(worksheet_name)
         plan = self._plan_worksheet_refactor(worksheet, replacements)
         self._apply_worksheet_refactor_plan(worksheet, plan)
+        self._normalize_worksheet_field_identities(worksheet, plan)
         self._reinit_fields()
         return plan.to_dict()
 
@@ -766,6 +768,10 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
             formulas_updated=formulas_updated,
             cloned_datasource_fields=cloned_datasource_fields,
             reference_rewrites=worksheet_rewrite_map,
+            post_process={
+                "renamed": [],
+                "rewrite_map": {},
+            },
         )
 
     def _apply_worksheet_refactor_plan(
@@ -820,12 +826,151 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
 
         self._rewrite_worksheet_text_and_attributes(worksheet, plan.reference_rewrites, plan.replacements)
 
+    def _normalize_worksheet_field_identities(
+        self,
+        worksheet: etree._Element,
+        plan: WorksheetRefactorPreview,
+    ) -> None:
+        """Rename generic Calculation_* worksheet fields to stable semantic identities."""
+
+        renamed: list[dict[str, str]] = []
+        rewrite_map: dict[str, str] = {}
+        replacements = plan.replacements
+        target_tokens = {value.casefold() for value in replacements.values()}
+
+        for dep in worksheet.findall(".//datasource-dependencies"):
+            local_columns = [column for column in dep.findall("column") if column.get("name")]
+            reserved_names = {
+                column.get("name", "")
+                for column in local_columns
+                if column.get("name")
+            }
+
+            for column in local_columns:
+                source_name = column.get("name", "")
+                if not self._is_generic_calculation_name(source_name):
+                    continue
+                if not self._column_matches_target_semantics(column, target_tokens):
+                    continue
+
+                target_name = self._derive_semantic_column_name(column, reserved_names)
+                if not target_name or target_name == source_name:
+                    continue
+
+                reserved_names.discard(source_name)
+                reserved_names.add(target_name)
+                column.set("name", target_name)
+                rewrite_map[source_name] = target_name
+                renamed.append(
+                    {
+                        "source_name": source_name,
+                        "target_name": target_name,
+                        "caption": column.get("caption", target_name.strip("[]")),
+                        "reason": "semantic_identity_normalization",
+                    }
+                )
+
+        if not rewrite_map:
+            plan.post_process = {"renamed": [], "rewrite_map": {}}
+            return
+
+        self._rewrite_worksheet_identity_references(worksheet, rewrite_map)
+        plan.reference_rewrites.update(rewrite_map)
+        plan.post_process = {
+            "renamed": renamed,
+            "rewrite_map": rewrite_map,
+        }
+
     def _formula_rewrite_map_from_plan(self, plan: WorksheetRefactorPreview) -> dict[str, str]:
         """Combine field-token rewrite rules used for formula rewrites."""
 
         formula_map = self._formula_field_token_map(plan.replacements)
         formula_map.update(plan.reference_rewrites)
         return formula_map
+
+    def _is_generic_calculation_name(self, name: str) -> bool:
+        """Return whether a field name uses Tableau's generic Calculation_* identity."""
+
+        return bool(re.fullmatch(r"\[Calculation_[^\]]+\]", name))
+
+    def _column_matches_target_semantics(
+        self,
+        column: etree._Element,
+        target_tokens: set[str],
+    ) -> bool:
+        """Return whether a worksheet-local calculation now represents the target metric semantics."""
+
+        caption = (column.get("caption", "") or "").casefold()
+        calc = column.find("calculation")
+        formula = (calc.get("formula", "") if calc is not None else "").casefold()
+        haystacks = [caption, formula]
+        return any(token and token in haystack for token in target_tokens for haystack in haystacks)
+
+    def _derive_semantic_column_name(
+        self,
+        column: etree._Element,
+        reserved_names: set[str],
+    ) -> str:
+        """Build a stable semantic worksheet-local field identity from caption text."""
+
+        caption = (column.get("caption", "") or "").strip()
+        if not caption:
+            return column.get("name", "")
+
+        sanitized = re.sub(r"\s+", " ", caption)
+        sanitized = re.sub(r"[\[\]]", "", sanitized)
+        sanitized = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff _|%-]", "", sanitized).strip()
+        sanitized = re.sub(r"\s+", " ", sanitized)
+        if not sanitized:
+            return column.get("name", "")
+
+        base = f"[{sanitized}_auto]"
+        return self._ensure_unique_bracketed_name(base, reserved_names, column.get("name", ""))
+
+    def _rewrite_worksheet_identity_references(
+        self,
+        worksheet: etree._Element,
+        rewrite_map: dict[str, str],
+    ) -> None:
+        """Rewrite worksheet-local references after identity normalization."""
+
+        ordered_refs = sorted(rewrite_map.items(), key=lambda item: len(item[0]), reverse=True)
+        for element in worksheet.iter():
+            for attr_name, attr_value in list(element.attrib.items()):
+                updated = attr_value
+                for old, new in ordered_refs:
+                    if old in updated:
+                        updated = updated.replace(old, new)
+                    old_inner = old.strip("[]")
+                    new_inner = new.strip("[]")
+                    if old_inner in updated:
+                        updated = updated.replace(old_inner, new_inner)
+                if updated != attr_value:
+                    element.set(attr_name, updated)
+
+            if element.text:
+                updated_text = element.text
+                for old, new in ordered_refs:
+                    if old in updated_text:
+                        updated_text = updated_text.replace(old, new)
+                    old_inner = old.strip("[]")
+                    new_inner = new.strip("[]")
+                    if old_inner in updated_text:
+                        updated_text = updated_text.replace(old_inner, new_inner)
+                if updated_text != element.text:
+                    element.text = updated_text
+
+            if element.tail:
+                updated_tail = element.tail
+                for old, new in ordered_refs:
+                    if old in updated_tail:
+                        updated_tail = updated_tail.replace(old, new)
+                    old_inner = old.strip("[]")
+                    new_inner = new.strip("[]")
+                    if old_inner in updated_tail:
+                        updated_tail = updated_tail.replace(old_inner, new_inner)
+                if updated_tail != element.tail:
+                    element.tail = updated_tail
 
     def _normalize_replacements(self, replacements: dict[str, str]) -> dict[str, str]:
         """Resolve replacement field names to canonical display names."""

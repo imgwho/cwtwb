@@ -41,6 +41,15 @@ def test_clone_and_refactor_kpi_worksheet_sdk() -> None:
 
     result = editor.apply_worksheet_refactor("1. KPI Profit", {"Sales": "Profit"})
     assert result["worksheet_name"] == "1. KPI Profit"
+    assert result["post_process"]["renamed"]
+    assert any(
+        renamed["source_name"].startswith("[Calculation_")
+        for renamed in result["post_process"]["renamed"]
+    )
+    renamed_pairs = [
+        (renamed["source_name"], renamed["target_name"])
+        for renamed in result["post_process"]["renamed"]
+    ]
 
     output = _output_path("kpi_profit_clone.twb")
     editor.save(output)
@@ -54,6 +63,10 @@ def test_clone_and_refactor_kpi_worksheet_sdk() -> None:
 
     assert "Sales" in original_xml
     assert "Profit" in profit_xml
+    assert "Profit | YTD_auto" in profit_xml
+    for source_name, target_name in renamed_pairs:
+        assert source_name not in profit_xml
+        assert target_name in profit_xml
 
     original_formulas = [
         calc.get("formula", "")
@@ -85,6 +98,11 @@ def test_clone_and_refactor_kpi_worksheet_server_wrappers() -> None:
         apply_worksheet_refactor("1. KPI Profit MCP", {"Sales": "Profit"})
     )
     assert apply_payload["worksheet_name"] == "1. KPI Profit MCP"
+    assert apply_payload["post_process"]["renamed"]
+    renamed_pairs = [
+        (renamed["source_name"], renamed["target_name"])
+        for renamed in apply_payload["post_process"]["renamed"]
+    ]
 
     output = _output_path("kpi_profit_clone_mcp.twb")
     save_workbook(str(output))
@@ -93,3 +111,6 @@ def test_clone_and_refactor_kpi_worksheet_server_wrappers() -> None:
     profit_ws = _worksheet(root, "1. KPI Profit MCP")
     profit_xml = ET.tostring(profit_ws, encoding="unicode")
     assert "Profit" in profit_xml
+    for source_name, target_name in renamed_pairs:
+        assert source_name not in profit_xml
+        assert target_name in profit_xml

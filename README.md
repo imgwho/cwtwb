@@ -227,6 +227,12 @@ Available worksheet-refactor helpers:
 - `apply_worksheet_refactor(worksheet_name, replacements)`
 - `set_worksheet_hidden(worksheet_name, hidden=True)`
 
+`apply_worksheet_refactor(...)` now also performs a worksheet-local identity
+normalization pass for generic Tableau `Calculation_*` fields. This stabilizes
+pill labels after clone-and-replace workflows and returns `post_process`
+evidence describing renamed calculation identities and worksheet-local rewrite
+maps.
+
 ### Working with Packaged Workbooks (.twbx)
 
 `.twbx` files are ZIP archives that bundle the workbook XML together with data extracts (`.hyper`) and image assets. cwtwb reads and writes them transparently:
