@@ -5,6 +5,9 @@ dashboards, and map features using the structured assertion API.
 """
 
 import pytest
+from lxml import etree
+
+from cwtwb.validator import TWBValidationError, validate_workbook_file
 from twb_assert import TWBAssert
 
 
@@ -24,6 +27,31 @@ class TestBarChart:
             .has_cols("Sales")
             .rows_contain("Sales", "Category")
             .cols_contain("Sales", "Sales"))
+
+    def test_save_runs_unified_file_validation_chain(self, editor, tmp_path):
+        editor.add_worksheet("Sales")
+        editor.configure_chart("Sales", mark_type="Bar",
+                              rows=["Category"], columns=["SUM(Sales)"])
+
+        output = tmp_path / "strict_invalid.twb"
+        editor.root.append(etree.Element("cwtwb-invalid-top-level-node"))
+
+        with pytest.raises(TWBValidationError, match="XSD validation"):
+            editor.save(output)
+
+        assert not output.exists()
+
+    def test_saved_file_validation_allows_known_tableau_tail_warning(self, editor, tmp_path):
+        editor.add_worksheet("Sales")
+        editor.configure_chart("Sales", mark_type="Bar",
+                              rows=["Category"], columns=["SUM(Sales)"])
+
+        output = tmp_path / "valid_with_known_tail_warning.twb"
+        editor.save(output)
+
+        result = validate_workbook_file(output)
+        assert result.errors == []
+        assert result.compatibility_only is True
 
     def test_bar_with_color(self, editor):
         editor.add_worksheet("ColorBar")

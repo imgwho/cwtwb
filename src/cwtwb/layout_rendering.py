@@ -89,6 +89,8 @@ def apply_zone_style(zone: etree._Element, style_dict: dict[str, Any]) -> None:
 
     for key, value in style_dict.items():
         attr_name = key.replace("_", "-")
+        if attr_name == "bg-color":
+            attr_name = "background-color"
         if value is None:
             continue
         merged[attr_name] = str(value)

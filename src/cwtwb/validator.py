@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import logging
 import re
+import io
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -175,12 +177,25 @@ def _is_known_workbook_tail_compatibility_issue(error: str) -> bool:
     match = _WORKBOOK_TAIL_COMPATIBILITY_RE.search(error)
     if match is None:
         return False
+    # validate_twb() already catches missing critical workbook children such as
+    # <datasources>. Remaining top-level "missing child" failures are caused by
+    # Tableau's XSD expecting optional tail containers that Desktop itself may
+    # omit in otherwise openable workbooks.
+    if "Element 'workbook': Missing child element(s)." in error:
+        return True
     expected = {
         token.strip()
         for token in match.group("expected").split(",")
         if token.strip()
     }
     return bool(expected) and expected.issubset(_KNOWN_WORKBOOK_TAIL_CHILDREN)
+
+
+def _is_known_tableau_user_specific_attribute_issue(error: str) -> bool:
+    return (
+        "The attribute '" in error
+        and "...user-specific' is not allowed" in error
+    )
 
 
 def validate_against_schema(root: etree._Element) -> SchemaValidationResult:
@@ -202,7 +217,10 @@ def validate_against_schema(root: etree._Element) -> SchemaValidationResult:
     compatibility_warnings: list[str] = []
     for raw_error in schema.error_log:
         error = str(raw_error)
-        if _is_known_workbook_tail_compatibility_issue(error):
+        if (
+            _is_known_workbook_tail_compatibility_issue(error)
+            or _is_known_tableau_user_specific_attribute_issue(error)
+        ):
             compatibility_warnings.append(error)
         else:
             strict_errors.append(error)
@@ -216,6 +234,49 @@ def validate_against_schema(root: etree._Element) -> SchemaValidationResult:
 class TWBValidationError(Exception):
     """Raised when the TWB structure is fundamentally broken."""
     pass
+
+
+def load_workbook_root(file_path: str | Path) -> etree._Element:
+    """Parse a .twb or packaged .twbx file and return its workbook root."""
+
+    path = Path(file_path)
+    parser = etree.XMLParser(remove_blank_text=False)
+    if path.suffix.lower() == ".twbx":
+        with zipfile.ZipFile(path) as zf:
+            twb_names = [name for name in zf.namelist() if name.lower().endswith(".twb")]
+            if not twb_names:
+                raise TWBValidationError(f"No .twb file found inside {path}")
+            return etree.parse(io.BytesIO(zf.read(twb_names[0])), parser).getroot()
+    return etree.parse(str(path), parser).getroot()
+
+
+def validate_workbook_file(
+    file_path: str | Path,
+    *,
+    require_schema: bool = False,
+) -> SchemaValidationResult:
+    """Run the save-time validation chain against a serialized workbook file.
+
+    The chain is:
+      1. parse the saved .twb/.twbx back from disk,
+      2. run runtime structural validation,
+      3. run strict XSD validation when the vendored schema is available.
+
+    Known Tableau/XSD compatibility warnings are reported but do not fail the
+    save gate. Strict XSD errors raise TWBValidationError.
+    """
+
+    root = load_workbook_root(file_path)
+    validate_twb(root)
+    schema_result = validate_against_schema(root)
+    if require_schema and not schema_result.schema_available:
+        raise TWBValidationError("XSD schema is not available for save validation")
+    if schema_result.errors:
+        details = "\n".join(f"  * {error}" for error in schema_result.errors)
+        raise TWBValidationError(
+            "Saved workbook failed Tableau TWB XSD validation:\n" + details
+        )
+    return schema_result
 
 
 def validate_twb(root: etree._Element) -> list[str]:

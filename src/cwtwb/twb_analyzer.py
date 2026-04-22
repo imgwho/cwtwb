@@ -480,6 +480,8 @@ class TWBAnalyzer:
             )
 
         for element in root.iter():
+            if not isinstance(element.tag, str):
+                continue
             if etree.QName(element).localname.startswith("table-calc"):
                 self._resolve_and_record(
                     detected,

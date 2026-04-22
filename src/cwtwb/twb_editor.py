@@ -14,6 +14,7 @@ __author__ = "Cooper Wenhua <imgwho@gmail.com>"
 import copy
 import io
 import logging
+import os
 import re
 import zipfile
 from dataclasses import asdict, dataclass
@@ -388,17 +389,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
             tc = etree.SubElement(calc, "table-calc")
             tc.set("ordering-type", table_calc)
 
-        # Insert before <layout> if present
-        layout_el = self._datasource.find("layout")
-        if layout_el is not None:
-            layout_el.addprevious(col)
-        else:
-            # Before semantic-values
-            sv = self._datasource.find("semantic-values")
-            if sv is not None:
-                sv.addprevious(col)
-            else:
-                self._datasource.append(col)
+        self._insert_datasource_column(col)
 
         # Register in field registry
         self.field_registry.register(
@@ -1156,16 +1147,29 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         return clone_column
 
     def _insert_datasource_column(self, column: etree._Element) -> None:
-        """Insert a datasource column before layout/style sections."""
+        """Insert a datasource column before later datasource sections."""
 
-        layout_el = self._datasource.find("layout")
-        if layout_el is not None:
-            layout_el.addprevious(column)
-            return
-        semantic_values = self._datasource.find("semantic-values")
-        if semantic_values is not None:
-            semantic_values.addprevious(column)
-            return
+        for tag in (
+            "column-instance",
+            "group",
+            "drill-paths",
+            "extract",
+            "layout",
+            "style",
+            "semantic-values",
+            "date-options",
+            "default-date-format",
+            "default-sorts",
+            "field-sort-info",
+            "datasource-dependencies",
+            "explainability",
+            "filter",
+            "object-graph",
+        ):
+            anchor = self._datasource.find(tag)
+            if anchor is not None:
+                anchor.addprevious(column)
+                return
         self._datasource.append(column)
 
     def _ensure_unique_datasource_calc_name(self, source_name: str) -> str:
@@ -1416,6 +1420,35 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
         from .validator import SchemaValidationResult, validate_against_schema
         return validate_against_schema(self.root)
 
+    def _write_workbook_file(self, output_path: Path, write_path: Path) -> None:
+        """Write the current workbook XML using output_path for format decisions."""
+
+        if output_path.suffix.lower() == ".twbx":
+            # Serialize the XML into memory
+            buf = io.BytesIO()
+            self.tree.write(buf, xml_declaration=True, encoding="utf-8", pretty_print=False)
+            twb_bytes = buf.getvalue()
+
+            # Name for the .twb entry inside the ZIP
+            inner_twb_name = self._twbx_twb_name or output_path.with_suffix(".twb").name
+
+            with zipfile.ZipFile(write_path, "w", zipfile.ZIP_DEFLATED) as zout:
+                # Write the updated workbook XML
+                zout.writestr(inner_twb_name, twb_bytes)
+                # Copy bundled extracts / images from the source .twbx if available
+                if self._twbx_source and self._twbx_source.exists():
+                    with zipfile.ZipFile(self._twbx_source) as zsrc:
+                        for info in zsrc.infolist():
+                            if info.filename != self._twbx_twb_name:
+                                zout.writestr(info, zsrc.read(info.filename))
+        else:
+            self.tree.write(
+                str(write_path),
+                xml_declaration=True,
+                encoding="utf-8",
+                pretty_print=False,
+            )
+
     def save(self, output_path: str | Path, validate: bool = True) -> str:
         """Save the workbook as a .twb or .twbx file.
 
@@ -1424,14 +1457,15 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
                 packaged workbook (ZIP containing the .twb XML plus any data
                 extracts / images bundled from the source .twbx, if one was
                 opened). Use .twb for a plain XML workbook.
-            validate: If True (default), run structural validation before saving.
-                      Raises TWBValidationError if the structure is broken.
+            validate: If True (default), run the unified save validation chain:
+                      in-memory structure checks, disk round-trip parse, and
+                      strict XSD checks when the schema is available.
 
         Returns:
             Confirmation message.
 
         Raises:
-            TWBValidationError: If validate=True and the TWB structure is broken.
+            TWBValidationError: If validate=True and validation fails.
         """
         self._sanitize_workbook_tree()
 
@@ -1445,33 +1479,20 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
 
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = output_path.with_name(
+            f".{output_path.stem}.cwtwb-tmp{output_path.suffix}"
+        )
 
-        if output_path.suffix.lower() == ".twbx":
-            # Serialize the XML into memory
-            buf = io.BytesIO()
-            self.tree.write(buf, xml_declaration=True, encoding="utf-8", pretty_print=False)
-            twb_bytes = buf.getvalue()
-
-            # Name for the .twb entry inside the ZIP
-            inner_twb_name = self._twbx_twb_name or output_path.with_suffix(".twb").name
-
-            with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zout:
-                # Write the updated workbook XML
-                zout.writestr(inner_twb_name, twb_bytes)
-                # Copy bundled extracts / images from the source .twbx if available
-                if self._twbx_source and self._twbx_source.exists():
-                    with zipfile.ZipFile(self._twbx_source) as zsrc:
-                        for info in zsrc.infolist():
-                            if info.filename != self._twbx_twb_name:
-                                zout.writestr(info, zsrc.read(info.filename))
-        else:
-            self.tree.write(
-                str(output_path),
-                xml_declaration=True,
-                encoding="utf-8",
-                pretty_print=False,
-            )
-
-        self.root.remove(_watermark)
+        try:
+            self._write_workbook_file(output_path, tmp_path)
+            if validate:
+                from .validator import validate_workbook_file
+                validate_workbook_file(tmp_path)
+            os.replace(tmp_path, output_path)
+        finally:
+            if _watermark.getparent() is not None:
+                self.root.remove(_watermark)
+            if tmp_path.exists():
+                tmp_path.unlink()
         return f"Saved workbook to {output_path}"
 
