@@ -28,11 +28,32 @@ from lxml import etree
 
 logger = logging.getLogger(__name__)
 
-# Path to the vendored official Tableau TWB XSD schema
-_SCHEMA_PATH = (
+# Path candidates for the vendored official Tableau TWB XSD schema.
+#
+# In an installed wheel (including uvx), the schema is packaged under
+# cwtwb/vendor/.... In a source checkout, it lives under the repository-level
+# vendor/ directory. Check both so validation works in both environments.
+_PACKAGE_SCHEMA_PATH = (
+    Path(__file__).parent
+    / "vendor/tableau-document-schemas/schemas/2026_1/twb_2026.1.0.xsd"
+)
+_SOURCE_SCHEMA_PATH = (
     Path(__file__).parent.parent.parent
     / "vendor/tableau-document-schemas/schemas/2026_1/twb_2026.1.0.xsd"
 )
+_SCHEMA_PATH_CANDIDATES = (_PACKAGE_SCHEMA_PATH, _SOURCE_SCHEMA_PATH)
+
+
+def _resolve_schema_path() -> Path:
+    """Return the first available Tableau XSD path for package/source usage."""
+
+    for candidate in _SCHEMA_PATH_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return _PACKAGE_SCHEMA_PATH
+
+
+_SCHEMA_PATH = _resolve_schema_path()
 
 # The TWB XSD imports two external namespaces without bundling their schemas:
 #   1. http://www.tableausoftware.com/xml/user  — defines UserAttributes-AG
@@ -150,8 +171,9 @@ class SchemaValidationResult:
         """Render a user-facing PASS/FAIL summary string for MCP responses."""
         if not self.schema_available:
             return (
-                "XSD schema not available — vendor/tableau-document-schemas "
-                "not found. Run: git submodule update --init vendor/tableau-document-schemas"
+                "XSD schema not available — Tableau TWB schema was not found "
+                "in the installed package or source checkout. If running from "
+                "source, run: git submodule update --init vendor/tableau-document-schemas"
             )
         if self.valid:
             return "PASS  Workbook is valid against Tableau TWB XSD schema (2026.1)"
