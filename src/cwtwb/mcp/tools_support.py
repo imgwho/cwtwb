@@ -91,29 +91,20 @@ def validate_workbook(file_path: Optional[str] = None) -> str:
     Returns:
         PASS/FAIL summary with error details.
     """
-    from ..validator import validate_against_schema
+    from ..validator import TWBValidationError, load_workbook_root, validate_against_schema
 
     if file_path:
-        import io
-        import zipfile
         from pathlib import Path
-        from lxml import etree
 
         p = Path(file_path)
         if not p.exists():
             return f"ERROR  File not found: {file_path}"
 
-        parser = etree.XMLParser(remove_blank_text=False)
-        if p.suffix.lower() == ".twbx":
-            with zipfile.ZipFile(p) as zf:
-                twb_names = [n for n in zf.namelist() if n.lower().endswith(".twb")]
-                if not twb_names:
-                    return f"ERROR  No .twb found inside {file_path}"
-                tree = etree.parse(io.BytesIO(zf.read(twb_names[0])), parser)
-        else:
-            tree = etree.parse(str(p), parser)
-
-        result = validate_against_schema(tree.getroot())
+        try:
+            root = load_workbook_root(p)
+        except TWBValidationError as exc:
+            return f"ERROR  {exc}"
+        result = validate_against_schema(root)
     else:
         editor = get_editor()
         result = validate_against_schema(editor.root)
