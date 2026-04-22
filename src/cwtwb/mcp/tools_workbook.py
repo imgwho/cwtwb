@@ -567,7 +567,13 @@ def add_dashboard_action(
 def save_workbook(output_path: str) -> str:
     """Save the workbook as a TWB file. Use a .twbx extension to produce a
     packaged workbook (ZIP) that bundles the XML with any data extracts and
-    images carried over from the source .twbx."""
+    images carried over from the source .twbx.
+
+    This is the only default MCP tool that writes the active in-memory workbook
+    to disk. After create_workbook/open_workbook plus worksheet/chart/dashboard
+    edits, call save_workbook with the desired output_path to create the final
+    .twb or .twbx file. validate_workbook and analyze_twb do not save files.
+    """
 
     editor = get_editor()
     return editor.save(output_path)

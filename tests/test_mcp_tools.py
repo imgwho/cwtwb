@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from cwtwb.mcp.app import server
 from cwtwb.server import (
     add_calculated_field,
     add_worksheet,
@@ -45,6 +46,19 @@ EXAMPLE_WORKBOOK = Path("examples/worksheet_refactor_kpi_profit/5 KPI Design Ide
 def fresh_workbook():
     """Ensure each test starts with a clean workbook state."""
     create_workbook(str(TEMPLATE), "MCP Tool Tests")
+
+
+class TestToolDescriptions:
+    def test_save_validate_and_analyze_descriptions_prevent_save_confusion(self):
+        save_desc = server._tool_manager._tools["save_workbook"].description
+        validate_desc = server._tool_manager._tools["validate_workbook"].description
+        analyze_desc = server._tool_manager._tools["analyze_twb"].description
+
+        assert "only default MCP tool that writes" in save_desc
+        assert "validate_workbook and analyze_twb do not save files" in save_desc
+        assert "does not save or export" in validate_desc
+        assert "requires a file_path that already exists on disk" in analyze_desc
+        assert "call save_workbook first" in analyze_desc
 
 
 # ── remove_calculated_field ───────────────────────────────────────────────────

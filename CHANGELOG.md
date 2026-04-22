@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.3] - 2026-04-22
+
+### Fixed
+
+- **Packaged MCP installs can now run XSD validation**: the Tableau TWB XSD schema is included in the built wheel under `cwtwb/vendor/...`, and the validator now resolves the schema from either the installed package or a source checkout. This fixes `uvx cwtwb` returning `XSD schema not available — vendor/tableau-document-schemas not found` when agents call `validate_workbook`.
+- **Agent-facing save guidance is clearer**: default MCP instructions and tool descriptions now state that `save_workbook` is the only default MCP tool that writes the active in-memory workbook to disk, while `validate_workbook` only validates and `analyze_twb` requires an existing saved file.
+
 ## [0.18.2] - 2026-04-22
 
 ### Changed

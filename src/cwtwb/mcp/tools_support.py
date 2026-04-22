@@ -61,7 +61,13 @@ def describe_capability(kind: str, name: str) -> str:
 
 @server.tool()
 def analyze_twb(file_path: str) -> str:
-    """Analyze a TWB file against cwtwb's declared capabilities."""
+    """Analyze an existing TWB/TWBX file against cwtwb's declared capabilities.
+
+    This tool requires a file_path that already exists on disk. It cannot
+    analyze the active in-memory workbook directly and it does not save the
+    current workbook. For a newly generated workbook, call save_workbook first,
+    then pass that saved path to analyze_twb.
+    """
 
     report = analyze_workbook(file_path)
     return report.to_text() + "\n\n" + report.to_gap_text()
@@ -80,9 +86,10 @@ def validate_workbook(file_path: Optional[str] = None) -> str:
     """Validate a workbook against the official Tableau TWB XSD schema (2026.1).
 
     Checks whether the generated XML conforms to Tableau's published schema.
-    Errors are informational — Tableau itself occasionally produces workbooks
-    that deviate slightly from the schema — but recurring errors indicate
-    structural problems worth fixing.
+    This tool does not save or export the active workbook. If file_path is
+    omitted, it validates the current in-memory workbook before save; if
+    file_path is provided, it validates an existing .twb/.twbx file on disk.
+    Call save_workbook when you need to write the workbook to a file.
 
     Args:
         file_path: Path to a .twb or .twbx file to validate. If omitted,

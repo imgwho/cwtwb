@@ -291,6 +291,13 @@ editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .t
 | `set_hyper_connection` | Configure the datasource to use a local Hyper extract connection |
 | `save_workbook` | Save the workbook as `.twb` (plain XML) or `.twbx` (ZIP with bundled extracts and images) |
 
+Important save semantics for agents:
+
+- `save_workbook(output_path=...)` is the only default MCP tool that writes the active in-memory workbook to disk.
+- `validate_workbook()` validates the active in-memory workbook or an existing file, but it does not save or export anything.
+- `analyze_twb(file_path=...)` requires an existing `.twb` or `.twbx` path. For a newly generated workbook, call `save_workbook` first, then call `analyze_twb` on the saved path.
+- Migration tools are for repointing existing workbooks to new datasources; they are not a substitute for saving the active workbook.
+
 ## MCP Prompts
 
 The default MCP entrypoint currently registers no prompts. This is intentional:
@@ -397,7 +404,7 @@ This keeps new feature work aligned with the project's real product boundary ins
 
 ### XSD schema validation
 
-`TWBEditor.validate_schema()` checks the workbook against the official Tableau TWB XSD schema (2026.1), vendored at `vendor/tableau-document-schemas/`:
+`TWBEditor.validate_schema()` checks the workbook against the official Tableau TWB XSD schema (2026.1). Source checkouts use `vendor/tableau-document-schemas/`; installed packages, including `uvx cwtwb`, use the packaged copy under `cwtwb/vendor/`:
 
 ```python
 result = editor.validate_schema()
@@ -409,7 +416,7 @@ print(result.to_text())
 
 result.valid          # bool
 result.errors         # list[str] — lxml error messages
-result.schema_available  # False if the vendor submodule is not checked out
+result.schema_available  # False only if neither the packaged nor source schema is available
 ```
 
 The same check is available as an MCP tool:
