@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cwtwb": {
+      "command": "uvx",
+      "args": [
+        "cwtwb"
+      ],
+      "env": {}
+    }
+  }
+}
