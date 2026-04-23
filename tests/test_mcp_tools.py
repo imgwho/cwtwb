@@ -36,6 +36,7 @@ from cwtwb.server import (
     set_tableauserver_connection,
     analyze_twb,
     inspect_target_schema,
+    validate_workbook,
 )
 
 TEMPLATE = Path("templates/twb/superstore.twb")
@@ -53,12 +54,17 @@ class TestToolDescriptions:
         save_desc = server._tool_manager._tools["save_workbook"].description
         validate_desc = server._tool_manager._tools["validate_workbook"].description
         analyze_desc = server._tool_manager._tools["analyze_twb"].description
+        capability_desc = server._tool_manager._tools["list_capabilities"].description
+        server_instructions = server.instructions
 
         assert "only default MCP tool that writes" in save_desc
         assert "validate_workbook and analyze_twb do not save files" in save_desc
         assert "does not save or export" in validate_desc
         assert "requires a file_path that already exists on disk" in analyze_desc
         assert "call save_workbook first" in analyze_desc
+        assert "not enumerate callable MCP tools" in capability_desc
+        assert "feature support catalog, not a tool inventory" in server_instructions
+        assert "add_dashboard exists in the default MCP tool surface" in server_instructions
 
 
 # ── remove_calculated_field ───────────────────────────────────────────────────
@@ -225,6 +231,9 @@ class TestWorksheetCloneRefactorTools:
 class TestListCapabilities:
     def test_returns_catalog_text(self):
         result = list_capabilities()
+        assert "Workflow guardrails:" in result
+        assert "not a list of callable MCP tools" in result
+        assert "add_dashboard and save_workbook are default MCP tools" in result
         assert "cwtwb capability catalog" in result
         assert "chart: Bar" in result
         assert "[core]" in result
@@ -264,3 +273,10 @@ class TestAnalyzeTwb:
         result = analyze_twb(str(output))
         assert isinstance(result, str)
         assert "fit" in result.lower() or "cap" in result.lower()
+
+
+class TestValidateWorkbookHints:
+    def test_in_memory_validation_includes_save_hint(self):
+        result = validate_workbook()
+        assert "does not save files" in result
+        assert "Use save_workbook(output_path=...)" in result

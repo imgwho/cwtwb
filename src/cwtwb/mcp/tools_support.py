@@ -9,7 +9,8 @@ TOOL INVENTORY
       Return the full capability catalog from capability_registry.py as a
       formatted text table.  Shows every declared chart type, encoding, and
       feature with its support level (core / advanced / recipe / unsupported).
-      Call this at the start of a session to know what is possible.
+      This is a feature-support catalog, not a list of callable MCP tools.
+      Tool discovery should come from the MCP tool list itself.
 
   describe_capability(kind, name)
       Return details for a single capability entry — level, description, and
@@ -41,15 +42,27 @@ from typing import Optional
 from ..authoring_contract import review_authoring_contract_payload
 from ..capability_registry import format_capability_catalog, format_capability_detail
 from ..twb_analyzer import analyze_workbook
+from ..validator import TWBValidationError, load_workbook_root, validate_against_schema
 from .app import server
 from .state import get_editor
 
 
 @server.tool()
 def list_capabilities() -> str:
-    """List cwtwb's declared capability boundary."""
+    """List cwtwb's declared capability boundary.
 
-    return format_capability_catalog()
+    This reports what workbook features/charts are supported by cwtwb. It does
+    not enumerate callable MCP tools and should not be used to infer whether a
+    tool like add_dashboard or save_workbook exists.
+    """
+
+    guardrails = [
+        "Workflow guardrails:",
+        "- This output is a capability catalog, not a list of callable MCP tools.",
+        "- Recommended workbook flow: create_workbook/open_workbook -> list_fields -> add_worksheet/configure_chart -> add_dashboard -> save_workbook.",
+        "- add_dashboard and save_workbook are default MCP tools. If they seem missing, refresh the MCP client session and uvx cache.",
+    ]
+    return "\n".join(guardrails) + "\n\n" + format_capability_catalog()
 
 
 @server.tool()
@@ -69,8 +82,28 @@ def analyze_twb(file_path: str) -> str:
     then pass that saved path to analyze_twb.
     """
 
+    schema_note = (
+        "Schema check: SKIPPED (analysis only). "
+        "Important: analyze_twb reports capability fit, not loadability."
+    )
+    try:
+        root = load_workbook_root(file_path)
+        schema_result = validate_against_schema(root)
+        if schema_result.valid:
+            schema_note = "Schema check: PASS."
+        else:
+            schema_note = (
+                f"Schema check: FAIL ({len(schema_result.errors)} error(s)). "
+                "Important: capability analysis can still run on invalid workbooks."
+            )
+    except TWBValidationError as exc:
+        schema_note = (
+            "Schema check: FAIL (unable to parse workbook structure). "
+            f"Details: {exc}"
+        )
+
     report = analyze_workbook(file_path)
-    return report.to_text() + "\n\n" + report.to_gap_text()
+    return schema_note + "\n\n" + report.to_text() + "\n\n" + report.to_gap_text()
 
 
 @server.tool()
@@ -116,7 +149,15 @@ def validate_workbook(file_path: Optional[str] = None) -> str:
         editor = get_editor()
         result = validate_against_schema(editor.root)
 
-    return result.to_text()
+    result_text = result.to_text()
+    if file_path:
+        return result_text
+    return (
+        result_text
+        + "\n\n"
+        + "Note: validate_workbook only validates the in-memory workbook; it does not save files. "
+        + "Use save_workbook(output_path=...) to write a .twb/.twbx file."
+    )
 
 
 def review_authoring_contract(contract_json: str) -> str:
