@@ -15,11 +15,12 @@ into a cohesive, interactive dashboard with a clear information hierarchy.
 ## Workflow
 
 ```text
-1. Plan the dashboard hierarchy
-2. Design the layout using generate_layout_json
-3. Create the dashboard with add_dashboard
-4. Add interaction actions with add_dashboard_action
-5. Add concise worksheet captions where narrative context helps
+1. Call list_worksheets and lock the exact worksheet name list
+2. Plan the dashboard hierarchy from those names
+3. Design the layout using generate_layout_json
+4. Create the dashboard with add_dashboard(layout=<json_path>)
+5. Add interaction actions with add_dashboard_action
+6. Add concise worksheet captions where narrative context helps
 ```
 
 ## Information Hierarchy
@@ -48,10 +49,51 @@ Recommended defaults:
 
 ## Layout JSON Rules
 
+- Always start by calling `list_worksheets` and copy worksheet names exactly.
+- Use only the canonical container DSL fields: `type`, `direction`, `children`.
+- Never use `zones` as a container child field in layout JSON.
+- Never use absolute-position schemas (`x/y/w/h`, `dashboard`, `zone`) as layout input.
 - Use `fixed_size` for KPI rows and filter sidebars.
 - Use `weight` for the main analytical areas.
 - Do not pass a large inline layout dict to `add_dashboard`.
 - Generate a layout JSON file first, then pass the file path to `add_dashboard`.
+- Prefer filling a small template over free-form structure generation.
+
+Execution order (strict):
+
+```text
+list_worksheets
+-> generate_layout_json
+-> add_dashboard(layout=<generated_json_path>)
+```
+
+Minimal stable template:
+
+```json
+{
+  "type": "container",
+  "direction": "vertical",
+  "children": [
+    {
+      "type": "container",
+      "direction": "horizontal",
+      "fixed_size": 56,
+      "children": [
+        {"type": "worksheet", "name": "KPI 1"},
+        {"type": "worksheet", "name": "KPI 2"}
+      ]
+    },
+    {
+      "type": "container",
+      "direction": "horizontal",
+      "children": [
+        {"type": "worksheet", "name": "Primary View", "weight": 2},
+        {"type": "worksheet", "name": "Secondary View", "weight": 1}
+      ]
+    }
+  ]
+}
+```
 
 Example structure:
 
@@ -205,6 +247,8 @@ Best practices:
 ## Common Pitfalls
 
 - Too many charts on one dashboard.
+- Layout JSON uses `zones` instead of `children`.
+- Layout JSON references worksheet names not present in `list_worksheets`.
 - No filter sidebar for an interactive dashboard.
 - Actions that do not match the analytical storyline.
 - Captions that repeat the worksheet title instead of adding meaning.
@@ -212,8 +256,10 @@ Best practices:
 
 ## Output Checklist
 
+- `list_worksheets` was called and worksheet names were locked before layout generation.
 - Dashboard has a clear KPI -> primary -> detail hierarchy.
 - Layout JSON was generated before `add_dashboard`.
+- `add_dashboard` consumed a layout JSON file path rather than a large inline dict.
 - At least one interaction action supports the main analysis flow.
 - URL and go-to-sheet actions are used only where they add clarity.
 - Key analytical worksheets have concise captions when narrative context helps.

@@ -23,6 +23,11 @@ LAYOUT JSON STRUCTURE
     }
   }
 
+Important: the canonical child key is `children`. Do not use `zones` inside
+`layout_tree`; `zones` belongs to Tableau XML output, not the add_dashboard DSL.
+Non-DSL payloads (for example absolute-position `dashboard/zone/x/y/w/h` schemas)
+are rejected during layout generation.
+
 Legacy container aliases are accepted and normalized recursively:
   {"type": "horizontal", "children": [...]} -> {"type": "container", "direction": "horizontal", ...}
   {"type": "vertical", "children": [...]}   -> {"type": "container", "direction": "vertical", ...}
