@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.6] - 2026-05-06
+
+### Added
+
+- **Guided authoring now supports CSV datasources end-to-end**: datasource intake accepts `.csv`, infers delimiter and UTF-8-SIG schema samples, and can generate execution plans that call `set_csv_connection`.
+- **CSV connection introspection in core connections mixin**: local CSV files can be sampled and normalized into Tableau field metadata when explicit field payloads are omitted.
+
+### Changed
+
+- **Datasource metadata rebuild path is generalized for tabular sources**: external metadata rebuild now supports both sheet-like and file-like source objects with configurable relation/capability overrides, improving consistency across Excel/CSV flows.
+- **MCP/server authoring surfaces expose CSV connection execution**: authoring tool whitelist and MCP wrappers include `set_csv_connection` so guided runs can apply CSV-backed plans directly.
+
+### Fixed
+
+- **Regression coverage for CSV authoring + connection behavior**: expanded tests across connection handling and MCP tools to validate CSV schema inference, planning, and execution wrappers.
+
 ## [0.18.5] - 2026-04-28
 
 ### Added

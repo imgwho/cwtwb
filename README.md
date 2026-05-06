@@ -11,6 +11,8 @@
 
 It is designed as a **workbook engineering layer**, not as a conversational data exploration agent. The goal is to make workbook generation reproducible, inspectable, and safe to automate in local workflows, scripts, and CI.
 
+Latest update (`0.18.6`): guided authoring and connection handling now support CSV datasources end-to-end, including local schema sampling and `set_csv_connection` execution planning.
+
 The default workflow is:
 
 1. Start from a known template (`.twb` or `.twbx`) or the built-in zero-config template
