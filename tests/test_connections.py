@@ -209,6 +209,119 @@ def test_set_excel_connection_rebuilds_metadata_from_schema(
     assert ds.find("./column[@name='[State/Province]']").get("semantic-role") == "[State].[Name]"
 
 
+@pytest.mark.parametrize(
+    "filename, content, expected_separator, expected_filename, expected_field_name",
+    [
+        (
+            "sample_sales_semicolon.csv",
+            "Order ID;State/Province;Sales;Order Date\n"
+            "1;California;100;2024-01-01\n"
+            "2;Nevada;200;2024-01-02\n",
+            ";",
+            "sample_sales_semicolon.csv",
+            "Sales",
+        ),
+        (
+            "sample_sales_comma.csv",
+            "Order ID,State/Province,Sales,Order Date\n"
+            "1,California,100,2024-01-01\n"
+            "2,Nevada,200,2024-01-02\n",
+            ",",
+            "sample_sales_comma.csv",
+            "Sales",
+        ),
+        (
+            "sample_sales_tab.csv",
+            "Order ID\tState/Province\tSales\tOrder Date\n"
+            "1\tCalifornia\t100\t2024-01-01\n"
+            "2\tNevada\t200\t2024-01-02\n",
+            "\t",
+            "sample_sales_tab.csv",
+            "Sales",
+        ),
+        (
+            "sample_sales_pipe.csv",
+            "Order ID|State/Province|Sales|Order Date\n"
+            "1|California|100|2024-01-01\n"
+            "2|Nevada|200|2024-01-02\n",
+            "|",
+            "sample_sales_pipe.csv",
+            "Sales",
+        ),
+    ],
+)
+def test_set_csv_connection_rebuilds_metadata_from_schema(
+    superstore_template,
+    filename,
+    content,
+    expected_separator,
+    expected_filename,
+    expected_field_name,
+):
+    base_dir = Path(__file__).parent.parent / "tmp" / "test_csv_connections"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = base_dir / filename
+    csv_path.write_text(content, encoding="utf-8")
+
+    editor = TWBEditor(superstore_template)
+
+    msg = editor.set_csv_connection(str(csv_path))
+    assert "Configured CSV connection" in msg
+
+    field = editor.field_registry.get(expected_field_name)
+    assert field is not None
+    assert field.local_name == f"[{expected_field_name}]"
+
+    out_file = base_dir / f"{csv_path.stem}.twb"
+    editor.save(out_file)
+
+    tree = ET.parse(out_file)
+    ds = tree.find(".//datasource")
+    assert ds is not None
+
+    fed_conn = ds.find("connection[@class='federated']")
+    assert fed_conn is not None
+
+    named_conns = fed_conn.find("named-connections")
+    assert named_conns is not None
+
+    nc = named_conns.find("named-connection")
+    assert nc is not None
+
+    csv_conn = nc.find("connection")
+    assert csv_conn is not None
+    assert csv_conn.get("class") == "textscan"
+    assert csv_conn.get("filename") == csv_path.name
+    assert csv_conn.get("separator") is None
+
+    relation = fed_conn.find("relation")
+    assert relation is not None
+    assert relation.get("name") == expected_filename
+    assert relation.get("table") == f"[{csv_path.stem}#csv]"
+
+    relation_cols = ds.findall(".//connection[@class='federated']/relation/columns/column")
+    assert len(relation_cols) == 4
+    assert relation_cols[0].get("name") == "Order ID"
+    assert relation_cols[-1].get("name") == "Order Date"
+    relation_columns = ds.find(".//connection[@class='federated']/relation/columns")
+    assert relation_columns is not None
+    assert relation_columns.get("separator") == expected_separator
+    assert relation_columns.get("header") == "yes"
+    assert relation_columns.get("character-set") == "UTF-8"
+    assert relation_columns.get("locale") == "zh_CN"
+
+    metadata_records = ds.findall(".//connection[@class='federated']/metadata-records/metadata-record")
+    assert len(metadata_records) == 5
+    local_names = {
+        metadata_record.findtext("remote-name"): metadata_record.findtext("local-name")
+        for metadata_record in metadata_records
+        if metadata_record.findtext("remote-name")
+    }
+    assert local_names["Sales"] == "[Sales]"
+    assert local_names["State/Province"] == "[State/Province]"
+    assert ds.find("./column[@name='[State/Province]']").get("semantic-role") == "[State].[Name]"
+
+
 def test_excel_connection_updates_calculation_references_to_local_names(
     superstore_template,
     sample_superstore_excel,

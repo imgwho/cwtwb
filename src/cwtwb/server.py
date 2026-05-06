@@ -43,6 +43,7 @@ from .mcp.tools_workbook import (
     preview_worksheet_refactor,
     remove_calculated_field,
     save_workbook,
+    set_csv_connection,
     set_excel_connection,
     set_worksheet_caption,
     set_worksheet_hidden,

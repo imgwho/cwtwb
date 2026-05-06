@@ -3,7 +3,7 @@
 Verifies that tools correctly relay calls to the editor and return
 properly-formatted string payloads. Covers:
   - remove_calculated_field
-  - set_mysql_connection / set_tableauserver_connection / set_hyper_connection (MCP layer)
+  - set_mysql_connection / set_tableauserver_connection / set_csv_connection / set_hyper_connection (MCP layer)
   - inspect_target_schema (non-hyper path returns informative message)
   - list_capabilities
   - analyze_twb
@@ -30,6 +30,7 @@ from cwtwb.server import (
     preview_worksheet_refactor,
     remove_calculated_field,
     save_workbook,
+    set_csv_connection,
     set_hyper_connection,
     set_mysql_connection,
     set_worksheet_hidden,
@@ -102,6 +103,44 @@ class TestRemoveCalculatedField:
 # ── connection MCP wrappers ───────────────────────────────────────────────────
 
 class TestConnectionMcpTools:
+    def test_set_csv_connection_returns_confirmation(self):
+        base_dir = Path(__file__).parent.parent / "tmp" / "test_csv_mcp"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = base_dir / "tool_sales.csv"
+        csv_path.write_text(
+            "Order ID;State/Province;Sales\n"
+            "1;California;100\n"
+            "2;Nevada;200\n",
+            encoding="utf-8",
+        )
+
+        result = set_csv_connection(filepath=str(csv_path))
+        assert "CSV" in result or "Configured" in result
+
+    def test_set_csv_connection_writes_correct_xml(self):
+        base_dir = Path(__file__).parent.parent / "tmp" / "test_csv_mcp"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = base_dir / "tool_sales.csv"
+        csv_path.write_text(
+            "Order ID;State/Province;Sales\n"
+            "1;California;100\n"
+            "2;Nevada;200\n",
+            encoding="utf-8",
+        )
+
+        set_csv_connection(filepath=str(csv_path))
+        output = base_dir / "csv_mcp.twb"
+        save_workbook(str(output))
+        root = ET.parse(output).getroot()
+        conn = root.find(".//connection[@class='textscan']")
+        assert conn is not None
+        assert conn.get("filename") == csv_path.name
+        assert conn.get("directory") == str(csv_path.parent).replace("\\", "/")
+        assert conn.get("separator") is None
+        relation_columns = root.find(".//connection[@class='federated']/relation/columns")
+        assert relation_columns is not None
+        assert relation_columns.get("separator") == ";"
+
     def test_set_mysql_connection_returns_confirmation(self):
         result = set_mysql_connection(
             server="localhost",

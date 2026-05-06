@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import csv
 import json
 import xml.etree.ElementTree as ET
 from copy import deepcopy
@@ -61,7 +62,7 @@ STATUS_VALIDATED = "validated"
 STATUS_ANALYZED = "analyzed"
 
 SUPPORTED_EXCEL_SUFFIXES = {".xls", ".xlsx", ".xlsm"}
-SUPPORTED_DATASOURCE_SUFFIXES = SUPPORTED_EXCEL_SUFFIXES | {".hyper"}
+SUPPORTED_DATASOURCE_SUFFIXES = SUPPORTED_EXCEL_SUFFIXES | {".csv", ".hyper"}
 
 ARTIFACT_SCHEMA = "schema_summary"
 ARTIFACT_ANALYSIS_BRIEF = "analysis_brief"
@@ -204,6 +205,7 @@ EXECUTION_STEP_WHITELIST = (
     "add_dashboard",
     "add_dashboard_action",
     "set_worksheet_caption",
+    "set_csv_connection",
     "set_excel_connection",
     "set_mysql_connection",
     "set_tableauserver_connection",
@@ -305,6 +307,8 @@ def _detect_datasource_type(datasource_path: str | Path) -> str:
     suffix = Path(datasource_path).suffix.lower()
     if suffix in SUPPORTED_EXCEL_SUFFIXES:
         return "excel"
+    if suffix == ".csv":
+        return "csv"
     if suffix == ".hyper":
         return "hyper"
     raise ValueError(
@@ -696,6 +700,25 @@ def _sample_rows_from_openpyxl(path: Path) -> list[dict[str, Any]]:
     return sheets
 
 
+def _sample_rows_from_csv(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        sample = handle.read(8192)
+        handle.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=[",", ";", "\t", "|"])
+            delimiter = dialect.delimiter
+        except csv.Error:
+            delimiter = ","
+        reader = csv.reader(handle, delimiter=delimiter)
+        rows = [list(row) for row in reader][:151]
+    return {
+        "name": path.name,
+        "rows": rows,
+        "delimiter": delimiter,
+        "charset": "utf-8-sig",
+    }
+
+
 def _infer_column_type(header: str, values: list[Any]) -> str:
     lower = header.casefold()
     non_blank = [value for value in values if value not in ("", None)]
@@ -867,6 +890,34 @@ def _build_excel_schema_summary(path: Path, preferred_sheet: str = "") -> dict[s
         "sheets": sheets,
         "selected_primary_object": selected_sheet,
         "fields": selected_fields,
+        "field_candidates": field_candidates,
+        "recommended_profile_matches": profile_matches,
+        "notes": notes,
+    }
+
+
+def _build_csv_schema_summary(path: Path) -> dict[str, Any]:
+    notes: list[str] = []
+    payload = _sample_rows_from_csv(path)
+    rows = payload["rows"]
+    if not rows:
+        raise ValueError(f"No rows found in CSV file: {path}")
+
+    selected_object = payload["name"]
+    fields = _build_field_payloads(selected_object, rows, notes)
+    field_candidates = _collect_field_candidates(fields)
+    profile_matches = suggest_profile_matches(
+        available_fields=[field["name"] for field in fields]
+    )
+    return {
+        "datasource": {
+            "path": _normalize_path(path),
+            "type": "csv",
+            "delimiter": payload["delimiter"],
+            "charset": payload["charset"],
+        },
+        "selected_primary_object": selected_object,
+        "fields": fields,
         "field_candidates": field_candidates,
         "recommended_profile_matches": profile_matches,
         "notes": notes,
@@ -3267,6 +3318,8 @@ def intake_datasource_schema(run_id: str, preferred_sheet: str = "") -> str:
     datasource_path = Path(manifest["datasource_path"])
     if manifest["datasource_type"] == "excel":
         summary = _build_excel_schema_summary(datasource_path, preferred_sheet=preferred_sheet)
+    elif manifest["datasource_type"] == "csv":
+        summary = _build_csv_schema_summary(datasource_path)
     elif manifest["datasource_type"] == "hyper":
         summary = _build_hyper_schema_summary(datasource_path)
     else:
@@ -4363,6 +4416,18 @@ def build_execution_plan(run_id: str) -> str:
                 "args": {
                     "filepath": manifest["datasource_path"],
                     "sheet_name": schema_summary.get("selected_primary_object", ""),
+                    "fields": schema_summary.get("fields", []),
+                },
+            }
+        )
+    elif manifest["datasource_type"] == "csv":
+        steps.append(
+            {
+                "tool": "set_csv_connection",
+                "args": {
+                    "filepath": manifest["datasource_path"],
+                    "delimiter": schema_summary.get("datasource", {}).get("delimiter", ""),
+                    "charset": schema_summary.get("datasource", {}).get("charset", "utf-8-sig"),
                     "fields": schema_summary.get("fields", []),
                 },
             }

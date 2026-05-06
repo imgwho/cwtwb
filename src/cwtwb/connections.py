@@ -1,10 +1,11 @@
 """Connection configuration mixin for TWBEditor.
 
-Handles MySQL and Tableau Server connection setup.
+Handles local tabular files plus MySQL and Tableau Server connection setup.
 """
 
 from __future__ import annotations
 
+import csv
 import os
 import shutil
 import tempfile
@@ -95,6 +96,8 @@ def _infer_external_role(field_name: str, datatype: str) -> str:
 def _infer_external_field_type(role: str, datatype: str) -> str:
     if datatype == "date":
         return "ordinal"
+    if datatype == "integer" and role != "measure":
+        return "ordinal"
     if role == "measure":
         return "quantitative"
     return "nominal"
@@ -118,6 +121,38 @@ def _extract_remote_name_from_map_value(value: str) -> str:
         stripped = stripped[1:-1]
     parts = stripped.split("].[")
     return parts[-1].replace("]]", "]").strip()
+
+
+def _read_csv_rows(
+    filepath: str,
+    *,
+    delimiter: str | None = None,
+    encoding: str = "utf-8-sig",
+    max_rows: int = 151,
+) -> tuple[str, list[list[Any]]]:
+    """Read a small sample of rows from a CSV file for schema inference."""
+
+    path = Path(filepath)
+    with path.open("r", encoding=encoding, newline="") as handle:
+        sample = handle.read(8192)
+        handle.seek(0)
+
+        actual_delimiter = delimiter
+        if not actual_delimiter:
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=[",", ";", "\t", "|"])
+                actual_delimiter = dialect.delimiter
+            except csv.Error:
+                actual_delimiter = ","
+
+        reader = csv.reader(handle, delimiter=actual_delimiter)
+        rows: list[list[Any]] = []
+        for row_index, row in enumerate(reader):
+            rows.append(list(row))
+            if row_index + 1 >= max_rows:
+                break
+
+    return actual_delimiter, rows
 
 
 def _default_aggregation(datatype: str) -> str:
@@ -268,7 +303,7 @@ def inspect_hyper_schema(filepath: str) -> dict:
 
 
 class ConnectionsMixin:
-    """Mixin providing database connection methods for TWBEditor."""
+    """Mixin providing datasource connection methods for TWBEditor."""
 
     def _normalize_external_fields(
         self,
@@ -380,20 +415,63 @@ class ConnectionsMixin:
 
         return actual_sheet_name, fields
 
-    def _rebuild_excel_datasource_metadata(
+    def _introspect_csv_fields(
+        self,
+        filepath: str,
+        delimiter: str = "",
+        charset: str = "utf-8-sig",
+    ) -> tuple[str, list[dict[str, Any]], str]:
+        """Inspect a CSV file locally when MCP callers do not provide schema fields."""
+
+        path = Path(filepath)
+        actual_source_object = path.name
+        actual_delimiter, rows = _read_csv_rows(
+            filepath,
+            delimiter=delimiter or None,
+            encoding=charset,
+        )
+
+        if not rows:
+            return actual_source_object, [], actual_delimiter
+
+        headers = _sanitize_headers(rows[0])
+        value_rows = rows[1:]
+        fields: list[dict[str, Any]] = []
+        for index, header in enumerate(headers):
+            values = _column_values_from_rows(value_rows, index)
+            datatype = _infer_excel_datatype(header, values)
+            role = _infer_external_role(header, datatype)
+            fields.append(
+                {
+                    "name": header,
+                    "datatype": datatype,
+                    "role": role,
+                    "field_type": _infer_external_field_type(role, datatype),
+                    "semantic_role": infer_tableau_semantic_role(header),
+                }
+            )
+
+        return actual_source_object, fields, actual_delimiter
+
+    def _rebuild_external_datasource_metadata(
         self,
         *,
-        sheet_name: str,
+        source_object: str,
         fields: list[dict[str, Any]],
         relation: etree._Element,
+        prefer_existing_metadata: bool = True,
+        local_name_source_object: str | None = None,
+        relation_column_attrs_override: dict[str, str] | None = None,
+        capability_attrs_override: list[tuple[str, str, str]] | None = None,
     ) -> None:
-        """Rebuild the Excel datasource structure so Tableau sees a coherent schema."""
+        """Rebuild a tabular datasource structure so Tableau sees a coherent schema."""
 
         relation_columns = relation.find("columns")
         relation_column_attrs = dict(relation_columns.attrib) if relation_columns is not None else {}
+        has_override = relation_column_attrs_override is not None
         existing_cols = self._datasource.find(".//connection[@class='federated']/cols")
         existing_maps: dict[str, str] = {}
-        if existing_cols is not None:
+        if prefer_existing_metadata and existing_cols is not None:
             for map_el in existing_cols.findall("map"):
                 key = map_el.get("key", "")
                 remote_name = _extract_remote_name_from_map_value(map_el.get("value", ""))
@@ -401,11 +479,12 @@ class ConnectionsMixin:
                     existing_maps[remote_name] = key
 
         existing_metadata: dict[str, str] = {}
-        for mr in self._datasource.findall(".//metadata-records/metadata-record[@class='column']"):
-            remote_name = (mr.findtext("remote-name") or "").strip()
-            local_name = (mr.findtext("local-name") or "").strip()
-            if remote_name and local_name:
-                existing_metadata[remote_name] = local_name
+        if prefer_existing_metadata:
+            for mr in self._datasource.findall(".//metadata-records/metadata-record[@class='column']"):
+                remote_name = (mr.findtext("remote-name") or "").strip()
+                local_name = (mr.findtext("local-name") or "").strip()
+                if remote_name and local_name:
+                    existing_metadata[remote_name] = local_name
 
         existing_top_level_columns = [
             deepcopy(col)
@@ -421,14 +500,15 @@ class ConnectionsMixin:
         object_el = self._datasource.find(".//object-graph//object")
         object_id = object_el.get("id", "") if object_el is not None else ""
         if object_el is not None:
-            object_el.set("caption", sheet_name)
+            object_el.set("caption", source_object)
 
         normalized_fields: list[dict[str, Any]] = []
+        local_name_source_object = source_object if local_name_source_object is None else local_name_source_object
         for field in fields:
             local_name = (
-                existing_metadata.get(field["name"])
-                or existing_maps.get(field["name"])
-                or _default_local_name(field["name"], sheet_name, field["semantic_role"])
+                (existing_metadata.get(field["name"]) if prefer_existing_metadata else "")
+                or (existing_maps.get(field["name"]) if prefer_existing_metadata else "")
+                or _default_local_name(field["name"], local_name_source_object, field["semantic_role"])
             )
             normalized_fields.append({**field, "local_name": local_name})
 
@@ -452,36 +532,25 @@ class ConnectionsMixin:
                 self._datasource.append(alias_el)
 
         top_level_columns: list[etree._Element] = []
-        used_top_level_names: set[str] = set()
-
         for field in normalized_fields:
+            if field["role"] == "measure" or field["datatype"] == "date":
+                continue
             template = top_level_templates.get(field["local_name"])
             if template is None:
-                continue
-            template.set("name", field["local_name"])
-            template.set("datatype", field["datatype"])
-            template.set("role", field["role"])
-            template.set("type", field["field_type"])
-            if field["semantic_role"]:
-                template.set("semantic-role", field["semantic_role"])
-            elif "semantic-role" in template.attrib:
-                del template.attrib["semantic-role"]
-            top_level_columns.append(template)
-            used_top_level_names.add(field["local_name"])
-
-        for field in normalized_fields:
-            if not field["semantic_role"] or field["local_name"] in used_top_level_names:
-                continue
-            col = etree.Element("column")
-            col.set("name", field["local_name"])
+                col = etree.Element("column")
+                col.set("name", field["local_name"])
+            else:
+                col = template
+                col.set("name", field["local_name"])
             col.set("datatype", field["datatype"])
             col.set("role", field["role"])
             col.set("type", field["field_type"])
-            col.set("semantic-role", field["semantic_role"])
-            if field["local_name"] == f"[{field['name']}]":
-                col.set("caption", field["name"])
+            if field["semantic_role"]:
+                col.set("semantic-role", field["semantic_role"])
+            elif "semantic-role" in col.attrib:
+                del col.attrib["semantic-role"]
+            col.attrib.pop("caption", None)
             top_level_columns.append(col)
-            used_top_level_names.add(field["local_name"])
 
         internal_table_columns = [
             deepcopy(col)
@@ -490,8 +559,8 @@ class ConnectionsMixin:
             or col.get("name", "").startswith("[__tableau_internal_object_id__].")
         ]
         for col in internal_table_columns:
-            if sheet_name:
-                col.set("caption", sheet_name)
+            if source_object:
+                col.set("caption", source_object)
             top_level_columns.append(col)
 
         insertion_anchor = None
@@ -522,9 +591,12 @@ class ConnectionsMixin:
         if relation_column_attrs:
             relation_columns.attrib.clear()
             relation_columns.attrib.update(relation_column_attrs)
+        if relation_column_attrs_override:
+            relation_columns.attrib.clear()
+            relation_columns.attrib.update(relation_column_attrs_override)
         if "header" not in relation_columns.attrib:
             relation_columns.set("header", "yes")
-        if "outcome" not in relation_columns.attrib:
+        if not has_override and "outcome" not in relation_columns.attrib:
             relation_columns.set("outcome", "2")
 
         for field in normalized_fields:
@@ -535,7 +607,9 @@ class ConnectionsMixin:
 
         for og_rel in self._datasource.findall(".//object-graph//relation"):
             og_columns = og_rel.find("columns")
-            og_column_attrs = dict(og_columns.attrib) if og_columns is not None else relation_columns.attrib
+            og_column_attrs = (
+                dict(og_columns.attrib) if og_columns is not None and not has_override else relation_column_attrs_override or relation_columns.attrib
+            )
             if og_columns is None:
                 og_columns = etree.SubElement(og_rel, "columns")
             else:
@@ -545,7 +619,7 @@ class ConnectionsMixin:
             og_columns.attrib.update(og_column_attrs)
             if "header" not in og_columns.attrib:
                 og_columns.set("header", "yes")
-            if "outcome" not in og_columns.attrib:
+            if not has_override and "outcome" not in og_columns.attrib:
                 og_columns.set("outcome", "2")
             for field in normalized_fields:
                 column_el = etree.SubElement(og_columns, "column")
@@ -567,7 +641,7 @@ class ConnectionsMixin:
         for field in normalized_fields:
             map_el = etree.SubElement(cols_el, "map")
             map_el.set("key", field["local_name"])
-            map_el.set("value", f"[{sheet_name}].[{field['name']}]")
+            map_el.set("value", f"[{source_object}].[{field['name']}]")
 
         metadata_records = self._datasource.find(".//connection[@class='federated']/metadata-records")
         if metadata_records is None:
@@ -581,28 +655,35 @@ class ConnectionsMixin:
         capability_record.set("class", "capability")
         etree.SubElement(capability_record, "remote-name")
         etree.SubElement(capability_record, "remote-type").text = "0"
-        etree.SubElement(capability_record, "parent-name").text = f"[{sheet_name}]"
+        etree.SubElement(capability_record, "parent-name").text = f"[{source_object}]"
         etree.SubElement(capability_record, "remote-alias")
         etree.SubElement(capability_record, "aggregation").text = "Count"
         etree.SubElement(capability_record, "contains-null").text = "true"
         capability_attrs = etree.SubElement(capability_record, "attributes")
-        attr_context = etree.SubElement(capability_attrs, "attribute")
-        attr_context.set("datatype", "integer")
-        attr_context.set("name", "context")
-        attr_context.text = "0"
-        if relation_columns.get("gridOrigin"):
-            attr_grid = etree.SubElement(capability_attrs, "attribute")
-            attr_grid.set("datatype", "string")
-            attr_grid.set("name", "gridOrigin")
-            attr_grid.text = f"\"{relation_columns.get('gridOrigin')}\""
-        attr_header = etree.SubElement(capability_attrs, "attribute")
-        attr_header.set("datatype", "boolean")
-        attr_header.set("name", "header")
-        attr_header.text = "true"
-        attr_outcome = etree.SubElement(capability_attrs, "attribute")
-        attr_outcome.set("datatype", "integer")
-        attr_outcome.set("name", "outcome")
-        attr_outcome.text = relation_columns.get("outcome", "2")
+        if capability_attrs_override:
+            for datatype, name, value in capability_attrs_override:
+                attr = etree.SubElement(capability_attrs, "attribute")
+                attr.set("datatype", datatype)
+                attr.set("name", name)
+                attr.text = value
+        else:
+            attr_context = etree.SubElement(capability_attrs, "attribute")
+            attr_context.set("datatype", "integer")
+            attr_context.set("name", "context")
+            attr_context.text = "0"
+            if relation_columns.get("gridOrigin"):
+                attr_grid = etree.SubElement(capability_attrs, "attribute")
+                attr_grid.set("datatype", "string")
+                attr_grid.set("name", "gridOrigin")
+                attr_grid.text = f"\"{relation_columns.get('gridOrigin')}\""
+            attr_header = etree.SubElement(capability_attrs, "attribute")
+            attr_header.set("datatype", "boolean")
+            attr_header.set("name", "header")
+            attr_header.text = "true"
+            attr_outcome = etree.SubElement(capability_attrs, "attribute")
+            attr_outcome.set("datatype", "integer")
+            attr_outcome.set("name", "outcome")
+            attr_outcome.text = relation_columns.get("outcome", "2")
 
         for field in normalized_fields:
             metadata_record = etree.SubElement(metadata_records, "metadata-record")
@@ -610,7 +691,7 @@ class ConnectionsMixin:
             etree.SubElement(metadata_record, "remote-name").text = field["name"]
             etree.SubElement(metadata_record, "remote-type").text = _REMOTE_TYPE_BY_DATATYPE[field["datatype"]]
             etree.SubElement(metadata_record, "local-name").text = field["local_name"]
-            etree.SubElement(metadata_record, "parent-name").text = f"[{sheet_name}]"
+            etree.SubElement(metadata_record, "parent-name").text = f"[{source_object}]"
             etree.SubElement(metadata_record, "remote-alias").text = field["name"]
             etree.SubElement(metadata_record, "ordinal").text = str(field["ordinal"])
             etree.SubElement(metadata_record, "local-type").text = field["datatype"]
@@ -892,8 +973,8 @@ class ConnectionsMixin:
             og_rel.set("type", "table")
 
         if normalized_fields:
-            self._rebuild_excel_datasource_metadata(
-                sheet_name=sheet_name,
+            self._rebuild_external_datasource_metadata(
+                source_object=sheet_name,
                 fields=normalized_fields,
                 relation=relation,
             )
@@ -901,6 +982,110 @@ class ConnectionsMixin:
             self._reinit_fields()
             self.field_registry.set_unknown_field_policy(allow_unknown_fields=True)
         return f"Configured Excel connection to {filepath} (sheet: {sheet_name})"
+
+    def set_csv_connection(
+        self,
+        filepath: str,
+        delimiter: str = "",
+        charset: str = "utf-8-sig",
+        fields: list[dict[str, Any]] | None = None,
+    ) -> str:
+        """Configure the datasource to use a local CSV file."""
+
+        fed_conn = self._datasource.find("connection[@class='federated']")
+        if fed_conn is None:
+            for old_conn in self._datasource.findall("connection"):
+                self._datasource.remove(old_conn)
+            fed_conn = etree.Element("connection")
+            fed_conn.set("class", "federated")
+            self._datasource.insert(0, fed_conn)
+
+        named_conns = fed_conn.find("named-connections")
+        if named_conns is None:
+            named_conns = etree.SubElement(fed_conn, "named-connections")
+        else:
+            for child in list(named_conns):
+                named_conns.remove(child)
+
+        conn_name = f"textscan.{_generate_uuid().strip('{}').lower()}"
+        csv_path = Path(filepath)
+        source_filename = csv_path.name
+        source_stem = csv_path.stem
+        self._datasource.set("caption", source_stem)
+
+        nc = etree.SubElement(named_conns, "named-connection")
+        nc.set("caption", source_stem)
+        nc.set("name", conn_name)
+
+        csv_conn = etree.SubElement(nc, "connection")
+        csv_conn.set("class", "textscan")
+        csv_conn.set("directory", str(csv_path.parent.resolve()).replace("\\", "/"))
+        csv_conn.set("filename", source_filename)
+        csv_conn.set("password", "")
+        csv_conn.set("server", "")
+        actual_delimiter = delimiter or ","
+
+        normalized_fields = self._normalize_external_fields(fields, source_object=source_filename)
+        if not normalized_fields:
+            source_filename, introspected_fields, actual_delimiter = self._introspect_csv_fields(
+                filepath,
+                delimiter=delimiter,
+                charset=charset,
+            )
+            normalized_fields = self._normalize_external_fields(
+                introspected_fields,
+                source_object=source_filename,
+            )
+        relation = fed_conn.find("relation")
+        if relation is None:
+            relation = etree.SubElement(fed_conn, "relation")
+        relation.set("connection", conn_name)
+        relation.set("name", source_filename)
+        relation.set("table", f"[{source_stem}#csv]")
+        relation.set("type", "table")
+
+        for og_rel in self._datasource.findall(".//object-graph//relation"):
+            og_rel.set("connection", conn_name)
+            og_rel.set("name", source_filename)
+            og_rel.set("table", f"[{source_stem}#csv]")
+            og_rel.set("type", "table")
+
+        if normalized_fields:
+            relation_columns_attrs = {
+                "character-set": "UTF-8",
+                "header": "yes",
+                "locale": "zh_CN",
+                "separator": actual_delimiter,
+            }
+            capability_attrs = [
+                ("string", "character-set", "\"UTF-8\""),
+                ("string", "collation", "\"zh_Hans_CN\""),
+                ("string", "currency", "\"¥\""),
+                ("string", "field-delimiter", f"\"{actual_delimiter}\""),
+                ("string", "header-row", "\"true\""),
+                ("string", "locale", "\"zh_CN\""),
+                ("string", "single-char", "\"\""),
+            ]
+            self._rebuild_external_datasource_metadata(
+                source_object=source_filename,
+                fields=normalized_fields,
+                relation=relation,
+                prefer_existing_metadata=False,
+                local_name_source_object="",
+                relation_column_attrs_override=relation_columns_attrs,
+                capability_attrs_override=capability_attrs,
+            )
+        else:
+            self._reinit_fields()
+            self.field_registry.set_unknown_field_policy(allow_unknown_fields=True)
+
+        # When users only switch datasource and save immediately, the workbook
+        # can be left without any worksheet/window nodes (depending on editor init mode),
+        # which Tableau Desktop may fail to open.
+        if self.root.find(".//worksheets/worksheet") is None:
+            self.add_worksheet("Sheet 1")
+
+        return f"Configured CSV connection to {filepath} (file: {source_filename})"
 
     def set_hyper_connection(
         self,

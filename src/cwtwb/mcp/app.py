@@ -31,7 +31,7 @@ server = FastMCP(
     "so call save_workbook before analyze_twb when analyzing a newly generated workbook. "
     "Do not infer tool availability from list_capabilities; list_capabilities is a "
     "feature support catalog, not a tool inventory. "
-    "Use set_excel_connection, set_hyper_connection, set_mysql_connection, or "
+    "Use set_excel_connection, set_csv_connection, set_hyper_connection, set_mysql_connection, or "
     "set_tableauserver_connection when the workbook datasource must be changed. "
     "When authoring a dashboard layout, first call list_worksheets and lock the exact worksheet names; "
     "reuse those exact names in layout nodes to avoid name drift. "

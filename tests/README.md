@@ -69,8 +69,8 @@ most fundamental to most complex.
 
 | File | Coverage |
 |------|----------|
-| `test_connections.py` | SDK: `set_mysql_connection`, `set_tableauserver_connection`, `set_hyper_connection` (with XML verification) |
-| `test_mcp_tools.py` | MCP wrappers: MySQL/Tableau Server/Hyper connection tools via `server.py`; XML verification |
+| `test_connections.py` | SDK: `set_mysql_connection`, `set_csv_connection`, `set_tableauserver_connection`, `set_hyper_connection` (with XML verification) |
+| `test_mcp_tools.py` | MCP wrappers: MySQL/CSV/Tableau Server/Hyper connection tools via `server.py`; XML verification |
 | `test_template_datasource_structure.py` | Superstore template's column count, connection class, datasource-dependencies |
 
 ### SDK Core — Dashboards
@@ -185,6 +185,7 @@ The table below maps each SDK/MCP public function to its primary test file.
 | `set_worksheet_hidden` | `test_mcp_tools.py` |
 | `generate_layout_json` | `test_layout_ascii.py` |
 | `set_mysql_connection` | `test_connections.py`, `test_mcp_tools.py` |
+| `set_csv_connection` | `test_connections.py`, `test_mcp_tools.py` |
 | `set_tableauserver_connection` | `test_connections.py`, `test_mcp_tools.py` |
 | `set_hyper_connection` | `test_connections.py`, `test_mcp_tools.py` |
 | Guided authoring internals (`start_authoring_run`, `generate_workbook_from_run`, etc.) | `test_agentic_authoring_v1.py`; these remain tested as internal/experimental code but are hidden from the default MCP entrypoint |
@@ -203,7 +204,7 @@ The table below maps each SDK/MCP public function to its primary test file.
 ## Known Gaps & Out-of-Scope
 
 - **`intake_datasource_schema` on real `.hyper` files**: covered in `test_agentic_authoring_v1.py`, but the test is skipped when the local `tableauhyperapi` runtime is unavailable or cannot inspect the sample extract in the current environment.
-- **`set_excel_connection` coverage**: low-level XML verification now lives in `test_connections.py`, but there is still no Tableau Desktop openability test for an Excel-connected workbook.
+- **`set_excel_connection` / `set_csv_connection` coverage**: low-level XML verification now lives in `test_connections.py`, but there is still no Tableau Desktop openability test for these connected workbooks.
 - **`configure_chart` with `label_param`**: parameter-driven label content is not separately unit-tested (tested implicitly via `label_runs` with `param` key).
 - **`configure_chart` with `customized_label`** (raw string override): no dedicated test; simple text labels are covered by `test_label_runs.py`.
 - **Multi-table hyper connection** (`tables` parameter in `set_hyper_connection`): no unit test; requires a real multi-table `.hyper` file.
