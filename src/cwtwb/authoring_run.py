@@ -17,6 +17,7 @@ import xlrd
 from .authoring_contract import review_authoring_contract_payload, suggest_profile_matches
 from .config import DEFAULT_AUTHORING_RUNS_DIR
 from .connections import infer_tableau_semantic_role, inspect_hyper_schema
+from .measure_intent import default_measure_expression as _shared_default_measure_expression
 
 try:
     import yaml
@@ -1414,19 +1415,12 @@ def _default_measure_expression(
     *,
     calculated_field_names: set[str] | None = None,
 ) -> str:
-    text = str(field_name).strip()
-    if not text:
-        return ""
-    if _is_expression(text):
-        return text
-    if _known_calculated_field_name(text):
-        return _known_calculated_field_name(text)
-    calculated_field_names = calculated_field_names or set()
-    if text in calculated_field_names:
-        return text
-    if _normalize_field_key(text) == "discount":
-        return f"AVG({text})"
-    return f"SUM({text})"
+    known_calculated_name = _known_calculated_field_name(field_name)
+    return _shared_default_measure_expression(
+        field_name,
+        known_calculated_name=known_calculated_name,
+        calculated_field_names=calculated_field_names,
+    )
 
 
 def _default_date_expression(field_name: str) -> str:

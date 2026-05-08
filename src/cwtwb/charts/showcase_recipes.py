@@ -12,6 +12,8 @@ from typing import Callable
 
 from lxml import etree
 
+from ..measure_intent import normalize_measure_args
+
 
 DEFAULT_CALENDAR_YEAR_MONTH = "202208"
 DEFAULT_LOLLIPOP_BAR_SIZE = "0.15292817354202271"
@@ -30,6 +32,7 @@ class _RecipeSpec:
     """Registry entry describing required args and builder for one recipe."""
     required_args: tuple[str, ...]
     defaults: dict[str, str]
+    measure_args: tuple[str, ...]
     auto_ensure: Callable[[object, dict[str, str]], None] | None
     builder: Callable[[object, str, dict[str, str]], str]
 
@@ -60,6 +63,12 @@ def configure_chart_recipe(
 
     if auto_ensure_prerequisites and recipe.auto_ensure is not None:
         recipe.auto_ensure(editor, resolved_args)
+
+    if recipe.measure_args:
+        resolved_args = normalize_measure_args(
+            resolved_args,
+            keys=recipe.measure_args,
+        )
 
     return recipe.builder(editor, worksheet_name, resolved_args)
 
@@ -346,18 +355,21 @@ _RECIPE_REGISTRY: dict[str, _RecipeSpec] = {
     "lollipop": _RecipeSpec(
         required_args=("dimension", "measure"),
         defaults={},
+        measure_args=("measure",),
         auto_ensure=None,
         builder=_build_lollipop,
     ),
     "donut": _RecipeSpec(
         required_args=("category", "measure"),
         defaults={"min_zero_field": DEFAULT_DONUT_MIN_ZERO_FIELD},
+        measure_args=("measure",),
         auto_ensure=_ensure_default_donut_prerequisites,
         builder=_build_donut,
     ),
     "butterfly": _RecipeSpec(
         required_args=("dimension", "left_measure", "right_measure"),
         defaults={},
+        measure_args=("left_measure", "right_measure"),
         auto_ensure=None,
         builder=_build_butterfly,
     ),
@@ -369,6 +381,7 @@ _RECIPE_REGISTRY: dict[str, _RecipeSpec] = {
             "label": "DAYTRUNC(Order Date)",
             "year_month": DEFAULT_CALENDAR_YEAR_MONTH,
         },
+        measure_args=(),
         auto_ensure=_ensure_default_calendar_prerequisites,
         builder=_build_calendar,
     ),

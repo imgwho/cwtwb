@@ -11,7 +11,7 @@
 
 It is designed as a **workbook engineering layer**, not as a conversational data exploration agent. The goal is to make workbook generation reproducible, inspectable, and safe to automate in local workflows, scripts, and CI.
 
-Latest update (`0.18.6`): guided authoring and connection handling now support CSV datasources end-to-end, including local schema sampling and `set_csv_connection` execution planning.
+Latest update (`0.18.7`): shared measure-intent normalization now keeps SDK chart builders, showcase recipes, and MCP execution plans aligned so raw measures default to `SUM(...)` consistently.
 
 The default workflow is:
 
