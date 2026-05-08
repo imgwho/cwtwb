@@ -12,6 +12,8 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+from .measure_intent import default_view_expression as _default_view_expression
+
 
 # ---------- Aggregation / Date-part -> TWB derivation mapping ----------
 
@@ -218,19 +220,18 @@ class FieldRegistry:
         can treat raw measures as aggregated values without the caller having to
         spell out the aggregation every time.
         """
-
         text = str(expr).strip()
         if not text:
             return ""
-
         ci = self.parse_expression(text)
         if ci.derivation != "None":
             return text
-
         fi = self._find_field(text)
-        if fi.role == "measure" and not fi.is_calculated:
-            return f"SUM({text})"
-        return text
+        return _default_view_expression(
+            text,
+            role=fi.role,
+            is_calculated=fi.is_calculated,
+        )
 
     def resolve_full_reference(self, instance_name: str) -> str:
         """Generate a fully-qualified reference with datasource prefix.

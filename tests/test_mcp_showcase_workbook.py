@@ -142,6 +142,51 @@ def test_configure_chart_recipe_auto_ensures_prerequisites(tmp_path: Path) -> No
     assert calendar_filter.get("member") == "202208"
 
 
+def test_configure_chart_recipe_defaults_raw_measures_to_sum(tmp_path: Path) -> None:
+    template = Path("templates/twb/superstore.twb")
+    output = tmp_path / "recipe_default_sum_raw_measures.twb"
+
+    create_workbook(str(template), "Recipe Default Sum")
+    add_worksheet("Lollipop")
+    add_worksheet("Donut")
+    add_worksheet("Butterfly")
+
+    configure_chart_recipe(
+        "Lollipop",
+        "lollipop",
+        {"dimension": "State/Province", "measure": "Sales"},
+    )
+    configure_chart_recipe(
+        "Donut",
+        "donut",
+        {"category": "Category", "measure": "Sales"},
+    )
+    configure_chart_recipe(
+        "Butterfly",
+        "butterfly",
+        {
+            "dimension": "Region",
+            "left_measure": "Sales",
+            "right_measure": "Quantity",
+        },
+    )
+    save_workbook(str(output))
+
+    root = ET.parse(output).getroot()
+
+    lollipop = _worksheet(root, "Lollipop")
+    assert "sum:Sales" in (lollipop.findtext("./table/cols") or "")
+
+    donut = _worksheet(root, "Donut")
+    donut_text = donut.find(".//pane[@id='2']//encodings/text")
+    assert donut_text is not None
+    assert "sum:Sales" in (donut_text.get("column", "") or "")
+
+    butterfly = _worksheet(root, "Butterfly")
+    assert "sum:Sales" in (butterfly.findtext("./table/cols") or "")
+    assert "sum:Quantity" in (butterfly.findtext("./table/cols") or "")
+
+
 def test_mcp_tools_can_recreate_all_supported_charts_showcase(tmp_path: Path) -> None:
     template = Path("templates/twb/superstore.twb")
     output = tmp_path / "all_supported_charts_from_mcp.twb"

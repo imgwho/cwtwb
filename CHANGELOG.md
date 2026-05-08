@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.7] - 2026-05-08
+
+### Added
+
+- **Shared measure-intent normalization across SDK and MCP authoring**: bare, non-calculated measures now default to `SUM(...)` through a shared helper so direct chart building, showcase recipes, and guided execution plans all resolve raw measures the same way.
+- **Recipe entrypoints now canonicalize measure args before dispatch**: `configure_chart_recipe(...)` normalizes lollipop, donut, and butterfly measure arguments so callers can pass raw fields while the generated workbook still uses aggregated view bindings.
+- **Regression coverage for raw-measure recipe generation**: added tests and tmp workbook samples covering raw-measure lollipop, donut, and butterfly recipes plus direct chart generation.
+
+### Changed
+
+- **Tableau workbook generation now keeps SDK and MCP behavior aligned**: field registry view bindings and guided execution plan defaults now share the same measure-intent rule set, reducing divergence between direct SDK calls and authoring flows.
+
 ## [0.18.6] - 2026-05-06
 
 ### Added
