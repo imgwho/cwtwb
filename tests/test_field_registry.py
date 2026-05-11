@@ -7,6 +7,7 @@ import logging
 import pytest
 
 from cwtwb.field_registry import FieldRegistry
+from cwtwb.measure_intent import default_measure_expression, default_view_expression
 
 
 def _build_registry(*, allow_unknown_fields: bool = False) -> FieldRegistry:
@@ -57,3 +58,10 @@ def test_case_insensitive_lookup_still_works() -> None:
     ci = registry.parse_expression("SUM(sales)")
     assert ci.column_local_name == "[Sales (Orders)]"
     assert ci.derivation == "Sum"
+
+
+def test_date_like_measures_preserve_date_binding_not_sum() -> None:
+    assert default_measure_expression("Order Date") == "MONTH(Order Date)"
+    assert default_measure_expression("YEAR(Order Date)") == "YEAR(Order Date)"
+    assert default_view_expression("Order Date", role="measure") == "MONTH(Order Date)"
+    assert default_view_expression("YEAR(Order Date)", role="measure") == "YEAR(Order Date)"

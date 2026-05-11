@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.8] - 2026-05-11
+
+### Fixed
+
+- **Date and time fields no longer fall through to `SUM(...)` defaults**: the shared measure-intent helpers now keep date-like fields on `MONTH(...)`/date bindings while preserving explicit expressions such as `YEAR(Order Date)` and keeping raw numeric measures on `SUM(...)`.
+- **Regression coverage for date-like measure intent**: added tests so raw date fields, explicit date expressions, and standard numeric measures all keep the intended view bindings.
+
 ## [0.18.7] - 2026-05-08
 
 ### Added

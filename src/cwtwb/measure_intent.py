@@ -1,9 +1,10 @@
 """Shared measure-intent helpers.
 
 These helpers keep SDK chart builders and MCP authoring flows aligned on the
-same default aggregation behavior:
+same default view-binding behavior:
 
-- Bare, non-calculated measures default to SUM(...)
+- Bare, non-calculated numeric measures default to SUM(...)
+- Bare date/time-like fields default to MONTH(...)
 - Explicit expressions are preserved
 - Calculated fields are preserved
 """
@@ -21,6 +22,37 @@ AGGREGATE_FUNCTION_PREFIXES = (
     "max(",
     "median(",
     "attr(",
+    "month(",
+    "quarter(",
+    "year(",
+    "week(",
+    "weekday(",
+    "day(",
+    "hour(",
+    "minute(",
+    "second(",
+    "date(",
+    "datetime(",
+    "dateadd(",
+    "datediff(",
+    "datetrunc(",
+    "dateparse(",
+    "my(",
+    "daytrunc(",
+)
+
+DATE_FIELD_HINTS = (
+    "date",
+    "time",
+    "year",
+    "month",
+    "quarter",
+    "week",
+    "weekday",
+    "day",
+    "hour",
+    "minute",
+    "second",
 )
 
 
@@ -34,6 +66,27 @@ def is_expression(value: str) -> bool:
         return True
     lower = text.casefold()
     return any(lower.startswith(prefix) for prefix in AGGREGATE_FUNCTION_PREFIXES)
+
+
+def looks_like_date_field_name(field_name: str) -> bool:
+    """Return whether a bare field name looks like a date or time field."""
+
+    text = str(field_name).strip()
+    if not text:
+        return False
+    normalized = " ".join(text.casefold().replace("_", " ").replace("-", " ").split())
+    return any(token in normalized for token in DATE_FIELD_HINTS)
+
+
+def default_date_expression(field_name: str) -> str:
+    """Return the default Tableau date binding for a bare field name."""
+
+    text = str(field_name).strip()
+    if not text:
+        return ""
+    if is_expression(text):
+        return text
+    return f"MONTH({text})"
 
 
 def default_measure_expression(
@@ -56,6 +109,8 @@ def default_measure_expression(
         calculated_field_names = set()
     if text in calculated_field_names:
         return text
+    if looks_like_date_field_name(text):
+        return default_date_expression(text)
     normalized = " ".join(text.casefold().replace("_", " ").replace("-", " ").split())
     if normalized == "discount":
         return f"AVG({text})"
@@ -81,6 +136,8 @@ def default_view_expression(
     if is_expression(text):
         return text
     if role == "measure" and not is_calculated:
+        if looks_like_date_field_name(text):
+            return default_date_expression(text)
         return default_measure_expression(text, calculated_field_names=calculated_field_names)
     return text
 
