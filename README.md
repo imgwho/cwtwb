@@ -16,6 +16,8 @@ It is meant to be a **workbook engineering layer**, not a conversational analyti
 
 The `cw` in `cwtwb` comes from `Cooper Wenhua`.
 
+Latest update (`0.18.8`): date-like fields now keep date bindings such as `MONTH(Order Date)` while raw numeric measures still default to `SUM(...)`.
+
 **Author:** Cooper Wenhua &lt;imgwho@gmail.com&gt;
 
 [Website](https://datacooper.com) · [Source](https://github.com/imgwho/cwtwb) · [Changelog](https://github.com/imgwho/cwtwb/blob/master/CHANGELOG.md)

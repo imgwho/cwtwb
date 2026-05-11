@@ -17,6 +17,7 @@ import xlrd
 from .authoring_contract import review_authoring_contract_payload, suggest_profile_matches
 from .config import DEFAULT_AUTHORING_RUNS_DIR
 from .connections import infer_tableau_semantic_role, inspect_hyper_schema
+from .measure_intent import default_date_expression as _shared_default_date_expression
 from .measure_intent import default_measure_expression as _shared_default_measure_expression
 
 try:
@@ -1424,12 +1425,7 @@ def _default_measure_expression(
 
 
 def _default_date_expression(field_name: str) -> str:
-    text = str(field_name).strip()
-    if not text:
-        return ""
-    if _is_expression(text):
-        return text
-    return f"MONTH({text})"
+    return _shared_default_date_expression(field_name)
 
 
 def _worksheet_text(worksheet: dict[str, Any]) -> str:
