@@ -1,13 +1,13 @@
 # cwtwb
 
 <p align="center">
-  <img src="docs/assets/readme/logo.png" alt="Datacooper logo" width="220" />
+  <img src="https://raw.githubusercontent.com/imgwho/cwtwb/master/docs/assets/readme/logo.png" alt="Datacooper logo" width="220" />
 </p>
 
 > Tableau workbook engineering for reproducible `.twb` / `.twbx` generation, validation, and migration.
 
 <p align="center">
-  <img src="docs/assets/readme/hero.png" alt="cwtwb hero image" width="1200" />
+  <img src="https://raw.githubusercontent.com/imgwho/cwtwb/master/docs/assets/readme/hero.png" alt="cwtwb hero image" width="1200" />
 </p>
 
 **cwtwb** is a Python toolkit and Model Context Protocol (MCP) server for building Tableau Desktop workbooks from code or agent tool calls.
@@ -89,7 +89,7 @@ For client-specific details and the full reference, see [https://github.com/imgw
 This GIF shows the MCP tool flow that builds a dashboard step by step.
 
 <p align="center">
-  <img src="docs/assets/readme/output_compressed.gif" alt="cwtwb demo GIF" width="1200" />
+  <img src="https://raw.githubusercontent.com/imgwho/cwtwb/master/docs/assets/readme/output_compressed.gif" alt="cwtwb demo GIF" width="1200" />
 </p>
 
 ## Architecture
