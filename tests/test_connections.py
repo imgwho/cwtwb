@@ -20,9 +20,8 @@ def superstore_template():
 @pytest.fixture
 def sample_superstore_excel():
     candidates = [
-        Path(r"C:\Users\imgwho\Documents\My Tableau Repository\Datasources\2026.1\zh_CN-China\Sample - Superstore.xls"),
-        Path(__file__).parent.parent / "backup" / "Sample - Superstore.xls",
         Path(__file__).parent.parent / "examples" / "agentic_mcp_authoring" / "Sample - Superstore.xls",
+        Path(__file__).parent.parent / "backup" / "Sample - Superstore.xls",
     ]
     for candidate in candidates:
         if candidate.exists():
