@@ -8,8 +8,10 @@ Use the local datasource in this folder:
 examples/agentic_mcp_authoring/Sample - Superstore.xls
 ```
 
-This workbook has a single `Orders` sheet, which keeps the live demo focused on
-the authoring workflow instead of multi-sheet intake decisions.
+This workbook is the full Tableau Sample - Superstore Excel file with the
+standard `Orders`, `People`, and `Returns` sheets. The demo can now exercise
+the multi-table Excel intake path instead of relying on a simplified single-sheet
+surrogate.
 
 ## What This Demo Proves
 
@@ -51,7 +53,7 @@ Primary question: Which regions, categories, and sub-categories are driving sale
 Please include interactive filtering from the top view into detail, and keep the dashboard simple enough for a polished demo.
 
 Datasource path:
-C:\Users\imgwho\Desktop\projects\20260227-cwtwb\examples\agentic_mcp_authoring\Sample - Superstore.xls
+examples/agentic_mcp_authoring/Sample - Superstore.xls
 ```
 
 Recommended live sequence:
