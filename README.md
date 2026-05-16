@@ -16,7 +16,7 @@ It is meant to be a **workbook engineering layer**, not a conversational analyti
 
 The `cw` in `cwtwb` comes from `Cooper Wenhua`.
 
-Latest update (`0.18.8`): date-like fields now keep date bindings such as `MONTH(Order Date)` while raw numeric measures still default to `SUM(...)`.
+Latest update (`0.18.9`): release refresh for a republish after the previous `0.18.8` artifacts already existed on PyPI.
 
 **Author:** Cooper Wenhua &lt;imgwho@gmail.com&gt;
 
