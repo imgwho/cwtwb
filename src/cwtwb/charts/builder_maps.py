@@ -127,7 +127,11 @@ class MapChartBuilder(BaseChartBuilder):
             for key in ("color", "size", "label", "detail"):
                 val = layer.get(key)
                 if val and val not in exprs:
-                    exprs.append(val)
+                    # Skip numeric literals (e.g. size="0.01") — not field expressions
+                    try:
+                        float(val)
+                    except (ValueError, TypeError):
+                        exprs.append(val)
             tt = layer.get("tooltip")
             if tt:
                 tt_list = [tt] if isinstance(tt, str) else tt
