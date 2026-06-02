@@ -424,6 +424,19 @@ class BaseChartBuilder:
 
     def _setup_pane(self, pane: etree._Element, mark_type: str, original_mark_type: str, instances: dict[str, ColumnInstance], color: Optional[str], size: Optional[str], label: Optional[str], detail: Optional[str], wedge_size: Optional[str], tooltip: Optional[Union[str, list[str]]], is_map: bool, geographic_field: Optional[str], map_fields: Optional[list[str]], ds_name: str) -> None:
         """Populate pane mark, encodings, tooltip, style, and map-specific XML."""
+        # Validate mark class against the Tableau XSD enumeration before
+        # writing it to <mark class="…"/>.  An unknown class would cause
+        # Tableau to reject the workbook with a 'value not in enumeration'
+        # error.  Aliases are resolved by normalize_chart_pattern in the
+        # builder's build() method, so by the time we get here ``mark_type``
+        # should already be a primitive class.  The whitelist assertion is a
+        # safety net for direct callers of _setup_pane.
+        from .pattern_mapping import TABLEAU_MARK_CLASSES
+        if mark_type not in TABLEAU_MARK_CLASSES:
+            raise ValueError(
+                f"Invalid Tableau mark class {mark_type!r}.  "
+                f"Must be one of {sorted(TABLEAU_MARK_CLASSES)}."
+            )
         mark_el = pane.find("mark")
         if mark_el is not None:
             mark_el.set("class", mark_type)

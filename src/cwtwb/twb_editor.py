@@ -1319,8 +1319,12 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
     ) -> None:
         """Add a window entry in <windows>.
 
-        Worksheet windows use <cards> structure.
-        Dashboard windows use <viewpoints> + <active> structure (per c.2 (2) reference).
+        Worksheet windows: (cards, viewpoint, simple-id)
+        Dashboard windows: (viewpoints, active, simple-id)
+
+        Both forms are required by the Tableau 18.1 workbook schema. The
+        element order and presence is enforced here unconditionally so that
+        downstream consumers (Tableau Desktop) can open the file.
         """
         windows = self.root.find("windows")
         if windows is None:
@@ -1332,7 +1336,7 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
 
         if window_class == "worksheet":
             cards = etree.SubElement(win, "cards")
-            
+
             # Left edge (pages, filters, marks)
             edge_left = etree.SubElement(cards, "edge")
             edge_left.set("name", "left")
@@ -1340,33 +1344,51 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
             etree.SubElement(strip_left, "card", type="pages")
             etree.SubElement(strip_left, "card", type="filters")
             etree.SubElement(strip_left, "card", type="marks")
-            
+
             # Top edge (columns, rows, title)
             edge_top = etree.SubElement(cards, "edge")
             edge_top.set("name", "top")
             for t in ["columns", "rows", "title"]:
                 strip_top = etree.SubElement(edge_top, "strip", size="2147483647")
                 etree.SubElement(strip_top, "card", type=t)
-                
+
             # Right edge (will be populated by chart encodings with legends later)
             edge_right = etree.SubElement(cards, "edge")
             edge_right.set("name", "right")
-            
+
             # Bottom edge
             edge_bottom = etree.SubElement(cards, "edge")
             edge_bottom.set("name", "bottom")
+
+            # <viewpoint/> is required by the schema even when empty. Without
+            # it Tableau 18.1 rejects the file with "element 'simple-id' is not
+            # allowed for content model". Some chart builders (e.g. Pie) later
+            # replace this element with one that carries <highlight> children.
+            win.append(etree.Element("viewpoint"))
         elif window_class == "dashboard":
-            # For dashboards: add viewpoints per worksheet + active marker
-            if worksheet_names:
-                viewpoints = etree.SubElement(win, "viewpoints")
-                for vp_name in worksheet_names:
-                    viewpoint = etree.SubElement(viewpoints, "viewpoint")
-                    viewpoint.set("name", vp_name)
-                    if worksheet_options and worksheet_options.get(vp_name, {}).get("fit") in ("entire", "entire-view"):
-                        zoom = etree.SubElement(viewpoint, "zoom")
-                        zoom.set("type", "entire-view")
-                active = etree.SubElement(win, "active")
-                active.set("id", "-1")
+            # Tableau's dashboard window content model is
+            # (viewpoints, active, device-preview, simple-id).  All three of
+            # <viewpoints>, <active>, and <simple-id> are required — emitting
+            # <simple-id> alone yields "element 'simple-id' is not allowed".
+            viewpoints_el = etree.SubElement(win, "viewpoints")
+            # If the caller supplied explicit worksheet names, mirror them as
+            # viewpoints (Tableau uses these for "Reset View" UX). If not,
+            # enumerate whatever worksheets currently exist in the workbook
+            # so the structure is still schema-valid.
+            named = list(worksheet_names or [])
+            if not named:
+                for ws in self.root.findall(".//worksheets/worksheet"):
+                    name_attr = ws.get("name", "")
+                    if name_attr:
+                        named.append(name_attr)
+            for vp_name in named:
+                viewpoint = etree.SubElement(viewpoints_el, "viewpoint")
+                viewpoint.set("name", vp_name)
+                if worksheet_options and worksheet_options.get(vp_name, {}).get("fit") in ("entire", "entire-view"):
+                    zoom = etree.SubElement(viewpoint, "zoom")
+                    zoom.set("type", "entire-view")
+            active = etree.SubElement(win, "active")
+            active.set("id", "-1")
 
         # Add simple-id (must be at the end according to schema)
         simple_id = etree.SubElement(win, "simple-id")
