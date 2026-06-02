@@ -84,6 +84,7 @@ class TextChartBuilder(BaseChartBuilder):
             if extra_field not in all_exprs:
                 all_exprs.append(extra_field)
         instances = self._parse_and_prepare_instances(all_exprs, self.filters)
+        self._add_tooltip_instances(instances, all_exprs, self.tooltip)
         self._setup_datasource_dependencies(view, ds_name, instances, all_exprs)
 
         pane = self._get_or_create_pane(table)

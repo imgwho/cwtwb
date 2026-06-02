@@ -55,7 +55,7 @@ from typing import Optional, Union
 
 from lxml import etree
 
-from ..field_registry import FieldRegistry, ColumnInstance
+from ..field_registry import FieldRegistry, ColumnInstance, _DERIVATION_ABBR, _EXPR_RE
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +151,79 @@ class BaseChartBuilder:
         if normalized != text:
             return instances.get(normalized)
         return None
+
+    def _tooltip_instance_for_expression(self, expr: Optional[str]) -> Optional[ColumnInstance]:
+        """Resolve a field expression to the ColumnInstance Tableau writes on the
+        Tooltip encoding shelf.
+
+        Tooltip encodings always aggregate the field:
+
+        * Dimensions  → ``Attribute`` (``[attr:Field:nk]``)
+        * Measures    → ``Sum``       (``[sum:Field:qk]``)
+
+        These differ from ``parse_expression``'s defaults, which keep dimensions
+        at ``None`` (``[none:...]``) and promote calculated measures to ``User``
+        (``[usr:...]``).  Without this override, a tooltip on a bare dimension
+        or calculated measure ends up pointing at an instance Tableau cannot
+        resolve, so the tooltip value silently disappears.
+        """
+        text = str(expr or "").strip()
+        if not text:
+            return None
+        # Honour explicit aggregations (SUM, AVG, ATTR, …) as written.
+        if _EXPR_RE.match(text):
+            return self.field_registry.parse_expression(text)
+        try:
+            fi = self.field_registry._find_field(text)
+        except KeyError:
+            return None
+        if fi.role == "dimension":
+            target_deriv_xml = "Attribute"     # written into <column-instance derivation="…">
+            target_deriv_key = "Attr"          # key into _DERIVATION_ABBR
+            ci_type = "nominal"
+        else:
+            target_deriv_xml = "Sum"
+            target_deriv_key = "Sum"
+            ci_type = "quantitative"
+        abbr = _DERIVATION_ABBR[target_deriv_key]
+        type_suffix = {"nominal": "nk", "quantitative": "qk", "ordinal": "ok"}[ci_type]
+        return ColumnInstance(
+            column_local_name=fi.local_name,
+            derivation=target_deriv_xml,
+            instance_name=f"[{abbr}:{fi.local_name.strip('[]')}:{type_suffix}]",
+            ci_type=ci_type,
+        )
+
+    def _add_tooltip_instances(
+        self,
+        instances: dict[str, ColumnInstance],
+        all_exprs: list[str],
+        tooltip: Optional[Union[str, list[str]]],
+    ) -> None:
+        """Augment ``instances``/``all_exprs`` with tooltip-shelf instances.
+
+        ``_setup_datasource_dependencies`` iterates over ``instances.items()``
+        to emit ``<column-instance>`` entries, so any tooltip-specific instance
+        must be added here *before* that pass runs.  Bare fields get a fresh
+        instance (e.g. ``[attr:day:nk]`` for a dimension, ``[sum:Tip Ratio:qk]``
+        for a calculated measure).  Explicit aggregations already produce the
+        correct instance via ``parse_expression`` and need no augmentation.
+        """
+        if not tooltip:
+            return
+        tooltip_list = [tooltip] if isinstance(tooltip, str) else tooltip
+        for tt in tooltip_list:
+            tt_ci = self._tooltip_instance_for_expression(tt)
+            if tt_ci is None:
+                continue
+            if tt_ci.instance_name in {ci.instance_name for ci in instances.values()}:
+                continue
+            key = f"__tooltip__:{tt}"
+            if key in instances:
+                continue
+            instances[key] = tt_ci
+            if key not in all_exprs:
+                all_exprs.append(key)
 
     def _setup_datasource_dependencies(self, view: etree._Element, ds_name: str, instances: dict[str, ColumnInstance], all_exprs: list[str]) -> None:
         """Rewrite <datasource-dependencies> to include required columns and instances."""
@@ -506,7 +579,9 @@ class BaseChartBuilder:
             if tooltip:
                 tooltip_list = [tooltip] if isinstance(tooltip, str) else tooltip
                 for tt in tooltip_list:
-                    tt_ci = self._instance_for_expression(instances, tt)
+                    tt_ci = self._tooltip_instance_for_expression(tt)
+                    if tt_ci is None:
+                        tt_ci = self._instance_for_expression(instances, tt)
                     if tt_ci is not None:
                         tt_el = etree.SubElement(encodings_el, "tooltip")
                         tt_el.set("column", self.field_registry.resolve_full_reference(tt_ci.instance_name))

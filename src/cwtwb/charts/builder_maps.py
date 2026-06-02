@@ -81,6 +81,10 @@ class MapChartBuilder(BaseChartBuilder):
         # Gather all field expressions across all layers for dependency setup
         all_exprs = self._collect_all_expressions()
         instances = self._parse_and_prepare_instances(all_exprs, self.filters)
+        # Augment with tooltip-specific aggregations (Attribute for dimensions,
+        # Sum for measures) so the encoding references resolve correctly.
+        tooltip_for_deps = self._collect_tooltip_expressions()
+        self._add_tooltip_instances(instances, all_exprs, tooltip_for_deps)
         self._setup_datasource_dependencies(view, ds_name, instances, all_exprs)
 
         if self.map_layers:
@@ -109,6 +113,28 @@ class MapChartBuilder(BaseChartBuilder):
     # ------------------------------------------------------------------
     # Field expression collection
     # ------------------------------------------------------------------
+    def _collect_tooltip_expressions(self) -> list[str]:
+        """Flatten top-level and per-layer tooltip expressions for the map."""
+        out: list[str] = []
+        if self.tooltip:
+            if isinstance(self.tooltip, str):
+                out.append(self.tooltip)
+            else:
+                out.extend(self.tooltip)
+        if self.map_layers:
+            for layer in self.map_layers:
+                tt = layer.get("tooltip")
+                if not tt:
+                    continue
+                if isinstance(tt, str):
+                    if tt not in out:
+                        out.append(tt)
+                else:
+                    for t in tt:
+                        if t not in out:
+                            out.append(t)
+        return out
+
     def _collect_all_expressions(self) -> list[str]:
         """Gather every field expression used across all parameters."""
         if not self.map_layers:
@@ -234,10 +260,16 @@ class MapChartBuilder(BaseChartBuilder):
                 if l_tooltip:
                     tt_list = [l_tooltip] if isinstance(l_tooltip, str) else l_tooltip
                     for tt in tt_list:
-                        if tt in instances:
+                        # Prefer the tooltip-correct instance (Attribute for
+                        # dim, Sum for measure).  Fall back to the default
+                        # lookup for explicit aggregations like SUM(field).
+                        tt_ci = self._tooltip_instance_for_expression(tt)
+                        if tt_ci is None and tt in instances:
+                            tt_ci = instances[tt]
+                        if tt_ci is not None:
                             te = etree.SubElement(enc_el, "tooltip")
                             te.set("column", self.field_registry.resolve_full_reference(
-                                instances[tt].instance_name))
+                                tt_ci.instance_name))
 
                 # LOD fields (geographic + map_fields) on every layer
                 if self.geographic_field and self.geographic_field in instances:
