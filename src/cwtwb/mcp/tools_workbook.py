@@ -43,8 +43,7 @@ from typing import Optional
 
 from ..charts.showcase_recipes import configure_chart_recipe as configure_chart_recipe_impl
 from ..twb_editor import TWBEditor
-from .app import server
-from .state import get_editor, set_editor
+from .app import get_editor, server, set_editor
 
 
 def _format_worksheets(editor: TWBEditor) -> str:

@@ -38,8 +38,6 @@ from typing import TYPE_CHECKING
 
 from lxml import etree
 
-from .pattern_mapping import normalize_chart_pattern
-
 if TYPE_CHECKING:
     from ..field_registry import ColumnInstance
 
@@ -52,6 +50,7 @@ def apply_chart_macros(
     color: str | None,
 ) -> tuple[str, list[str], list[str]]:
     """Normalize higher-level chart patterns onto builder-compatible values."""
+    from .dispatcher import normalize_chart_pattern
 
     resolution = normalize_chart_pattern(mark_type, columns=columns, rows=rows, color=color)
     return resolution.actual_mark_type, resolution.columns, resolution.rows

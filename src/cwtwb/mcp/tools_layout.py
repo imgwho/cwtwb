@@ -48,7 +48,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..dashboard_layouts import normalize_dashboard_layout
+from ..dashboards import normalize_dashboard_layout
 from .app import server
 
 

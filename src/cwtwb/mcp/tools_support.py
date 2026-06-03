@@ -61,8 +61,7 @@ from ..connections import (
 )
 from ..twb_analyzer import analyze_workbook
 from ..validator import TWBValidationError, load_workbook_root, validate_against_schema
-from .app import server
-from .state import get_editor
+from .app import get_editor, server
 
 
 @server.tool()

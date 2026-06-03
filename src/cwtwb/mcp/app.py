@@ -1,7 +1,19 @@
-"""FastMCP server singleton for the cwtwb MCP server.
+"""FastMCP server singleton and mutable workbook state for the cwtwb MCP server.
 
 This module creates the single FastMCP `server` instance that all tool and
 resource modules register against via @server.tool() and @server.resource().
+
+It also holds the single active TWBEditor instance (singleton state).
+All tools that need to read or mutate the workbook call get_editor(), which
+raises RuntimeError if no workbook has been opened yet.
+
+State transitions:
+  (none)  →  set_editor(editor)   [create_workbook / open_workbook]
+          →  get_editor()         [any subsequent tool call]
+          →  set_editor(editor)   [create_workbook / open_workbook again resets]
+
+There is no "close workbook" operation — saving the file is the final step.
+The state is process-local and resets when the MCP server process restarts.
 
 Import order matters: app.py must be imported before tools_*.py and resources.py
 so that `server` exists when the decorators run.  The entry point (typically
@@ -12,8 +24,13 @@ The `instructions` string is what AI agents read when they first connect —
 it summarises the required call order and points agents to skill resources.
 """
 
+from __future__ import annotations
+
+from typing import Optional
+
 from mcp.server.fastmcp import FastMCP
 
+from ..twb_editor import TWBEditor
 
 server = FastMCP(
     "cwtwb",
@@ -47,3 +64,20 @@ server = FastMCP(
     "For professional-quality output, optionally read the agent skills "
     "(cwtwb://skills/index) before starting each phase.",
 )
+
+_editor: Optional[TWBEditor] = None
+
+
+def get_editor() -> TWBEditor:
+    """Get the current editor instance, raising if none exists."""
+
+    if _editor is None:
+        raise RuntimeError("No active workbook. Call create_workbook or open_workbook first.")
+    return _editor
+
+
+def set_editor(editor: TWBEditor) -> None:
+    """Replace the current editor instance."""
+
+    global _editor
+    _editor = editor

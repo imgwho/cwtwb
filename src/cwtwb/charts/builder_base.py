@@ -504,7 +504,7 @@ class BaseChartBuilder:
         # builder's build() method, so by the time we get here ``mark_type``
         # should already be a primitive class.  The whitelist assertion is a
         # safety net for direct callers of _setup_pane.
-        from .pattern_mapping import TABLEAU_MARK_CLASSES
+        from .dispatcher import TABLEAU_MARK_CLASSES
         if mark_type not in TABLEAU_MARK_CLASSES:
             raise ValueError(
                 f"Invalid Tableau mark class {mark_type!r}.  "

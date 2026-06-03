@@ -4,7 +4,7 @@ This module is the routing layer between the stable public API (ChartsMixin)
 and the concrete builder implementations.  It answers two questions:
 
   1. Which builder class should handle this request?
-     → routing_policy.profile_chart_request() maps mark_type + feature flags
+     → profile_chart_request() maps mark_type + feature flags
        to a ChartRouteProfile (builder_name: "basic" | "text" | "pie" | "map").
 
   2. How should arguments be forwarded to that builder?
@@ -26,15 +26,185 @@ from __future__ import annotations
 __author__ = "Cooper Wenhua <imgwho@gmail.com>"
 
 
+from dataclasses import dataclass
 from typing import Optional, Union
 
+from ..capability_registry import CapabilityLevel, get_capability
 from .builder_basic import BasicChartBuilder
 from .builder_dual_axis import DualAxisChartBuilder
 from .builder_maps import MapChartBuilder
 from .builder_pie import PieChartBuilder
 from .builder_text import TextChartBuilder
-from .routing_policy import ChartRouteProfile, profile_chart_request, profile_dual_axis_request
 
+
+# ---------------------------------------------------------------------------
+# Chart pattern normalization (formerly pattern_mapping.py)
+# ---------------------------------------------------------------------------
+
+# Tableau 18.1 mark class enumeration (from workbook XSD).
+# Any mark class not in this set is rejected by the runtime, so we never write
+# an invalid value into <mark class="…"/>.
+# ``Multipolygon`` is a map-layer-only class accepted by the same schema.
+TABLEAU_MARK_CLASSES: frozenset[str] = frozenset({
+    "Automatic",
+    "Bar",
+    "Line",
+    "Area",
+    "Circle",
+    "Square",
+    "Shape",
+    "Pie",
+    "Polygon",
+    "GanttBar",
+    "Text",
+    "Map",
+    "Multipolygon",
+})
+
+# Friendly aliases → underlying Tableau mark class.
+# Keep the alias set conservative: every key must map to a real Tableau class.
+MARK_ALIASES: dict[str, str] = {
+    "Scatterplot": "Circle",
+    "Scatter": "Circle",
+    "Bubble Chart": "Circle",
+    "Heatmap": "Square",
+    "Tree Map": "Square",
+}
+
+
+@dataclass(frozen=True)
+class PatternResolution:
+    """Normalized mark configuration for basic-chart style builders."""
+
+    requested_mark_type: str
+    actual_mark_type: str
+    columns: list[str]
+    rows: list[str]
+
+
+def normalize_chart_pattern(
+    mark_type: str,
+    columns: list[str] | None = None,
+    rows: list[str] | None = None,
+    color: str | None = None,
+) -> PatternResolution:
+    """Resolve advanced chart aliases onto their underlying Tableau marks.
+
+    Known aliases (e.g. ``"Scatterplot"``, ``"Tree Map"``) and the canonical
+    Tableau mark classes are mapped to a primitive mark string.  Unrecognised
+    inputs are passed through unchanged so that recipe-level patterns such as
+    ``"Donut"`` can still reach their specialised handling downstream.
+
+    The canonical mark-class list is exported as :data:`TABLEAU_MARK_CLASSES`
+    and the alias mapping as :data:`MARK_ALIASES` so that builders can perform
+    their own validation at XML-write time without affecting routing policy.
+    """
+
+    resolved_columns = list(columns or [])
+    resolved_rows = list(rows or [])
+
+    if mark_type in MARK_ALIASES:
+        actual_mark_type = MARK_ALIASES[mark_type]
+    else:
+        actual_mark_type = mark_type
+
+    if mark_type in ("Tree Map", "Bubble Chart"):
+        resolved_columns = []
+        resolved_rows = []
+
+    return PatternResolution(
+        requested_mark_type=mark_type,
+        actual_mark_type=actual_mark_type,
+        columns=resolved_columns,
+        rows=resolved_rows,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Routing policy (formerly routing_policy.py)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ChartRouteProfile:
+    """Resolved routing profile for a chart request."""
+
+    requested_mark_type: str
+    actual_mark_type: str
+    support_level: CapabilityLevel | None
+    route_family: str
+    builder_name: str
+
+
+def _resolve_support_level(mark_type: str) -> CapabilityLevel | None:
+    """Resolve declared support tier for a requested chart/mark label."""
+    spec = get_capability("chart", mark_type)
+    return None if spec is None else spec.level
+
+
+def profile_chart_request(mark_type: str, *, measure_values_mode: bool = False) -> ChartRouteProfile:
+    """Classify a chart request without changing compatibility behavior."""
+
+    if mark_type == "Text":
+        return ChartRouteProfile(
+            requested_mark_type=mark_type,
+            actual_mark_type="Text",
+            support_level=_resolve_support_level(mark_type),
+            route_family="primitive",
+            builder_name="text",
+        )
+
+    if mark_type == "Pie":
+        return ChartRouteProfile(
+            requested_mark_type=mark_type,
+            actual_mark_type="Pie",
+            support_level=_resolve_support_level(mark_type),
+            route_family="primitive",
+            builder_name="pie",
+        )
+
+    if mark_type == "Map":
+        return ChartRouteProfile(
+            requested_mark_type=mark_type,
+            actual_mark_type="Map",
+            support_level=_resolve_support_level(mark_type),
+            route_family="primitive",
+            builder_name="map",
+        )
+
+    normalized = normalize_chart_pattern(mark_type)
+    support_level = _resolve_support_level(mark_type)
+
+    if support_level == "advanced":
+        route_family = "pattern"
+    elif support_level == "recipe":
+        route_family = "compatibility"
+    else:
+        route_family = "primitive"
+
+    return ChartRouteProfile(
+        requested_mark_type=mark_type,
+        actual_mark_type=normalized.actual_mark_type,
+        support_level=support_level,
+        route_family=route_family,
+        builder_name="basic",
+    )
+
+
+def profile_dual_axis_request() -> ChartRouteProfile:
+    """Classify the dual-axis path as an advanced composition route."""
+
+    return ChartRouteProfile(
+        requested_mark_type="Dual Axis",
+        actual_mark_type="Dual Axis",
+        support_level=_resolve_support_level("Dual Axis"),
+        route_family="composition",
+        builder_name="dual_axis",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Dispatch (original dispatcher.py)
+# ---------------------------------------------------------------------------
 
 def decide_chart_builder(mark_type: str, *, measure_values: Optional[list[str]] = None) -> ChartRouteProfile:
     """Choose the stable builder layer for a chart request."""

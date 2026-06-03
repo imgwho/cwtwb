@@ -2916,7 +2916,7 @@ def _write_wireframe_layout_json(
 
 
 def _canonicalize_wireframe_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    from .dashboard_layouts import extract_layout_worksheets, validate_layout_worksheets
+    from .dashboards import extract_layout_worksheets, validate_layout_worksheets
 
     canonical = deepcopy(payload)
     layout_tree = canonical.get("layout_tree")
@@ -4228,7 +4228,7 @@ def _validate_execution_scope(
 
     wireframe_names: list[str] = []
     if layout_tree:
-        from .dashboard_layouts import extract_layout_worksheets, validate_layout_worksheets
+        from .dashboards import extract_layout_worksheets, validate_layout_worksheets
 
         try:
             validate_layout_worksheets(layout_tree)
