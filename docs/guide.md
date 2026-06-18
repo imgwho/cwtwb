@@ -65,6 +65,41 @@ Available worksheet-refactor helpers:
 
 `apply_worksheet_refactor(...)` now also performs a worksheet-local identity normalization pass for generic Tableau `Calculation_*` fields. This stabilizes pill labels after clone-and-replace workflows and returns `post_process` evidence describing renamed calculation identities and worksheet-local rewrite maps.
 
+### Cloud Validation
+
+After saving a workbook, use `upload_workbook` to verify it is structurally valid by uploading to Tableau Cloud. Upload success confirms Tableau Cloud can parse the workbook. Optionally capture a screenshot for human review.
+
+**Setup:**
+
+```bash
+pip install "cwtwb[validate]"
+cp .env.example .env  # Fill in your Tableau Cloud PAT credentials
+```
+
+**Python API:**
+
+```python
+from cwtwb.validate import TableauUploader
+
+uploader = TableauUploader()
+
+# Upload and validate
+result = uploader.upload("output/my_workbook.twb", data_path="data.xlsx")
+print(result.success, result.workbook_url)
+
+# Optional: screenshot for human review
+if result.success:
+    screenshot = uploader.screenshot(result.workbook_id, output_dir="output/validation")
+    print(screenshot.path)
+```
+
+**MCP Tools:**
+
+```
+upload_workbook(twb_path="output/my.twb", data_path="data.xlsx")
+screenshot_workbook(workbook_id="xxx", output_dir="output/validation")
+```
+
 ### Working with Packaged Workbooks (.twbx)
 
 `.twbx` files are ZIP archives that bundle the workbook XML together with data extracts (`.hyper`) and image assets. cwtwb reads and writes them transparently:
@@ -130,6 +165,8 @@ editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .t
 | `set_tableauserver_connection` | Configure connection to an online Tableau Server |
 | `set_hyper_connection` | Configure the datasource to use a local Hyper extract connection |
 | `save_workbook` | Save the workbook as `.twb` (plain XML) or `.twbx` (ZIP with bundled extracts and images) |
+| `upload_workbook` | Upload `.twb` to Tableau Cloud to verify structural validity (requires `cwtwb[validate]`) |
+| `screenshot_workbook` | Capture a view image from a published workbook for human review (requires `cwtwb[validate]`) |
 
 Important save semantics for agents:
 
@@ -421,6 +458,7 @@ cwtwb/
 |   |-- skills/
 |   |-- twb_analyzer.py
 |   |-- twb_editor.py
+|   |-- validate/          # Cloud validation (upload + screenshot)
 |   |-- validator.py
 |   `-- server.py
 |-- tests/

@@ -71,7 +71,11 @@ server = FastMCP(
     "Prefer core primitives first, and use list_capabilities or describe_capability "
     "when you need to check whether a chart or feature is core, advanced, or recipe-only. "
     "For professional-quality output, optionally read the agent skills "
-    "(cwtwb://skills/index) before starting each phase.",
+    "(cwtwb://skills/index) before starting each phase. "
+    "After save_workbook, use upload_workbook to validate the generated .twb on "
+    "Tableau Cloud (requires .env with TABLEAU_PAT credentials). Upload success "
+    "confirms the workbook is structurally valid. Optionally use screenshot_workbook "
+    "to capture a view image for human review.",
 )
 
 _editor: Optional[TWBEditor] = None

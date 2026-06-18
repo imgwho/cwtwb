@@ -56,5 +56,10 @@ from .mcp.tools_workbook import (
 )
 
 
+from .mcp.tools_validate import (
+    screenshot_workbook,
+    upload_workbook,
+)
+
 if __name__ == "__main__":
     main()

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] - 2026-06-18
+
+### Added
+
+- **Cloud validation module (`cwtwb.validate`)**: upload generated `.twb` to Tableau Cloud to verify structural validity, with optional screenshot for human review.
+  - `upload_workbook` MCP tool: packages `.twb` + data into `.twbx` and uploads to Tableau Cloud. Upload success confirms the workbook is structurally valid.
+  - `screenshot_workbook` MCP tool: captures a view image from a published workbook for visual inspection.
+  - Optional dependency: `pip install "cwtwb[validate]"` to install `tableauserverclient`.
+  - Configuration via `.env` file (see `.env.example`).
+
 ## [0.19.0] - 2026-06-13
 
 ### Added
