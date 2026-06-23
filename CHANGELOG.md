@@ -5,12 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-06-23
+
+### Added
+
+- **Skill references in MCP tool responses**: AI agents are now guided to read the relevant skill file (`calculation_builder`, `chart_builder`, `formatting`, `dashboard_designer`) before using key tools. Skill hints appear in both tool docstrings (via `read_resource` instructions) and return values (via `📖 For best practices, read: ...`).
+  - Affected tools: `add_calculated_field`, `configure_chart`, `configure_dual_axis`, `configure_chart_recipe`, `configure_worksheet_style`, `add_dashboard`
+  - Expected to improve chart configuration accuracy for AI agents by surfacing best practices at the point of use.
+
+### Changed
+
+- **Default dashboard layout is now `"auto"`**: `add_dashboard` defaults to `layout="auto"` instead of `"vertical"`. The `"auto"` layout currently falls back to a simple vertical stack and is the recommended starting point; pass explicit layout dicts or JSON files for mixed layouts.
+
+### Fixed
+
+- **Date fields no longer get automatic aggregation**: `_default_aggregation()` returns `None` for date/datetime types instead of `"Year"`. This prevents Tableau from auto-creating a `"yymmdd"` date hierarchy on date fields imported via `set_excel_connection` or `set_csv_connection`. Date fields are now treated as dimensions without automatic hierarchy creation.
+- **Datasource caption matches Excel filename**: `set_excel_connection` now updates the datasource `caption` attribute to the Excel filename (without extension) instead of keeping the template's default caption (e.g. `"Superstore"`).
+- **Field duplication on `set_excel_connection`**: old `metadata-records` are now cleaned before rebuilding external datasource metadata, preventing fields from appearing twice after calling `set_excel_connection`.
+- **README**: corrected "Tableau Cloud" references to "Tableau Cloud/Server" throughout.
+
 ## [0.20.0] - 2026-06-18
 
 ### Added
 
-- **Cloud validation module (`cwtwb.validate`)**: upload generated `.twb` to Tableau Cloud to verify structural validity, with optional screenshot for human review.
-  - `upload_workbook` MCP tool: packages `.twb` + data into `.twbx` and uploads to Tableau Cloud. Upload success confirms the workbook is structurally valid.
+- **Cloud validation module (`cwtwb.validate`)**: upload generated `.twb` to Tableau Cloud/Server to verify structural validity, with optional screenshot for human review.
+  - `upload_workbook` MCP tool: packages `.twb` + data into `.twbx` and uploads to Tableau Cloud/Server. Upload success confirms the workbook is structurally valid.
   - `screenshot_workbook` MCP tool: captures a view image from a published workbook for visual inspection.
   - Optional dependency: `pip install "cwtwb[validate]"` to install `tableauserverclient`.
   - Configuration via `.env` file (see `.env.example`).
