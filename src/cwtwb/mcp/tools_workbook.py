@@ -575,9 +575,18 @@ def add_dashboard(
     worksheet_names: list[str],
     width: int = 1200,
     height: int = 800,
-    layout: str | dict = "vertical",
+    layout: str | dict = "auto",
 ) -> str:
-    """Create a dashboard combining multiple worksheets."""
+    """Create a dashboard combining multiple worksheets.
+
+    Layout options:
+    - "auto" (default): Intelligent mixed layout based on worksheet count
+    - "vertical": All worksheets stacked vertically
+    - "horizontal": All worksheets side-by-side
+    - "grid-2x2": 2x2 grid layout
+    - dict: Custom declarative layout tree
+    - str (file path): Path to JSON layout file
+    """
 
     editor = get_editor()
     return editor.add_dashboard(
