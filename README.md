@@ -45,7 +45,7 @@ If you want the bundled Hyper-backed example too:
 pip install "cwtwb[examples]"
 ```
 
-If you want cloud validation (upload to Tableau Cloud):
+If you want cloud validation (upload to Tableau Cloud/Server):
 
 ```bash
 pip install "cwtwb[validate]"
@@ -87,7 +87,7 @@ For client-specific details and the full reference, see [https://github.com/imgw
 | Workbook authoring | Generate `.twb` / `.twbx` files from templates or from scratch |
 | Chart building | Build bar, line, pie, map, KPI, and dual-axis workbooks |
 | Safety | Validate structure and Tableau XSD before publishing |
-| Cloud validation | Upload to Tableau Cloud to verify .twb is structurally valid, with optional screenshot |
+| Cloud validation | Upload to Tableau Cloud/Server to verify .twb is structurally valid, with optional screenshot |
 | Migration | Repoint existing workbooks to new data sources with explicit steps |
 | MCP support | Drive workbook workflows from Claude, Cursor, VSCode, or other MCP clients |
 
@@ -142,7 +142,7 @@ This GIF shows the MCP tool flow that builds a dashboard step by step.
                                   ▼
   ┌───────────────────────────────────────────────────────────────┐
   │               Cloud Validation (optional)                    │
-  │    upload_workbook → Tableau Cloud → screenshot_workbook      │
+  │    upload_workbook → Tableau Cloud/Server → screenshot_workbook      │
   │    Confirms .twb is structurally valid and captures preview   │
   └───────────────────────────────────────────────────────────────┘
 ```
@@ -159,13 +159,13 @@ No. `validate_workbook()` checks the workbook in memory or on disk, but it does 
 
 ### What is `upload_workbook` for?
 
-`upload_workbook` uploads a `.twb` to Tableau Cloud to verify it is structurally valid. Upload success means Tableau Cloud can parse the workbook. Requires `pip install "cwtwb[validate]"` and a `.env` file with Tableau credentials (see `.env.example`).
+`upload_workbook` uploads a `.twb` to Tableau Cloud/Server to verify it is structurally valid. Upload success means Tableau Cloud/Server can parse the workbook. Requires `pip install "cwtwb[validate]"` and a `.env` file with Tableau credentials (see `.env.example`).
 
-### How do I set up Tableau Cloud validation?
+### How do I set up Tableau Cloud/Server validation?
 
 1. Install: `pip install "cwtwb[validate]"`
 2. Copy `.env.example` to `.env`
-3. Fill in your Tableau Cloud PAT credentials
+3. Fill in your Tableau Cloud/Server PAT credentials
 4. After `save_workbook`, call `upload_workbook` to validate
 
 ### When should I use `uvx cwtwb` versus `python -m cwtwb.mcp`?
