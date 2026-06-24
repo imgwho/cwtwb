@@ -45,6 +45,43 @@ def upload_workbook(
 
 
 @server.tool()
+def validate_workbook(
+    twb_path: str,
+    validation_level: str = "semantic",
+) -> dict:
+    """Validate a .twb file via Tableau Cloud REST API (no publish).
+
+    This performs semantic validation that checks whether the workbook will
+    actually open in Tableau — beyond what local XSD schema validation can
+    detect (calculated field formulas, field references, data source
+    connectivity, etc.). The file is NOT stored on the server.
+
+    Only .twb files are supported. For .twbx files, use upload_workbook.
+
+    Requires Tableau Cloud June 2026+ / Server 2026.2+ (API version 3.29+).
+
+    Args:
+        twb_path: Path to .twb file.
+        validation_level: "syntactic" (XSD only) or "semantic" (full, default).
+
+    Returns:
+        {success, validation_level, valid, errors, warnings, error}
+    """
+    from ..validate.uploader import TableauUploader
+
+    uploader = TableauUploader()
+    result = uploader.validate(twb_path, validation_level)
+    return {
+        "success": result.success,
+        "validation_level": result.validation_level,
+        "valid": result.valid,
+        "errors": result.errors,
+        "warnings": result.warnings,
+        "error": result.error,
+    }
+
+
+@server.tool()
 def screenshot_workbook(
     workbook_id: str,
     output_dir: str = "output/validation",

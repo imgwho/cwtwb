@@ -1784,8 +1784,11 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
                 extracts / images bundled from the source .twbx, if one was
                 opened). Use .twb for a plain XML workbook.
             validate: If True (default), run the unified save validation chain:
-                      in-memory structure checks, disk round-trip parse, and
-                      strict XSD checks when the schema is available.
+                      in-memory structure checks, disk round-trip parse,
+                      strict XSD checks when the schema is available, and
+                      Tableau Cloud REST API semantic validation when .env
+                      credentials are configured and the server supports it
+                      (requires Tableau Cloud June 2026+ / Server 2026.2+).
 
         Returns:
             Confirmation message.
@@ -1820,6 +1823,11 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
                     raise TWBValidationError(
                         "Saved workbook failed validation:\n" + details
                     )
+
+                # REST API semantic validation (mandatory when configured)
+                if output_path.suffix.lower() == ".twb":
+                    self._validate_via_rest_api(tmp_path)
+
             os.replace(tmp_path, output_path)
         finally:
             if _watermark.getparent() is not None:
@@ -1827,4 +1835,34 @@ class TWBEditor(ParametersMixin, ConnectionsMixin, ChartsMixin, DashboardsMixin)
             if tmp_path.exists():
                 tmp_path.unlink()
         return f"Saved workbook to {output_path}"
+
+    def _validate_via_rest_api(self, twb_path: Path) -> None:
+        """Run REST API semantic validation if .env is configured.
+
+        Raises TWBValidationError if validation fails. Silently skips
+        if .env is not configured (PAT secret is empty) — local validation
+        is sufficient in that case.
+        """
+        from .validate.uploader import TableauUploader
+
+        uploader = TableauUploader()
+        if not uploader.pat_secret:
+            return  # .env not configured — skip REST API validation
+
+        result = uploader.validate(twb_path, validation_level="semantic")
+
+        if not result.success:
+            # API call itself failed (404, network error, etc.) — warn but
+            # don't block save, since local validation already passed.
+            logger.warning(
+                "REST API validation skipped: %s", result.error
+            )
+            return
+
+        if not result.valid:
+            details = "\n".join(f"  * {e}" for e in result.errors)
+            raise TWBValidationError(
+                "Workbook failed Tableau Cloud semantic validation:\n"
+                + details
+            )
 

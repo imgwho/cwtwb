@@ -85,8 +85,8 @@ For client-specific details and the full reference, see [https://github.com/imgw
 |---|---|
 | Workbook authoring | Generate `.twb` / `.twbx` files from templates or from scratch |
 | Chart building | Build bar, line, pie, map, KPI, and dual-axis workbooks |
-| Safety | Validate structure and Tableau XSD before publishing |
-| Cloud validation | Upload to Tableau Cloud/Server to verify .twb is structurally valid, with optional screenshot |
+| Safety | Validate structure, Tableau XSD (2026.1/2026.2), and REST API semantic validation before publishing |
+| Cloud validation | REST API syntactic/semantic validation + upload to Tableau Cloud/Server with optional screenshot |
 | Migration | Repoint existing workbooks to new data sources with explicit steps |
 | MCP support | Drive workbook workflows from Claude, Cursor, VSCode, or other MCP clients |
 
@@ -141,9 +141,42 @@ This GIF shows the MCP tool flow that builds a dashboard step by step.
                                   ▼
   ┌───────────────────────────────────────────────────────────────┐
   │               Cloud Validation (optional)                    │
-  │    upload_workbook → Tableau Cloud/Server → screenshot_workbook      │
-  │    Confirms .twb is structurally valid and captures preview   │
+  │    validate_workbook → REST API semantic validation          │
+  │    upload_workbook   → Tableau Cloud/Server publish          │
+  │    screenshot_workbook → capture view for visual check       │
   └───────────────────────────────────────────────────────────────┘
+```
+
+## Validation
+
+cwtwb provides four levels of workbook validation:
+
+| Level | Description | Requires |
+|---|---|---|
+| **1. Local XSD** | Validate against the official Tableau TWB XSD schema (version-aware: 2026.1 or 2026.2) | None (built-in) |
+| **2. REST API Syntactic** | Validate XML syntax via Tableau Cloud REST API | `.env` + Tableau Cloud 2026.2+ |
+| **3. REST API Semantic** | Full semantic validation — guarantees the workbook opens in Tableau | `.env` + Tableau Cloud 2026.2+ |
+| **4. Upload + Screenshot** | Publish to Tableau Cloud/Server and capture a view image | `.env` + `pip install "cwtwb[validate]"` |
+
+```python
+# Level 1 — Local XSD (in-memory, no save required)
+result = editor.validate_schema()
+print(result.to_text())
+
+# Level 3 — REST API semantic validation
+from cwtwb.validate.uploader import TableauUploader
+uploader = TableauUploader()
+result = uploader.validate("output.twb", validation_level="semantic")
+
+# Save with automatic REST API validation (enforced when .env is configured)
+editor.save("output.twb")  # runs local XSD + REST API semantic validation
+```
+
+```bash
+# MCP tools
+validate_workbook(twb_path="output.twb")                             # REST API validation
+upload_workbook(twb_path="output.twb")                               # Cloud upload
+screenshot_workbook(workbook_id="...", view_name="Sheet 1")          # Visual check
 ```
 
 ## FAQ
@@ -154,7 +187,11 @@ This GIF shows the MCP tool flow that builds a dashboard step by step.
 
 ### Does `validate_workbook` save files?
 
-No. `validate_workbook()` checks the workbook in memory or on disk, but it does not write output. `save_workbook()` is the tool that writes files.
+No. `validate_workbook()` validates via the Tableau Cloud REST API (requires `.env` configuration). It does not write output. `save_workbook()` is the tool that writes files.
+
+### What validation does `save()` perform?
+
+`save()` runs local XSD validation automatically. If `.env` is configured and the Tableau server supports it (Cloud 2026.2+ / Server 2026.2+), REST API semantic validation is also enforced — this guarantees the workbook will open in Tableau. If `.env` is not configured, only local XSD validation runs.
 
 ### What is `upload_workbook` for?
 
@@ -165,7 +202,8 @@ No. `validate_workbook()` checks the workbook in memory or on disk, but it does 
 1. Install: `pip install "cwtwb[validate]"`
 2. Copy `.env.example` to `.env`
 3. Fill in your Tableau Cloud/Server PAT credentials
-4. After `save_workbook`, call `upload_workbook` to validate
+4. `save_workbook` will automatically run REST API semantic validation
+5. Or call `validate_workbook` directly for validation without saving
 
 ### When should I use `uvx cwtwb` versus `python -m cwtwb.mcp`?
 

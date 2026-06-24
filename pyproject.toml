@@ -61,6 +61,7 @@ packages = ["src/cwtwb"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "vendor/tableau-document-schemas/schemas/2026_1" = "cwtwb/vendor/tableau-document-schemas/schemas/2026_1"
+"vendor/tableau-document-schemas/schemas/2026_2" = "cwtwb/vendor/tableau-document-schemas/schemas/2026_2"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -72,6 +73,7 @@ exclude = [
 
 [tool.hatch.build.targets.sdist.force-include]
 "vendor/tableau-document-schemas/schemas/2026_1" = "vendor/tableau-document-schemas/schemas/2026_1"
+"vendor/tableau-document-schemas/schemas/2026_2" = "vendor/tableau-document-schemas/schemas/2026_2"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

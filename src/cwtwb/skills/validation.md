@@ -1,9 +1,9 @@
 ---
 name: Workbook Validation
 description: >
-  Upload generated .twb to Tableau Cloud for validation, with optional
-  screenshot for human review. Use after save_workbook to verify the
-  generated workbook is structurally valid.
+  Validate and/or upload .twb files to Tableau Cloud. Supports local XSD
+  schema validation and REST API semantic validation (requires Tableau
+  Cloud June 2026+ / Server 2026.2+).
 phase: 4
 prerequisites: chart_builder, dashboard_designer (workbook should be saved first)
 ---
@@ -13,31 +13,55 @@ prerequisites: chart_builder, dashboard_designer (workbook should be saved first
 ## Your Role
 
 You are a **quality assurance agent**. After generating a Tableau workbook,
-upload it to Tableau Cloud to verify it is structurally valid. Optionally
-capture a screenshot for human review.
+validate it to confirm it will open in Tableau. Choose the right validation
+level for the situation.
 
-## When to Use
+## Validation Levels
 
-- After `save_workbook`, when the human wants to verify the output
-- When you need to confirm a generated .twb can be opened by Tableau
-- When the human asks to "validate", "test", or "check" the workbook
-- When you want to show a visual preview of the result
+| Level | What it checks | Guarantees opening? | Requires |
+|-------|---------------|---------------------|----------|
+| **Local XSD** (`validate_workbook` in-memory) | XML structure against official schema | ❌ No | Nothing (built-in) |
+| **REST API syntactic** (`validate_workbook`, level=`syntactic`) | Same as XSD, via Tableau Cloud | ❌ No | Tableau Cloud/Server 2026.2+ |
+| **REST API semantic** (`validate_workbook`, level=`semantic`) | Full semantic validation | ✅ Yes | Tableau Cloud June 2026+ / Server 2026.2+ |
+| **Upload** (`upload_workbook`) | Publishes + Tableau Cloud parses it | ✅ Yes | Tableau Cloud/Server |
+
+### Which to use?
+
+- **Quick check during development**: use local XSD (no server needed)
+- **Before shipping to production**: use REST API semantic validation
+- **When you need a visual preview**: use `upload_workbook` + `screenshot_workbook`
 
 ## Workflow
 
+### Option A: Local XSD validation (fast, no server)
 ```
-1. save_workbook(path)              — save .twb to disk
-2. upload_workbook(twb_path)        — upload to Tableau Cloud
-   → success=true: workbook is valid
-   → success=false: read error, fix and retry
-3. screenshot_workbook(workbook_id) — (optional) capture view image
+1. save_workbook(path)
+2. validate_workbook(file_path)  — in-memory XSD check
+   → PASS: XML structure is valid
+   → FAIL: fix XML issues and retry
+```
+
+### Option B: REST API semantic validation (definitive)
+```
+1. save_workbook(path)
+2. validate_workbook(twb_path, validation_level="semantic")
+   → valid=true:  workbook WILL open in Tableau
+   → valid=false: read errors, fix and retry
+```
+
+### Option C: Upload + screenshot (visual confirmation)
+```
+1. save_workbook(path)
+2. upload_workbook(twb_path)     — publish to Tableau Cloud
+3. screenshot_workbook(workbook_id) — capture view image
 4. Report result to human
 ```
 
 ## Pre-flight
 
-- Requires `.env` with Tableau credentials (see `.env.example`)
-- Requires `pip install 'cwtwb[validate]'`
+- **Local XSD**: no configuration needed
+- **REST API validation**: requires `.env` with Tableau credentials (see `.env.example`) + `pip install 'cwtwb[validate]'`
+- **Upload**: same as REST API validation
 - If not configured, tool returns a clear error message
 
 ## Error Handling
@@ -46,5 +70,6 @@ capture a screenshot for human review.
 |-------|--------|
 | PAT not configured | Tell human to create `.env` from `.env.example` |
 | 401 Unauthorized | Check PAT name/secret and site content URL |
-| 400 Publish failed | Check .twb XML structure and data source references |
+| 404 Validation endpoint not found | Server doesn't support validation API (needs 2026.2+) |
+| 400 Validation failed | Read error messages, fix workbook, retry |
 | 500 Server error | Check .twbx internal file structure |

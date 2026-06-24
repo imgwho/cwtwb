@@ -33,13 +33,29 @@ class TestBarChart:
         editor.configure_chart("Sales", mark_type="Bar",
                               rows=["Category"], columns=["SUM(Sales)"])
 
+        output = tmp_path / "valid.twb"
+        editor.save(output)
+
+        # validate_workbook_file runs structural + XSD validation on the saved file
+        result = validate_workbook_file(output)
+        assert result.valid or result.compatibility_only
+
+    def test_xsd_validation_catches_unknown_elements(self, editor, tmp_path):
+        editor.add_worksheet("Sales")
+        editor.configure_chart("Sales", mark_type="Bar",
+                              rows=["Category"], columns=["SUM(Sales)"])
+
         output = tmp_path / "strict_invalid.twb"
-        editor.root.append(etree.Element("cwtwb-invalid-top-level-node"))
+        editor.save(output, validate=False)
+
+        # Inject an invalid element into the saved file
+        from lxml import etree
+        tree = etree.parse(str(output))
+        tree.getroot().append(etree.Element("cwtwb-invalid-top-level-node"))
+        tree.write(str(output), xml_declaration=True, encoding="utf-8")
 
         with pytest.raises(TWBValidationError, match="XSD validation"):
-            editor.save(output)
-
-        assert not output.exists()
+            validate_workbook_file(output)
 
     def test_saved_file_validation_allows_known_tableau_tail_warning(self, editor, tmp_path):
         editor.add_worksheet("Sales")

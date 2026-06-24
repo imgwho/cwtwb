@@ -33,26 +33,43 @@ logger = logging.getLogger(__name__)
 # In an installed wheel (including uvx), the schema is packaged under
 # cwtwb/vendor/.... In a source checkout, it lives under the repository-level
 # vendor/ directory. Check both so validation works in both environments.
-_PACKAGE_SCHEMA_PATH = (
-    Path(__file__).parent
-    / "vendor/tableau-document-schemas/schemas/2026_1/twb_2026.1.0.xsd"
+_PACKAGE_SCHEMA_DIR = (
+    Path(__file__).parent / "vendor/tableau-document-schemas/schemas"
 )
-_SOURCE_SCHEMA_PATH = (
-    Path(__file__).parent.parent.parent
-    / "vendor/tableau-document-schemas/schemas/2026_1/twb_2026.1.0.xsd"
+_SOURCE_SCHEMA_DIR = (
+    Path(__file__).parent.parent.parent / "vendor/tableau-document-schemas/schemas"
 )
-_SCHEMA_PATH_CANDIDATES = (_PACKAGE_SCHEMA_PATH, _SOURCE_SCHEMA_PATH)
+
+# TWB version string -> XSD folder name under schemas/
+_VERSION_MAP: dict[str, str] = {
+    "26.1": "2026_1",
+    "26.2": "2026_2",
+    # Legacy version strings (Tableau <= 2025.x) — validated against 2026.1 schema
+    "18.1": "2026_1",
+    "18.0": "2026_1",
+}
+_DEFAULT_TWB_VERSION = "26.2"
 
 
-def _resolve_schema_path() -> Path:
-    """Return the first available Tableau XSD path for package/source usage."""
-
-    for candidate in _SCHEMA_PATH_CANDIDATES:
-        if candidate.exists():
+def _resolve_schema_dir() -> Path:
+    """Return the first available schema root directory."""
+    for candidate in (_PACKAGE_SCHEMA_DIR, _SOURCE_SCHEMA_DIR):
+        if candidate.is_dir():
             return candidate
-    return _PACKAGE_SCHEMA_PATH
+    return _PACKAGE_SCHEMA_DIR
 
 
+_SCHEMA_DIR = _resolve_schema_dir()
+
+
+def _resolve_schema_path(version: str | None = None) -> Path:
+    """Return the XSD path for a given TWB version string (e.g. '26.2')."""
+    twb_ver = version or _DEFAULT_TWB_VERSION
+    folder = _VERSION_MAP.get(twb_ver, _VERSION_MAP[_DEFAULT_TWB_VERSION])
+    return _SCHEMA_DIR / folder / f"twb_{folder.replace('_', '.')}.0.xsd"
+
+
+# Default schema path (latest) — used as fallback
 _SCHEMA_PATH = _resolve_schema_path()
 
 # The TWB XSD imports two external namespaces without bundling their schemas:
@@ -99,9 +116,9 @@ _IMPORT_PATCHES: list[tuple[bytes, bytes]] = [
     ),
 ]
 
-# Cached parsed schema (loaded once on first use)
-_xsd_schema: etree.XMLSchema | None = None
-_xsd_load_error: str | None = None
+# Cached parsed schemas (loaded once per version on first use)
+_xsd_schemas: dict[str, etree.XMLSchema] = {}
+_xsd_load_errors: dict[str, str] = {}
 _WORKBOOK_TAIL_COMPATIBILITY_RE = re.compile(
     r"Element 'workbook': Missing child element\(s\)\. Expected is one of \((?P<expected>[^)]+)\)\."
 )
@@ -114,43 +131,44 @@ _KNOWN_WORKBOOK_TAIL_CHILDREN = {
 }
 
 
-def _ensure_stubs() -> None:
+def _ensure_stubs(schema_path: Path) -> None:
     """Write stub XSD files alongside the main schema if they don't exist yet."""
     for filename, content in _STUBS.items():
-        stub_path = _SCHEMA_PATH.parent / filename
+        stub_path = schema_path.parent / filename
         if not stub_path.exists():
             stub_path.write_bytes(content)
 
 
-def _patched_xsd_bytes() -> bytes:
+def _patched_xsd_bytes(schema_path: Path) -> bytes:
     """Return the main XSD bytes with missing imports given schemaLocation attributes."""
-    raw = _SCHEMA_PATH.read_bytes()
+    raw = schema_path.read_bytes()
     for old, new in _IMPORT_PATCHES:
         raw = raw.replace(old, new, 1)
     return raw
 
 
-def _load_schema() -> etree.XMLSchema | None:
-    """Load and cache the XSD schema. Returns None if unavailable."""
-    global _xsd_schema, _xsd_load_error
-    if _xsd_schema is not None:
-        return _xsd_schema
-    if _xsd_load_error is not None:
+def _load_schema(version: str | None = None) -> etree.XMLSchema | None:
+    """Load and cache the XSD schema for a given TWB version. Returns None if unavailable."""
+    twb_ver = version or _DEFAULT_TWB_VERSION
+    if twb_ver in _xsd_schemas:
+        return _xsd_schemas[twb_ver]
+    if twb_ver in _xsd_load_errors:
         return None
-    if not _SCHEMA_PATH.exists():
-        _xsd_load_error = f"Schema file not found: {_SCHEMA_PATH}"
+    schema_path = _resolve_schema_path(twb_ver)
+    if not schema_path.exists():
+        _xsd_load_errors[twb_ver] = f"Schema file not found: {schema_path}"
         return None
     try:
         import io as _io
-        _ensure_stubs()
-        patched = _patched_xsd_bytes()
+        _ensure_stubs(schema_path)
+        patched = _patched_xsd_bytes(schema_path)
         # Parse with base_url so relative schemaLocation attributes resolve correctly
-        xsd_doc = etree.parse(_io.BytesIO(patched), base_url=_SCHEMA_PATH.as_uri())
-        _xsd_schema = etree.XMLSchema(xsd_doc)
-        return _xsd_schema
+        xsd_doc = etree.parse(_io.BytesIO(patched), base_url=schema_path.as_uri())
+        _xsd_schemas[twb_ver] = etree.XMLSchema(xsd_doc)
+        return _xsd_schemas[twb_ver]
     except Exception as exc:  # pragma: no cover
-        _xsd_load_error = f"Failed to parse XSD schema: {exc}"
-        logger.warning("XSD schema load error: %s", exc)
+        _xsd_load_errors[twb_ver] = f"Failed to parse XSD schema: {exc}"
+        logger.warning("XSD schema load error (version %s): %s", twb_ver, exc)
         return None
 
 
@@ -162,6 +180,7 @@ class SchemaValidationResult:
     errors: list[str] = field(default_factory=list)
     compatibility_warnings: list[str] = field(default_factory=list)
     schema_available: bool = True
+    schema_version: str | None = None
 
     @property
     def compatibility_only(self) -> bool:
@@ -169,6 +188,7 @@ class SchemaValidationResult:
 
     def to_text(self) -> str:
         """Render a user-facing PASS/FAIL summary string for MCP responses."""
+        version_label = self.schema_version or "unknown"
         if not self.schema_available:
             return (
                 "XSD schema not available — Tableau TWB schema was not found "
@@ -176,7 +196,7 @@ class SchemaValidationResult:
                 "source, run: git submodule update --init vendor/tableau-document-schemas"
             )
         if self.valid:
-            return "PASS  Workbook is valid against Tableau TWB XSD schema (2026.1)"
+            return f"PASS  Workbook is valid against Tableau TWB XSD schema ({version_label})"
         if self.compatibility_only:
             lines = [
                 "WARN  Workbook only failed strict XSD checks on known Tableau-compatibility issues:"
@@ -220,8 +240,32 @@ def _is_known_tableau_user_specific_attribute_issue(error: str) -> bool:
     )
 
 
+def _extract_twb_version(root: etree._Element) -> str | None:
+    """Extract the TWB version string from the workbook root element.
+
+    Maps the workbook's 'version' attribute (e.g. '26.1', '26.2', '18.1')
+    to a key in _VERSION_MAP.  Returns None when the version is unknown.
+    """
+    raw = root.get("version")
+    if not raw:
+        return None
+    # Normalize: "26.2" stays "26.2"; "2026.2" -> "26.2"
+    ver = raw.strip()
+    if ver in _VERSION_MAP:
+        return ver
+    # Try stripping century prefix: "2026.2" -> "26.2"
+    m = re.match(r"^20(\d{2}\.\d+)$", ver)
+    if m and m.group(1) in _VERSION_MAP:
+        return m.group(1)
+    return None
+
+
 def validate_against_schema(root: etree._Element) -> SchemaValidationResult:
     """Validate a TWB root element against the official Tableau XSD schema.
+
+    The schema version is auto-detected from the workbook's ``version``
+    attribute.  When the version is unrecognized, the latest available
+    schema is used.
 
     Args:
         root: The root <workbook> element.
@@ -229,9 +273,14 @@ def validate_against_schema(root: etree._Element) -> SchemaValidationResult:
     Returns:
         SchemaValidationResult with validity flag and error list.
     """
-    schema = _load_schema()
+    twb_ver = _extract_twb_version(root)
+    schema = _load_schema(twb_ver)
+    resolved_ver = twb_ver or _DEFAULT_TWB_VERSION
+    # Map TWB version to display label via _VERSION_MAP folder name
+    folder = _VERSION_MAP.get(resolved_ver, _VERSION_MAP[_DEFAULT_TWB_VERSION])
+    display_version = folder.replace("_", ".")
     if schema is None:
-        return SchemaValidationResult(valid=True, schema_available=False)
+        return SchemaValidationResult(valid=True, schema_available=False, schema_version=display_version)
 
     tree = root.getroottree()
     is_valid = schema.validate(tree)
@@ -250,6 +299,7 @@ def validate_against_schema(root: etree._Element) -> SchemaValidationResult:
         valid=is_valid,
         errors=strict_errors,
         compatibility_warnings=compatibility_warnings,
+        schema_version=display_version,
     )
 
 

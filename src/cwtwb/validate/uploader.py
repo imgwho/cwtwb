@@ -23,6 +23,19 @@ class UploadResult:
 
 
 @dataclass
+class ValidationResult:
+    """Result of validating a workbook via Tableau Cloud REST API."""
+
+    success: bool
+    validation_level: str | None = None  # "syntactic" | "semantic"
+    valid: bool = False
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    upload_id: str | None = None  # from validateWorkbookAndUpload
+    error: str | None = None
+
+
+@dataclass
 class ScreenshotResult:
     """Result of screenshotting a published workbook view."""
 
@@ -296,6 +309,278 @@ class TableauUploader:
             )
         except Exception as e:
             return ScreenshotResult(success=False, error=str(e))
+        finally:
+            self.sign_out()
+
+    # ------------------------------------------------------------------
+    # REST API validation (requires Tableau Cloud June 2026+ / Server 2026.2+)
+    # ------------------------------------------------------------------
+
+    def _api_url(self, path: str) -> str:
+        """Build a REST API URL."""
+        version = getattr(self._server, "version", "3.29") or "3.29"
+        base = self.server_url.rstrip("/")
+        return f"{base}/api/{version}/sites/{self._server.site_id}{path}"
+
+    def _api_headers(self) -> dict[str, str]:
+        """Return headers with auth token for direct REST API calls."""
+        return {
+            "X-Tableau-Auth": self._server.auth_token,
+            "Accept": "application/json",
+        }
+
+    @staticmethod
+    def _format_issue(issue: dict) -> str:
+        """Format a validation error/warning dict into a readable string."""
+        parts = []
+        if issue.get("line"):
+            parts.append(f"line {issue['line']}")
+        if issue.get("column"):
+            parts.append(f"col {issue['column']}")
+        if issue.get("elementName"):
+            parts.append(f"<{issue['elementName']}>")
+        loc = ", ".join(parts)
+        msg = issue.get("message", str(issue))
+        return f"{msg} ({loc})" if loc else msg
+
+    def _parse_validation_response(
+        self, resp, level: str
+    ) -> ValidationResult:
+        """Parse the JSON response from a validation endpoint.
+
+        API response format (from official docs):
+          200 — valid (may have warnings)
+          422 — validation errors found
+        Both return: {"timestamp": "...", "errors": [...], "warnings": [...]}
+        Each error/warning: {"severity", "message", "line", "column", "elementName"}
+        """
+        if resp.status_code == 404:
+            return ValidationResult(
+                success=False,
+                validation_level=level,
+                error=(
+                    "Validation endpoint not found (HTTP 404). "
+                    "This feature requires Tableau Cloud June 2026+ "
+                    "or Tableau Server 2026.2+."
+                ),
+            )
+        if resp.status_code == 401:
+            return ValidationResult(
+                success=False,
+                validation_level=level,
+                error="Authentication failed (HTTP 401). Check your PAT credentials.",
+            )
+        if resp.status_code == 400:
+            return ValidationResult(
+                success=False,
+                validation_level=level,
+                error=(
+                    "Bad request (HTTP 400). "
+                    "Ensure the file is a valid .twb (not .twbx) "
+                    "and the Content-Disposition filename ends with '.twb'."
+                ),
+            )
+
+        try:
+            data = resp.json()
+        except Exception:
+            return ValidationResult(
+                success=False,
+                validation_level=level,
+                error=f"Unexpected response (HTTP {resp.status_code}): {resp.text[:500]}",
+            )
+
+        errors = [self._format_issue(e) for e in data.get("errors", [])]
+        warnings = [self._format_issue(w) for w in data.get("warnings", [])]
+
+        # HTTP 200 = valid (errors list is empty); HTTP 422 = validation failed
+        is_valid = resp.status_code == 200 and len(errors) == 0
+
+        return ValidationResult(
+            success=resp.status_code in (200, 422),
+            validation_level=level,
+            valid=is_valid,
+            errors=errors,
+            warnings=warnings,
+        )
+
+    def validate(
+        self,
+        twb_path: str | Path,
+        validation_level: str = "semantic",
+    ) -> ValidationResult:
+        """Validate a .twb file via Tableau Cloud REST API (no publish).
+
+        This is the "Validate Workbook" endpoint. It validates the TWB
+        against the XSD schema AND verifies that Tableau can load it
+        (when validation_level="semantic"). The file is NOT stored on
+        the server.
+
+        Requires Tableau Cloud June 2026+ / Server 2026.2+.
+        Only .twb files are supported (not .twbx).
+
+        Args:
+            twb_path: Path to .twb file.
+            validation_level: "syntactic" or "semantic" (default).
+
+        Returns:
+            ValidationResult with validity flag and error list.
+        """
+        err = self._check_config()
+        if err:
+            return ValidationResult(success=False, error=err)
+
+        try:
+            twb_path = Path(twb_path)
+
+            if twb_path.suffix.lower() == ".twbx":
+                return ValidationResult(
+                    success=False,
+                    validation_level=validation_level,
+                    error=(
+                        "The Validate Workbook API only accepts .twb files. "
+                        "For .twbx files, use upload_workbook instead."
+                    ),
+                )
+
+            if not twb_path.exists():
+                return ValidationResult(
+                    success=False,
+                    validation_level=validation_level,
+                    error=f"File not found: {twb_path}",
+                )
+
+            self.sign_in()
+
+            import requests  # noqa: F811
+
+            url = self._api_url("/workbooks/validateWorkbook")
+            headers = self._api_headers()
+
+            with open(twb_path, "rb") as f:
+                files = {
+                    "tableau_workbook": (twb_path.name, f, "application/octet-stream")
+                }
+                resp = requests.post(
+                    url, headers=headers, files=files, verify=False
+                )
+
+            return self._parse_validation_response(resp, validation_level)
+        except Exception as e:
+            return ValidationResult(
+                success=False, validation_level=validation_level, error=str(e)
+            )
+        finally:
+            self.sign_out()
+
+    def validate_and_upload(
+        self,
+        twb_path: str | Path,
+    ) -> ValidationResult:
+        """Validate a .twb and store it in temporary server storage.
+
+        Calls the "Validate Workbook and Upload" endpoint. On success
+        (HTTP 200), the TWB is stored temporarily on the server and the
+        response includes an ``upload_id`` that can be passed to
+        ``validate_uploaded()`` for re-validation.
+
+        Requires Tableau Cloud June 2026+ / Server 2026.2+.
+        Only .twb files are supported (not .twbx).
+
+        Args:
+            twb_path: Path to .twb file.
+
+        Returns:
+            ValidationResult with upload_id on success.
+        """
+        err = self._check_config()
+        if err:
+            return ValidationResult(success=False, error=err)
+
+        try:
+            twb_path = Path(twb_path)
+
+            if twb_path.suffix.lower() == ".twbx":
+                return ValidationResult(
+                    success=False,
+                    error=(
+                        "The Validate Workbook and Upload API only accepts .twb files. "
+                        "For .twbx files, use upload_workbook instead."
+                    ),
+                )
+
+            if not twb_path.exists():
+                return ValidationResult(
+                    success=False, error=f"File not found: {twb_path}"
+                )
+
+            self.sign_in()
+
+            import requests  # noqa: F811
+
+            url = self._api_url("/workbooks/validateWorkbookAndUpload")
+            headers = self._api_headers()
+
+            with open(twb_path, "rb") as f:
+                files = {
+                    "tableau_workbook": (twb_path.name, f, "application/octet-stream")
+                }
+                resp = requests.post(
+                    url, headers=headers, files=files, verify=False
+                )
+
+            result = self._parse_validation_response(resp, "semantic")
+            if resp.status_code == 200:
+                data = resp.json()
+                result.upload_id = data.get("uploadId")
+            return result
+        except Exception as e:
+            return ValidationResult(success=False, error=str(e))
+        finally:
+            self.sign_out()
+
+    def validate_uploaded(
+        self,
+        upload_session_id: str,
+    ) -> ValidationResult:
+        """Re-validate a TWB that was previously uploaded to temporary storage.
+
+        Calls the "Validate Uploaded Workbook" endpoint. The TWB must
+        have been stored via ``validate_and_upload()`` first; pass the
+        ``upload_id`` from that result as ``upload_session_id``.
+
+        Requires Tableau Cloud June 2026+ / Server 2026.2+.
+
+        Args:
+            upload_session_id: The upload session ID from validate_and_upload().
+
+        Returns:
+            ValidationResult with validity flag and error list.
+        """
+        err = self._check_config()
+        if err:
+            return ValidationResult(success=False, error=err)
+
+        try:
+            self.sign_in()
+
+            import requests  # noqa: F811
+
+            url = self._api_url("/workbooks/validateUploadedWorkbook")
+            headers = self._api_headers()
+            params = {"uploadSessionId": upload_session_id}
+
+            resp = requests.post(
+                url, headers=headers, params=params, verify=False
+            )
+
+            result = self._parse_validation_response(resp, "semantic")
+            if resp.status_code == 200:
+                data = resp.json()
+                result.upload_id = data.get("uploadId")
+            return result
+        except Exception as e:
+            return ValidationResult(success=False, error=str(e))
         finally:
             self.sign_out()
 
