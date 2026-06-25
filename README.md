@@ -110,6 +110,7 @@ This GIF shows the MCP tool flow that builds a dashboard step by step.
   │  │                          │  │                           │  │
   │  │                          │  │  editor.add_...()         │  │
   │  │                          │  │  editor.configure_...()   │  │
+  │  │                          │  │  editor.validate_schema() │  │
   │  │  (Claude / Cursor /      │  │  editor.save(...)         │  │
   │  │   VSCode / Claude Code)  │  │                           │  │
   │  └─────────────┬────────────┘  └──────────────┬────────────┘  │
@@ -120,6 +121,7 @@ This GIF shows the MCP tool flow that builds a dashboard step by step.
   │                          TWBEditor                            │
   │       ParametersMixin  ·  ConnectionsMixin                    │
   │       ChartsMixin      ·  DashboardsMixin                     │
+  │       validate_schema()  ·  save()                            │
   └──────────┬──────────────────┬──────────────────┬─────────────┘
              ▼                  ▼                  ▼
   ┌──────────────────┐  ┌──────────────┐  ┌──────────────────────┐
