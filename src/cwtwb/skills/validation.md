@@ -1,11 +1,8 @@
 ---
 name: Workbook Validation
-description: >
-  Validate and/or upload .twb files to Tableau Cloud. Supports local XSD
-  schema validation and REST API semantic validation (requires Tableau
-  Cloud June 2026+ / Server 2026.2+).
-phase: 4
-prerequisites: chart_builder, dashboard_designer (workbook should be saved first)
+description: Validate and/or upload .twb files with local XSD checks, REST API semantic validation, and optional Tableau Cloud screenshots.
+phase: 5
+prerequisites: formatting (workbook should be saved first)
 ---
 
 # Workbook Validation Skill
@@ -20,10 +17,10 @@ level for the situation.
 
 | Level | What it checks | Guarantees opening? | Requires |
 |-------|---------------|---------------------|----------|
-| **Local XSD** (`validate_workbook` in-memory) | XML structure against official schema | ❌ No | Nothing (built-in) |
-| **REST API syntactic** (`validate_workbook`, level=`syntactic`) | Same as XSD, via Tableau Cloud | ❌ No | Tableau Cloud/Server 2026.2+ |
-| **REST API semantic** (`validate_workbook`, level=`semantic`) | Full semantic validation | ✅ Yes | Tableau Cloud June 2026+ / Server 2026.2+ |
-| **Upload** (`upload_workbook`) | Publishes + Tableau Cloud parses it | ✅ Yes | Tableau Cloud/Server |
+| **Local XSD** (`validate_workbook`) | XML structure against official schema | No | Nothing (built-in) |
+| **REST API syntactic** (`validate_workbook_api`, level=`syntactic`) | Same as XSD, via Tableau Cloud | No | Tableau Cloud/Server 2026.2+ |
+| **REST API semantic** (`validate_workbook_api`, level=`semantic`) | Full semantic validation | Yes | Tableau Cloud June 2026+ / Server 2026.2+ |
+| **Upload** (`upload_workbook`) | Publishes + Tableau Cloud parses it | Yes | Tableau Cloud/Server |
 
 ### Which to use?
 
@@ -36,24 +33,24 @@ level for the situation.
 ### Option A: Local XSD validation (fast, no server)
 ```
 1. save_workbook(path)
-2. validate_workbook(file_path)  — in-memory XSD check
-   → PASS: XML structure is valid
-   → FAIL: fix XML issues and retry
+2. validate_workbook(file_path)  - local XSD check
+   -> PASS: XML structure is valid
+   -> FAIL: fix XML issues and retry
 ```
 
 ### Option B: REST API semantic validation (definitive)
 ```
 1. save_workbook(path)
-2. validate_workbook(twb_path, validation_level="semantic")
-   → valid=true:  workbook WILL open in Tableau
-   → valid=false: read errors, fix and retry
+2. validate_workbook_api(twb_path, validation_level="semantic")
+   -> valid=true: workbook will open in Tableau
+   -> valid=false: read errors, fix and retry
 ```
 
 ### Option C: Upload + screenshot (visual confirmation)
 ```
 1. save_workbook(path)
-2. upload_workbook(twb_path)     — publish to Tableau Cloud
-3. screenshot_workbook(workbook_id) — capture view image
+2. upload_workbook(twb_path)        - publish to Tableau Cloud
+3. screenshot_workbook(workbook_id) - capture view image
 4. Report result to human
 ```
 

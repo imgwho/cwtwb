@@ -126,6 +126,7 @@ _SKILL_NAMES = [
     "chart_builder",
     "dashboard_designer",
     "formatting",
+    "validation",
 ]
 
 

@@ -21,10 +21,12 @@ The `cw` in `cwtwb` comes from `Cooper Wenhua`.
 
 [Website](https://datacooper.com) · [Source](https://github.com/imgwho/cwtwb) · [Changelog](https://github.com/imgwho/cwtwb/blob/main/CHANGELOG.md)
 
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/cwtwb?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/cwtwb)
 [![Website](https://img.shields.io/badge/Website-datacooper.com-0A7CFF?style=flat-square)](https://datacooper.com)
 [![Source](https://img.shields.io/badge/Source-GitHub-181717?style=flat-square)](https://github.com/imgwho/cwtwb)
 [![License](https://img.shields.io/badge/License-AGPL--3.0--or--later-green?style=flat-square)](https://github.com/imgwho/cwtwb/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square)](https://www.python.org/)
+
 
 [![Star History Chart](https://api.star-history.com/svg?repos=imgwho/cwtwb&type=Date)](https://star-history.com/#imgwho/cwtwb&Date)
 
@@ -144,6 +146,13 @@ This GIF shows the MCP tool flow that builds a dashboard step by step.
            └───────────────────┼──────────────────────┘
                                ▼
   ┌───────────────────────────────────────────────────────────────┐
+  │                    Packaged References                        │
+  │    empty_template.twb  ·  Superstore XLS/Hyper                │
+  │    tableau_all_functions.json  ·  dataset profiles            │
+  │    vendored Tableau TWB XSD schemas (2026.1 / 2026.2)         │
+  └───────────────────────────────┬───────────────────────────────┘
+                                  ▼
+  ┌───────────────────────────────────────────────────────────────┐
   │                     XML Engine  (lxml)                        │
   │    template.twb/.twbx  →  patch  →  validate  →  save        │
   └───────────────────────────────┬───────────────────────────────┘
@@ -152,11 +161,63 @@ This GIF shows the MCP tool flow that builds a dashboard step by step.
                                   ▼
   ┌───────────────────────────────────────────────────────────────┐
   │               Cloud Validation (optional)                    │
-  │    validate_workbook → REST API semantic validation          │
-  │    upload_workbook   → Tableau Cloud/Server publish          │
-  │    screenshot_workbook → capture view for visual check       │
+  │    validate_workbook_api → REST API semantic validation      │
+  │    upload_workbook       → Tableau Cloud/Server publish      │
+  │    screenshot_workbook   → capture view for visual check     │
   └───────────────────────────────────────────────────────────────┘
 ```
+
+The reference layer is packaged with the library so agents and scripts can
+start from known-good workbook assets, resolve Tableau calculation syntax, run
+Hyper-backed examples, and validate against local XSD schemas without relying
+on a checked-out repository.
+
+## Agent Architecture
+
+cwtwb is designed for tool-using agents, not just direct Python calls. The MCP
+server gives agents a small, stateful workbook editing surface; skill resources
+give phase-specific Tableau guidance before each set of tool calls.
+
+```text
+Human or agent prompt
+        |
+        v
+MCP server instructions
+        |
+        v
+Skill resources
+calculation_builder -> chart_builder -> dashboard_designer -> formatting -> validation
+        |
+        v
+Workbook tools
+create/open -> list_fields -> add/configure -> layout -> save -> validate/upload
+        |
+        v
+TWB/TWBX artifact + validation evidence
+```
+
+Prompts explain what to build. Skills explain how to build it well. Tools make
+the workbook changes inspectable and repeatable.
+
+## Capability Boundary
+
+cwtwb keeps its public surface intentionally small:
+
+| Level | Meaning |
+|---|---|
+| Core | Stable primitives for normal SDK docs, examples, and MCP workflows |
+| Advanced | Supported compositions and interaction patterns with more moving parts |
+| Recipe | Showcase patterns exposed through `configure_chart_recipe`, not one tool per chart |
+
+Use `list_capabilities` or `describe_capability` when an agent needs to check
+whether a requested chart or workbook feature belongs in the stable surface.
+
+## Design Decisions
+
+- The MCP server uses a stateful session model: open or create a workbook, mutate it through explicit tools, then call `save_workbook`.
+- Skills are phase-specific operating guides, not generic prompt stuffing.
+- `save_workbook`, `validate_workbook`, `validate_workbook_api`, and `upload_workbook` have separate responsibilities so agents do not confuse writing, local checks, semantic validation, and publishing.
+- The capability registry keeps the product boundary explicit instead of letting showcase examples become accidental API promises.
 
 ## Validation
 
@@ -179,15 +240,16 @@ from cwtwb.validate.uploader import TableauUploader
 uploader = TableauUploader()
 result = uploader.validate("output.twb", validation_level="semantic")
 
-# Save with automatic REST API validation (enforced when .env is configured)
-editor.save("output.twb")  # runs local XSD + REST API semantic validation
+# Save with local XSD validation; REST API semantic validation also runs when .env is configured
+editor.save("output.twb")
 ```
 
 ```bash
 # MCP tools
-validate_workbook(twb_path="output.twb")                             # REST API validation
-upload_workbook(twb_path="output.twb")                               # Cloud upload
-screenshot_workbook(workbook_id="...", view_name="Sheet 1")          # Visual check
+validate_workbook(file_path="output.twb")                                       # Local XSD validation
+validate_workbook_api(twb_path="output.twb", validation_level="semantic")        # REST API validation
+upload_workbook(twb_path="output.twb")                                          # Cloud upload
+screenshot_workbook(workbook_id="...", view_name="Sheet 1")                     # Visual check
 ```
 
 ## FAQ
@@ -198,11 +260,11 @@ screenshot_workbook(workbook_id="...", view_name="Sheet 1")          # Visual ch
 
 ### Does `validate_workbook` save files?
 
-No. `validate_workbook()` validates via the Tableau Cloud REST API (requires `.env` configuration). It does not write output. `save_workbook()` is the tool that writes files.
+No. `validate_workbook()` performs local XSD validation on the active in-memory workbook or an existing `.twb` / `.twbx` file. It does not write output. `save_workbook()` is the tool that writes files.
 
 ### What validation does `save()` perform?
 
-`save()` runs local XSD validation automatically. If `.env` is configured and the Tableau server supports it (Cloud 2026.2+ / Server 2026.2+), REST API semantic validation is also enforced — this guarantees the workbook will open in Tableau. If `.env` is not configured, only local XSD validation runs.
+`save()` runs local XSD validation automatically before replacing the final output file. For `.twb` output, REST API semantic validation also runs when `.env` Tableau credentials are configured and the server supports it. Use `validate_workbook_api(..., validation_level="semantic")` when you want to request the Tableau Cloud/Server validation step directly.
 
 ### What is `upload_workbook` for?
 
@@ -213,8 +275,8 @@ No. `validate_workbook()` validates via the Tableau Cloud REST API (requires `.e
 1. Install: `pip install "cwtwb[validate]"`
 2. Copy `.env.example` to `.env`
 3. Fill in your Tableau Cloud/Server PAT credentials
-4. `save_workbook` will automatically run REST API semantic validation
-5. Or call `validate_workbook` directly for validation without saving
+4. Call `save_workbook` to write the `.twb` or `.twbx`
+5. Call `validate_workbook_api` for REST API semantic validation, or `upload_workbook` when you also want publish/openability evidence
 
 ### When should I use `uvx cwtwb` versus `python -m cwtwb.mcp_server`?
 

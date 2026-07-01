@@ -11,6 +11,7 @@ Phase 1: calculation_builder   -> Define parameters, calculated fields, LOD logi
 Phase 2: chart_builder         -> Choose chart types, configure encodings, filters
 Phase 3: dashboard_designer    -> Layout, worksheet captions, interaction actions
 Phase 4: formatting            -> Number formats, colors, sorting, tooltips
+Phase 5: validation            -> Local XSD, REST API validation, upload, screenshot
 ```
 
 ## Recommended Resource Flow
@@ -20,12 +21,14 @@ Phase 4: formatting            -> Number formats, colors, sorting, tooltips
 2. read_resource("cwtwb://skills/chart_builder")
 3. read_resource("cwtwb://skills/dashboard_designer")
 4. read_resource("cwtwb://skills/formatting")
-5. create_workbook(...) or open_workbook(...)
-6. list_fields(...)
-7. add_worksheet(...)
-8. configure_chart(...) / configure_dual_axis(...) / configure_chart_recipe(...)
-9. add_dashboard(...)
-10. save_workbook(...)
+5. read_resource("cwtwb://skills/validation")
+6. create_workbook(...) or open_workbook(...)
+7. list_fields(...)
+8. add_worksheet(...)
+9. configure_chart(...) / configure_dual_axis(...) / configure_chart_recipe(...)
+10. add_dashboard(...)
+11. save_workbook(...)
+12. validate_workbook(...) and, when configured, validate_workbook_api(...) or upload_workbook(...)
 ```
 
 ## Design Philosophy

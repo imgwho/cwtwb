@@ -67,7 +67,7 @@ Available worksheet-refactor helpers:
 
 ### Cloud Validation
 
-After saving a workbook, use `upload_workbook` to verify it is structurally valid by uploading to Tableau Cloud. Upload success confirms Tableau Cloud can parse the workbook. Optionally capture a screenshot for human review.
+After saving a workbook, use `validate_workbook_api` for Tableau Cloud/Server REST API validation without publishing, or use `upload_workbook` to publish and verify that Tableau Cloud can parse the workbook. Optionally capture a screenshot for human review.
 
 **Setup:**
 
@@ -83,7 +83,11 @@ from cwtwb.validate import TableauUploader
 
 uploader = TableauUploader()
 
-# Upload and validate
+# REST API semantic validation without publishing
+result = uploader.validate("output/my_workbook.twb", validation_level="semantic")
+print(result.success, result.valid)
+
+# Upload and validate through Tableau Cloud parsing
 result = uploader.upload("output/my_workbook.twb", data_path="data.xlsx")
 print(result.success, result.workbook_url)
 
@@ -96,6 +100,7 @@ if result.success:
 **MCP Tools:**
 
 ```
+validate_workbook_api(twb_path="output/my.twb", validation_level="semantic")
 upload_workbook(twb_path="output/my.twb", data_path="data.xlsx")
 screenshot_workbook(workbook_id="xxx", output_dir="output/validation")
 ```
@@ -160,6 +165,7 @@ editor.save("output/superstore.twbx")  # produces a single-entry ZIP with the .t
 | `analyze_twb` | Analyze a `.twb` file against the capability catalog; output includes both the full capability breakdown and the capability gap triage summary |
 | `diff_template_gap` | Summarize the non-core gap of a template |
 | `validate_workbook` | Validate a workbook against the official Tableau TWB XSD schema (2026.1) |
+| `validate_workbook_api` | Validate a `.twb` via Tableau Cloud/Server REST API without publishing (requires `cwtwb[validate]`) |
 | `set_excel_connection` | Configure the datasource to use a local Excel workbook and register fields from the selected sheet |
 | `set_mysql_connection` | Configure the datasource to use a local MySQL connection |
 | `set_tableauserver_connection` | Configure connection to an online Tableau Server |
@@ -172,6 +178,7 @@ Important save semantics for agents:
 
 - `save_workbook(output_path=...)` is the only default MCP tool that writes the active in-memory workbook to disk.
 - `validate_workbook()` validates the active in-memory workbook or an existing file, but it does not save or export anything.
+- `validate_workbook_api()` performs Tableau Cloud/Server REST API syntactic or semantic validation without publishing.
 - `analyze_twb(file_path=...)` requires an existing `.twb` or `.twbx` path. For a newly generated workbook, call `save_workbook` first, then call `analyze_twb` on the saved path.
 - Migration tools are for repointing existing workbooks to new datasources; they are not a substitute for saving the active workbook.
 
@@ -259,6 +266,7 @@ This keeps new feature work aligned with the project's real product boundary ins
 - **Warnings** such as missing `<view>` or `<panes>` are logged but do not block saving
 - The workbook is first written to a same-directory temporary file, then parsed back from disk
 - The saved `.twb` or packaged `.twbx` is checked against the Tableau TWB XSD when the vendored schema is available
+- For `.twb` output, Tableau Cloud/Server REST API semantic validation also runs when `.env` credentials are configured and the server supports it
 - Strict XSD errors raise `TWBValidationError`; known Tableau compatibility warnings remain non-fatal
 - The final output path is replaced only after the temporary file passes validation
 - Validation can be disabled with `editor.save("output.twb", validate=False)` or `editor.save("output.twbx", validate=False)`
