@@ -24,7 +24,7 @@ The `cw` in `cwtwb` comes from `Cooper Wenhua`.
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/cwtwb?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/cwtwb)
 [![Website](https://img.shields.io/badge/Website-datacooper.com-0A7CFF?style=flat-square)](https://datacooper.com)
 [![Source](https://img.shields.io/badge/Source-GitHub-181717?style=flat-square)](https://github.com/imgwho/cwtwb)
-[![License](https://img.shields.io/badge/License-AGPL--3.0--or--later-green?style=flat-square)](https://github.com/imgwho/cwtwb/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-green?style=flat-square)](https://github.com/imgwho/cwtwb/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square)](https://www.python.org/)
 
 
@@ -292,7 +292,3 @@ See [the online guide](https://github.com/imgwho/cwtwb/blob/main/docs/guide.md).
 
 - [Guide](https://github.com/imgwho/cwtwb/blob/main/docs/guide.md)
 - [Changelog](https://github.com/imgwho/cwtwb/blob/main/CHANGELOG.md)
-
-## License
-
-AGPL-3.0-or-later
