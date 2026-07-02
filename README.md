@@ -167,6 +167,52 @@ This GIF shows the MCP tool flow that builds a dashboard step by step.
   └───────────────────────────────────────────────────────────────┘
 ```
 
+Mermaid view:
+
+```mermaid
+flowchart TD
+    subgraph Interfaces
+        MCP["MCP Server<br/>tools_workbook<br/>tools_validate"]
+        PY["Python Library<br/>TWBEditor API"]
+    end
+
+    subgraph Editor["Core Editor"]
+        TWB["TWBEditor<br/>parameters · connections<br/>charts · dashboards<br/>validate_schema · save"]
+    end
+
+    subgraph Builders["Workbook Systems"]
+        CHARTS["Chart Builders<br/>basic · dual-axis<br/>pie · text · map · recipes"]
+        DASH["Dashboard System<br/>layouts · actions<br/>dependencies"]
+        ANALYSIS["Analysis & Migration<br/>migration.py<br/>twb_analyzer.py<br/>capability_registry"]
+    end
+
+    subgraph References["Packaged References"]
+        REFS["empty_template.twb<br/>Superstore XLS/Hyper<br/>Tableau functions<br/>TWB XSD schemas"]
+    end
+
+    subgraph Engine["XML Engine"]
+        XML["lxml patch pipeline<br/>template.twb/.twbx → patch → validate → save"]
+    end
+
+    subgraph Outputs
+        OUT["output.twb / output.twbx"]
+        CLOUD["Cloud Validation<br/>REST semantic validation<br/>upload · screenshot"]
+    end
+
+    MCP --> TWB
+    PY --> TWB
+    TWB --> CHARTS
+    TWB --> DASH
+    TWB --> ANALYSIS
+    CHARTS --> XML
+    DASH --> XML
+    ANALYSIS --> XML
+    REFS --> TWB
+    REFS --> XML
+    XML --> OUT
+    OUT --> CLOUD
+```
+
 The reference layer is packaged with the library so agents and scripts can
 start from known-good workbook assets, resolve Tableau calculation syntax, run
 Hyper-backed examples, and validate against local XSD schemas without relying
